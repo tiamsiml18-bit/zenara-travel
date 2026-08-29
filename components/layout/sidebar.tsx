@@ -34,22 +34,22 @@ export function Sidebar({ user, followUpsDueCount = 0 }: { user: AppUser; follow
       />
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-        <NavLink href="/dashboard" label="Dashboard" icon={LayoutDashboard} />
-        <NavLink href="/clients" label="Clients" icon={Users} />
-        <NavLink href="/quotations" label="Quotations" icon={FileText} />
-        <NavLink href="/followups" label="Follow-ups" icon={Bell} badge={followUpsDueCount} />
-        <NavLink href="/bookings" label="Bookings" icon={Briefcase} />
-        <NavLink href="/packages" label="Packages" icon={Package} />
-        <NavLink href="/reports" label="Reports" icon={BarChart3} />
+        <NavLink href="/dashboard" label="Dashboard" icon={<LayoutDashboard className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/clients" label="Clients" icon={<Users className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/quotations" label="Quotations" icon={<FileText className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/followups" label="Follow-ups" icon={<Bell className="h-4 w-4 shrink-0" strokeWidth={1.75} />} badge={followUpsDueCount} />
+        <NavLink href="/bookings" label="Bookings" icon={<Briefcase className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
 
         {user.role === 'admin' && (
           <>
             <div className="mt-4 mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-harbor-100/40">
               Admin
             </div>
-            <NavLink href="/admin/settings" label="Settings" icon={Settings} />
-            <NavLink href="/admin/users" label="Users" icon={UserCog} />
-            <NavLink href="/admin/import" label="Import clients" icon={UploadCloud} />
+            <NavLink href="/admin/settings" label="Settings" icon={<Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+            <NavLink href="/admin/users" label="Users" icon={<UserCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+            <NavLink href="/admin/import" label="Import clients" icon={<UploadCloud className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
           </>
         )}
       </nav>
