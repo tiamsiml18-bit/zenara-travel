@@ -20,6 +20,16 @@ export async function listClientSources(supabase: SupabaseClient) {
   return data ?? [];
 }
 
+export async function listConsultants(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from('agency_consultants')
+    .select('id, full_name, title')
+    .eq('is_active', true)
+    .order('sort_order');
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function listAgents(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from('users')

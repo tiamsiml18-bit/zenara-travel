@@ -4,7 +4,7 @@ import { QuotationWizard } from '@/components/quotations/quotation-wizard';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { listActivePackages } from '@/lib/services/packages';
-import { listClientSources } from '@/lib/services/lookups';
+import { listClientSources, listConsultants } from '@/lib/services/lookups';
 import { requireUser } from '@/lib/auth/session';
 
 export default async function ReviseQuotationPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,11 +22,12 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
     redirect(`/quotations/${id}`);
   }
 
-  const [{ itinerary, inclusions, exclusions, costItems, feeItems }, pricing, packages, sources] = await Promise.all([
+  const [{ itinerary, inclusions, exclusions, costItems, feeItems }, pricing, packages, sources, consultants] = await Promise.all([
     getVersionDetail(supabase, currentVersion.id),
     getPricingForVersion(supabase, currentVersion.id),
     listActivePackages(supabase),
     listClientSources(supabase),
+    listConsultants(supabase),
   ]);
 
   return (
@@ -42,6 +43,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
           quotationId={id}
           packages={packages}
           sources={sources}
+          consultants={consultants}
           clients={[]}
           initialData={{
             clientId: quotation.client_id,
@@ -69,6 +71,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
             feeItems,
             supplierCost: pricing?.supplier_cost ?? 0,
             markup: pricing?.markup ?? 0,
+            consultantId: currentVersion.consultant_id ?? '',
           }}
         />
       </main>

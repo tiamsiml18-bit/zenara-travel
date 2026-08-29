@@ -40,6 +40,7 @@ export interface QuotationWizardInitialData {
   supplierCost: number; // legacy fallback (pre-itemization); costItems is the source of truth going forward
   costItems?: CostItemInput[];
   feeItems?: CostItemInput[];
+  consultantId?: string;
   markup: number;
 }
 
@@ -47,6 +48,7 @@ export function QuotationWizard({
   clients,
   packages,
   sources,
+  consultants,
   initialClientId,
   mode = 'create',
   quotationId,
@@ -55,6 +57,7 @@ export function QuotationWizard({
   clients: Client[];
   packages: PackageOption[];
   sources: Source[];
+  consultants: { id: string; full_name: string }[];
   initialClientId?: string;
   mode?: 'create' | 'revise';
   quotationId?: string;
@@ -91,6 +94,7 @@ export function QuotationWizard({
     totalPrice: (initialData?.totalPrice ?? '') as number | '',
     markup: (initialData?.markup ?? '') as number | '',
     notes: initialData?.notes ?? '',
+    consultantId: initialData?.consultantId ?? '',
   });
   const [costItems, setCostItems] = useState<CostItemInput[]>(
     initialData?.costItems ??
@@ -182,6 +186,7 @@ export function QuotationWizard({
       pricePerPerson: trip.pricePerPerson === '' ? null : Number(trip.pricePerPerson),
       totalPrice: Number(trip.totalPrice),
       notes: trip.notes,
+      consultantId: trip.consultantId,
       inclusions,
       exclusions,
       itinerary,
@@ -377,6 +382,24 @@ export function QuotationWizard({
 
         {step === 2 && (
           <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink-700">Prepared by</label>
+              <select
+                value={trip.consultantId}
+                onChange={(e) => setTrip((t) => ({ ...t, consultantId: e.target.value }))}
+                className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              >
+                <option value="">Select who's preparing this quote\u2026</option>
+                {consultants.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-ink-500">
+                Shown on the client PDF as the travel consultant \u2014 pick yourself, not whoever's logged in.
+              </p>
+            </div>
             <LabeledInput
               label="Destination"
               value={trip.destination}

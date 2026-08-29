@@ -27,7 +27,8 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     .from('quotation_versions')
     .select(
       `id, version_label, client_name_snapshot, destination, travel_start_date, travel_end_date,
-       num_adults, num_children, hotel_name, num_bedrooms, price_per_person, total_price, currency`
+       num_adults, num_children, hotel_name, num_bedrooms, price_per_person, total_price, currency,
+       consultant_name_snapshot`
     )
     .eq('id', quotation.current_version_id)
     .single();
@@ -60,11 +61,23 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
 
   const { data: agency } = await supabase.from('agency_settings').select('*').limit(1).single();
 
+  // Prefer the named consultant selected on the quotation (see
+  // agency_consultants) — the agency shares one login across three people,
+  // so the authenticated account's own name is a poor stand-in for "who's
+  // actually handling this trip." Falls back to the logged-in account's
+  // name for quotations created before this existed.
+  const assignedAgent = unwrapToOne(quotation.agent);
+  const displayAgent = {
+    full_name: (version.consultant_name_snapshot as string | null) ?? assignedAgent?.full_name ?? null,
+    email: assignedAgent?.email ?? null,
+    phone: assignedAgent?.phone ?? null,
+  };
+
   return {
     quotationNumber: quotation.quotation_number as string,
     versionLabel: version.version_label as string,
     client: { name: version.client_name_snapshot as string },
-    agent: unwrapToOne(quotation.agent),
+    agent: displayAgent,
     trip: {
       destination: version.destination as string,
       travelStartDate: version.travel_start_date as string,

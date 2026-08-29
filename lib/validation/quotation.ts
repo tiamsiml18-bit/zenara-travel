@@ -28,6 +28,11 @@ export const quotationDraftSchema = z
     totalPrice: z.coerce.number().min(0, 'Total price cannot be negative.'),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
+    // Which named consultant prepared this quote — see agency_consultants;
+    // decoupled from the authenticated login since the agency uses one
+    // shared account across three people.
+    consultantId: z.string().uuid().optional().or(z.literal('')),
+
     inclusions: z.array(z.string().trim().min(1)).default([]),
     exclusions: z.array(z.string().trim().min(1)).default([]),
     itinerary: z.array(itineraryDaySchema).default([]),

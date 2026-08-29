@@ -7,7 +7,8 @@ import { generateFollowUpSchedule } from './followups';
 const VERSION_SELECT = `
   id, version_number, version_label, status, client_name_snapshot, destination,
   travel_start_date, travel_end_date, num_adults, num_children, hotel_name,
-  num_bedrooms, price_per_person, total_price, currency, notes, sent_at, created_at
+  num_bedrooms, price_per_person, total_price, currency, notes, sent_at, created_at,
+  consultant_id, consultant_name_snapshot
 `;
 
 export interface QuotationListFilters {
@@ -132,6 +133,18 @@ export async function getPricingForVersion(supabase: SupabaseClient, versionId: 
   return data ?? null;
 }
 
+/**
+ * Resolves a consultant's current name for snapshotting onto a version at
+ * creation time — same "freeze at issue time" pattern as client_name_snapshot,
+ * so renaming/deactivating a consultant later never retroactively changes an
+ * already-issued quotation's PDF.
+ */
+async function resolveConsultantName(supabase: SupabaseClient, consultantId?: string | null): Promise<string | null> {
+  if (!consultantId) return null;
+  const { data } = await supabase.from('agency_consultants').select('full_name').eq('id', consultantId).single();
+  return data?.full_name ?? null;
+}
+
 async function insertVersionChildren(
   supabase: SupabaseClient,
   versionId: string,
@@ -232,6 +245,8 @@ export async function createDraftQuotation(
     .single();
   if (clientError || !client) throw new Error('Client not found.');
 
+  const consultantName = await resolveConsultantName(supabase, input.consultantId);
+
   const { data: quotationNumber, error: numError } = await supabase.rpc('allocate_quotation_number', {
     p_prefix: 'QT',
   });
@@ -270,6 +285,8 @@ export async function createDraftQuotation(
         total_price: input.totalPrice,
         notes: input.notes || null,
         created_by: actingUserId,
+        consultant_id: input.consultantId || null,
+        consultant_name_snapshot: consultantName,
       })
       .select('id')
       .single();
@@ -379,6 +396,7 @@ export async function reviseQuotation(
   const nextVersionNumber = Math.max(...versions.map((v) => v.version_number), 0) + 1;
 
   const { data: client } = await supabase.from('clients').select('full_name').eq('id', quotation.client_id).single();
+  const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
   const { data: version, error: vError } = await supabase
     .from('quotation_versions')
@@ -399,6 +417,8 @@ export async function reviseQuotation(
       total_price: input.totalPrice,
       notes: input.notes || null,
       created_by: actingUserId,
+      consultant_id: input.consultantId || null,
+      consultant_name_snapshot: consultantName,
     })
     .select('id')
     .single();
@@ -529,6 +549,7 @@ export async function duplicateQuotation(
     feeItems,
     costItems,
     markup: pricing?.markup ?? 0,
+    consultantId: currentVersion.consultant_id ?? '',
   };
 
   const result = await createDraftQuotation(supabase, input, actingUserId);

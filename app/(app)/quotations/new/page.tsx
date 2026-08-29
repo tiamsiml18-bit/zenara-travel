@@ -1,7 +1,7 @@
 import { Topbar } from '@/components/layout/topbar';
 import { QuotationWizard } from '@/components/quotations/quotation-wizard';
 import { createClient } from '@/lib/supabase/server';
-import { listClientSources } from '@/lib/services/lookups';
+import { listClientSources, listConsultants } from '@/lib/services/lookups';
 import { listActivePackages } from '@/lib/services/packages';
 import { requireUser } from '@/lib/auth/session';
 
@@ -17,7 +17,7 @@ export default async function NewQuotationPage({
   // A capped, recency-ordered list keeps this fast even at 10k+ clients; the
   // wizard's search box filters within it. A fully server-searched combobox
   // is a reasonable upgrade once agent feedback asks for it.
-  const [{ data: clients }, sources, packages] = await Promise.all([
+  const [{ data: clients }, sources, packages, consultants] = await Promise.all([
     supabase
       .from('clients')
       .select('id, full_name, email, mobile_number')
@@ -26,6 +26,7 @@ export default async function NewQuotationPage({
       .limit(200),
     listClientSources(supabase),
     listActivePackages(supabase),
+    listConsultants(supabase),
   ]);
 
   return (
@@ -36,6 +37,7 @@ export default async function NewQuotationPage({
           clients={clients ?? []}
           packages={packages}
           sources={sources}
+          consultants={consultants}
           initialClientId={clientId}
         />
       </main>
