@@ -85,7 +85,7 @@ export async function getQuotationById(supabase: SupabaseClient, quotationId: st
 }
 
 export async function getVersionDetail(supabase: SupabaseClient, versionId: string) {
-  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }] = await Promise.all([
+  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: costItems }] = await Promise.all([
     supabase
       .from('quotation_itinerary_days')
       .select('id, day_number, day_date, title, description, activities')
@@ -101,8 +101,18 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .select('id, item')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
+    supabase
+      .from('quotation_items')
+      .select('id, label, unit_price')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
   ]);
-  return { itinerary: itinerary ?? [], inclusions: inclusions ?? [], exclusions: exclusions ?? [] };
+  return {
+    itinerary: itinerary ?? [],
+    inclusions: inclusions ?? [],
+    exclusions: exclusions ?? [],
+    costItems: (costItems ?? []).map((c) => ({ label: c.label, amount: Number(c.unit_price) })),
+  };
 }
 
 /** Only returns data for admin/manager/owning-agent — enforced by RLS, this just isolates the query. */
@@ -148,9 +158,29 @@ async function insertVersionChildren(
     if (error) throw new Error(`Failed to save exclusions: ${error.message}`);
   }
 
+  // Internal cost breakdown (airfare, hotel, transfers, custom client
+  // requests like a sleeper bus) — stored per-item so it's editable later,
+  // never surfaced client-side. quotation_items has no RLS path that feeds
+  // the PDF or any client-facing query (see quotation_pricing_internal's
+  // isolation note below for the same guarantee on the summed total).
+  if (input.costItems.length > 0) {
+    const { error } = await supabase.from('quotation_items').insert(
+      input.costItems.map((item, i) => ({
+        quotation_version_id: versionId,
+        label: item.label,
+        unit_price: item.amount,
+        quantity: 1,
+        sort_order: i,
+      }))
+    );
+    if (error) throw new Error(`Failed to save cost breakdown: ${error.message}`);
+  }
+
+  const supplierCost = input.costItems.reduce((sum, item) => sum + item.amount, 0);
+
   const { error: pricingError } = await supabase.from('quotation_pricing_internal').insert({
     quotation_version_id: versionId,
-    supplier_cost: input.supplierCost,
+    supplier_cost: supplierCost,
     markup: input.markup,
     selling_price: input.totalPrice,
   });
@@ -439,7 +469,7 @@ export async function duplicateQuotation(
   const { currentVersion } = await getQuotationById(supabase, sourceQuotationId);
   if (!currentVersion) throw new Error('Source quotation has no version to duplicate.');
 
-  const { itinerary, inclusions, exclusions } = await getVersionDetail(supabase, currentVersion.id);
+  const { itinerary, inclusions, exclusions, costItems } = await getVersionDetail(supabase, currentVersion.id);
   const pricing = await getPricingForVersion(supabase, currentVersion.id);
 
   const { quotation: sourceQuotation } = await getQuotationById(supabase, sourceQuotationId);
@@ -466,7 +496,7 @@ export async function duplicateQuotation(
       description: d.description ?? '',
       activities: d.activities ?? [],
     })),
-    supplierCost: pricing?.supplier_cost ?? 0,
+    costItems,
     markup: pricing?.markup ?? 0,
   };
 
