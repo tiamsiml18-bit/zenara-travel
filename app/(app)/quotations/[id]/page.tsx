@@ -6,6 +6,7 @@ import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quot
 import { QuotationStatusControls, ConvertToBookingButton } from '@/components/quotations/quotation-status-controls';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
+import { getBookingForQuotation } from '@/lib/services/bookings';
 import { requireUser } from '@/lib/auth/session';
 
 function formatDate(d?: string | null) {
@@ -25,9 +26,10 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   const { quotation, versions, currentVersion } = await getQuotationById(supabase, id);
   if (!currentVersion) throw new Error('This quotation has no version data.');
 
-  const [{ itinerary, inclusions, exclusions }, pricing] = await Promise.all([
+  const [{ itinerary, inclusions, exclusions }, pricing, existingBooking] = await Promise.all([
     getVersionDetail(supabase, currentVersion.id),
     getPricingForVersion(supabase, currentVersion.id),
+    getBookingForQuotation(supabase, id),
   ]);
 
   const isDraft = currentVersion.status === 'draft';
@@ -63,7 +65,16 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               <Download className="h-4 w-4" /> Download PDF
             </a>
             {isDraft && <SendQuotationButton quotationId={id} />}
-            {!isDraft && quotation.status === 'confirmed' && <ConvertToBookingButton quotationId={id} />}
+            {existingBooking ? (
+              <Link
+                href={`/bookings/${existingBooking.id}`}
+                className="flex items-center gap-1.5 rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600"
+              >
+                View booking ({existingBooking.booking_number})
+              </Link>
+            ) : (
+              !isDraft && quotation.status === 'confirmed' && <ConvertToBookingButton quotationId={id} />
+            )}
             {!isDraft && !['cancelled', 'lost', 'expired', 'paid'].includes(quotation.status) && (
               <Link
                 href={`/quotations/${id}/revise`}

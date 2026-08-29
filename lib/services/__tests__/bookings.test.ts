@@ -53,4 +53,32 @@ describe('convertQuotationToBooking — the "only a confirmed quotation converts
     // past the guard for a confirmed quotation is the behavior under test.
     await expect(convertQuotationToBooking(supabase, 'q1', 'user1')).resolves.toBeDefined();
   });
+
+  it('refuses to convert a quotation that already has a booking (the actual production bug this guards against)', async () => {
+    const supabase = createFakeSupabaseClient({
+      singleResult: {
+        data: {
+          id: 'q1',
+          status: 'confirmed',
+          client_id: 'c1',
+          quotation_number: 'QT-2026-00001',
+          assigned_agent_id: 'agent1',
+          current_version: {
+            id: 'v1',
+            destination: 'Boracay',
+            travel_start_date: '2026-06-01',
+            travel_end_date: '2026-06-04',
+            total_price: 50000,
+          },
+        },
+        error: null,
+      },
+      // A booking already exists for this quotation — this is exactly what
+      // clicking "Convert to Booking" a second time looked like in
+      // production before this guard existed, and produced a real duplicate
+      // booking with a phantom unpaid balance on the dashboard.
+      maybeSingleResult: { data: { id: 'existing-booking', booking_number: 'BK-2026-00001' }, error: null },
+    });
+    await expect(convertQuotationToBooking(supabase, 'q1', 'user1')).rejects.toThrow(/already converted/i);
+  });
 });

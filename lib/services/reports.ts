@@ -55,17 +55,21 @@ export async function getDashboardKpis(supabase: SupabaseClient, filters: Dashbo
   // "Confirmed bookings" is a count of real `bookings` rows, not quotations
   // whose status happens to be 'confirmed' — a quotation can sit at
   // 'confirmed' before an agent has actually run Convert to Booking, and the
-  // two numbers should never silently drift apart. Every other confirmed-
-  // bookings figure on this dashboard (the monthly chart, agent performance)
-  // already reads from the real table; this KPI now matches them. The
-  // date/agent/destination filters that apply to the quotation-based KPIs
-  // above are mirrored here (status/source don't translate to a booking row,
-  // so they're intentionally not applied).
+  // two numbers should never silently drift apart. Counts confirmed,
+  // in_progress, AND completed bookings together — a trip that's already
+  // happened was still a confirmed booking at some point, and excluding it
+  // the moment its lifecycle moves past "confirmed" made this KPI misleadingly
+  // low. Only 'pending' (not yet actually confirmed) and 'cancelled' are
+  // excluded. Every other confirmed-bookings figure on this dashboard (the
+  // monthly chart, agent performance) already reads from the real table;
+  // this KPI now matches them. The date/agent/destination filters that apply
+  // to the quotation-based KPIs above are mirrored here (status/source don't
+  // translate to a booking row, so they're intentionally not applied).
   let confirmedBookingsQuery = supabase
     .from('bookings')
     .select('id', { count: 'exact', head: true })
     .is('deleted_at', null)
-    .eq('status', 'confirmed');
+    .in('status', ['confirmed', 'in_progress', 'completed']);
   if (filters.dateFrom) confirmedBookingsQuery = confirmedBookingsQuery.gte('created_at', filters.dateFrom);
   if (filters.dateTo) confirmedBookingsQuery = confirmedBookingsQuery.lte('created_at', filters.dateTo);
   if (filters.agentId) confirmedBookingsQuery = confirmedBookingsQuery.eq('assigned_agent_id', filters.agentId);

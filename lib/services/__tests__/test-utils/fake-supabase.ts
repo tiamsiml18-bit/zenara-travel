@@ -16,6 +16,9 @@ export function createFakeSupabaseClient(config: {
   singleResult?: { data: unknown; error: unknown };
   rpcResult?: { data: unknown; error: unknown };
   insertResult?: { data: unknown; error: unknown };
+  // Defaults to "nothing found" (no existing booking) so tests that don't
+  // care about the duplicate-booking guard aren't forced to configure it.
+  maybeSingleResult?: { data: unknown; error: unknown };
 }) {
   const chain = {
     select: () => chain,
@@ -23,6 +26,7 @@ export function createFakeSupabaseClient(config: {
     is: () => chain,
     order: () => chain,
     single: async () => config.singleResult ?? { data: null, error: null },
+    maybeSingle: async () => config.maybeSingleResult ?? { data: null, error: null },
     insert: () => ({
       select: () => ({
         single: async () => config.insertResult ?? { data: null, error: null },

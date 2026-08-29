@@ -18,6 +18,22 @@ const BOOKING_LIST_SELECT = `
   quotation:quotations ( id, quotation_number )
 `;
 
+/**
+ * Used by the quotation detail page to decide whether to show "Convert to
+ * Booking" or "View Booking" — the single source of truth for "has this
+ * already been converted," so the button and the server-side guard in
+ * convertQuotationToBooking never disagree with each other.
+ */
+export async function getBookingForQuotation(supabase: SupabaseClient, quotationId: string) {
+  const { data } = await supabase
+    .from('bookings')
+    .select('id, booking_number')
+    .eq('quotation_id', quotationId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  return data;
+}
+
 export async function listBookings(supabase: SupabaseClient, filters: BookingListFilters = {}) {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 25;
@@ -97,6 +113,25 @@ export async function convertQuotationToBooking(
   if (quotation.status !== 'confirmed') {
     throw new Error('Only a confirmed quotation can be converted into a booking.');
   }
+
+  // Guard against double-conversion — the UI is also supposed to hide the
+  // "Convert to Booking" button once a booking exists, but that's a display
+  // nicety, not a security boundary; this check is what actually prevents
+  // clicking it twice (or a stale/duplicate request) from creating two
+  // bookings for the same quotation, which happened in production before
+  // this guard existed.
+  const { data: existingBooking } = await supabase
+    .from('bookings')
+    .select('id, booking_number')
+    .eq('quotation_id', quotationId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (existingBooking) {
+    throw new Error(
+      `This quotation was already converted to booking ${existingBooking.booking_number}. Open that booking instead of converting again.`
+    );
+  }
+
   const version = quotation.current_version as unknown as {
     id: string;
     destination: string;
@@ -121,7 +156,11 @@ export async function convertQuotationToBooking(
       travel_end_date: version.travel_end_date,
       total_amount: version.total_price,
       payment_status: 'unpaid',
-      status: 'pending',
+      // Starts at 'confirmed', not the schema's 'pending' default — this
+      // only ever runs from an already-confirmed quotation, so a freshly
+      // converted booking reading "Pending" was actively misleading, and
+      // it's also why "Confirmed bookings" undercounted on the dashboard.
+      status: 'confirmed',
       assigned_agent_id: quotation.assigned_agent_id,
     })
     .select('id')
