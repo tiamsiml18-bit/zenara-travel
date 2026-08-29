@@ -69,6 +69,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
+  // Main content split: itinerary on the left (wider, since it's usually
+  // the longest section), a vertical divider, then Inclusions stacked above
+  // Exclusions on the right — replacing the previous full-width-itinerary +
+  // side-by-side-inclusions/exclusions layout.
+  mainSplit: { flexDirection: 'row', marginTop: 2 },
+  leftCol: { flex: 1.5, paddingRight: 14 },
+  rightCol: { flex: 1, paddingLeft: 14, borderLeftWidth: 1, borderLeftColor: COLORS.sand200 },
+  rightColSection: { marginBottom: 12 },
+
   dayBlock: { marginBottom: 6 },
   dayHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   dayBadge: {
@@ -85,8 +94,6 @@ const styles = StyleSheet.create({
   dayDescription: { fontSize: 8, color: COLORS.ink700, marginTop: 1, marginBottom: 1.5 },
   dayActivities: { fontSize: 8, color: COLORS.ink700, lineHeight: 1.45 },
 
-  twoCol: { flexDirection: 'row', marginTop: 6, gap: 20 },
-  col: { flex: 1 },
   listItem: { fontSize: 8, color: COLORS.ink700, lineHeight: 1.5 },
 
   priceBlock: {
@@ -196,42 +203,49 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
             )}
           </View>
 
-          {itinerary.length > 0 && (
-            <View>
-              <Text style={styles.sectionTitle}>Itinerary</Text>
-              {itinerary.map((day) => (
-                <View key={day.dayNumber} style={styles.dayBlock} wrap={false}>
-                  <View style={styles.dayHeader}>
-                    <Text style={styles.dayBadge}>Day {day.dayNumber}</Text>
-                    <Text style={styles.dayTitle}>{day.title}</Text>
-                  </View>
-                  {day.description && <Text style={styles.dayDescription}>{day.description}</Text>}
-                  {day.activities.length > 0 && (
-                    <Text style={styles.dayActivities}>{day.activities.join('  ·  ')}</Text>
-                  )}
+          {/* Itinerary (left) | Inclusions above Exclusions (right), split
+              by a vertical divider — replaces the old full-width itinerary
+              followed by side-by-side inclusions/exclusions. */}
+          <View style={styles.mainSplit}>
+            <View style={styles.leftCol}>
+              {itinerary.length > 0 && (
+                <View>
+                  <Text style={styles.sectionTitle}>Itinerary</Text>
+                  {itinerary.map((day) => (
+                    <View key={day.dayNumber} style={styles.dayBlock} wrap={false}>
+                      <View style={styles.dayHeader}>
+                        <Text style={styles.dayBadge}>Day {day.dayNumber}</Text>
+                        <Text style={styles.dayTitle}>{day.title}</Text>
+                      </View>
+                      {day.description && <Text style={styles.dayDescription}>{day.description}</Text>}
+                      {day.activities.length > 0 && (
+                        <Text style={styles.dayActivities}>{day.activities.join('  ·  ')}</Text>
+                      )}
+                    </View>
+                  ))}
                 </View>
-              ))}
+              )}
             </View>
-          )}
 
-          <View style={styles.twoCol}>
-            <View style={styles.col}>
-              <Text style={styles.sectionTitle}>Inclusions</Text>
-              {inclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
-              {inclusions.map((item, i) => (
-                <Text key={i} style={styles.listItem}>
-                  • {item}
-                </Text>
-              ))}
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.sectionTitle}>Exclusions</Text>
-              {exclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
-              {exclusions.map((item, i) => (
-                <Text key={i} style={styles.listItem}>
-                  • {item}
-                </Text>
-              ))}
+            <View style={styles.rightCol}>
+              <View style={styles.rightColSection}>
+                <Text style={styles.sectionTitle}>Inclusions</Text>
+                {inclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
+                {inclusions.map((item, i) => (
+                  <Text key={i} style={styles.listItem}>
+                    • {item}
+                  </Text>
+                ))}
+              </View>
+              <View>
+                <Text style={styles.sectionTitle}>Exclusions</Text>
+                {exclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
+                {exclusions.map((item, i) => (
+                  <Text key={i} style={styles.listItem}>
+                    • {item}
+                  </Text>
+                ))}
+              </View>
             </View>
           </View>
 
