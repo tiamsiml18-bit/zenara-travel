@@ -8,6 +8,11 @@ export const itineraryDaySchema = z.object({
   activities: z.array(z.string().trim().min(1)).default([]),
 });
 
+export const costItemSchema = z.object({
+  label: z.string().trim().min(1, 'Give this cost item a label.').max(120),
+  amount: z.coerce.number().min(0, 'Cost cannot be negative.'),
+});
+
 export const quotationDraftSchema = z
   .object({
     clientId: z.string().uuid('Select a client.'),
@@ -27,8 +32,15 @@ export const quotationDraftSchema = z
     exclusions: z.array(z.string().trim().min(1)).default([]),
     itinerary: z.array(itineraryDaySchema).default([]),
 
-    // Internal-only pricing — kept in a separate table, never sent to client-facing views.
-    supplierCost: z.coerce.number().min(0).default(0),
+    // Internal-only cost breakdown — airfare, hotel, transfers, sleeper bus,
+    // any client-specific add-on the agent needs to price out. Persisted to
+    // quotation_items (tied 1:1 with this version) so it survives a revise
+    // for editing later, and summed server-side into supplier_cost on
+    // quotation_pricing_internal. Never appears on the client-facing PDF —
+    // that path only ever reads price_per_person/total_price from
+    // quotation_versions, which never joins quotation_items or
+    // quotation_pricing_internal (see lib/services/pdf-data.ts).
+    costItems: z.array(costItemSchema).default([]),
     markup: z.coerce.number().default(0),
   })
   .refine((d) => new Date(d.travelEndDate) >= new Date(d.travelStartDate), {
@@ -36,4 +48,5 @@ export const quotationDraftSchema = z
     path: ['travelEndDate'],
   });
 
+export type CostItemInput = z.infer<typeof costItemSchema>;
 export type QuotationDraftInput = z.infer<typeof quotationDraftSchema>;
