@@ -2,18 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export function NavLink({
   href,
   label,
-  icon: Icon,
+  icon,
   badge,
 }: {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: React.ReactNode;
   badge?: number;
 }) {
   const pathname = usePathname();
@@ -30,7 +29,7 @@ export function NavLink({
       )}
     >
       <span className="flex items-center gap-2.5">
-        <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+        {icon}
         {label}
       </span>
       {typeof badge === 'number' && badge > 0 && (
