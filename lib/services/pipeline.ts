@@ -1,55 +1,50 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeAudit } from './audit';
 
+// 8 stages, deliberately starting at "sent" — a draft quotation has no
+// pipeline position at all (pipeline_stage is null in the database until
+// the quotation is actually sent), matching how the agency actually thinks
+// about it: the sales process starts when the client receives something,
+// not while it's still being drafted internally.
 export const PIPELINE_STAGES = [
-  'new_lead',
-  'quotation_in_progress',
   'quotation_sent',
   'follow_up',
   'interested',
   'requested_changes',
-  'still_thinking',
   'proceeding',
   'confirmed',
-  'not_interested',
   'lost',
-  'no_response_dormant',
+  'no_response',
 ] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
-  new_lead: 'New Lead',
-  quotation_in_progress: 'Quotation in Progress',
   quotation_sent: 'Quotation Sent',
   follow_up: 'Follow-up',
   interested: 'Interested',
   requested_changes: 'Requested Changes',
-  still_thinking: 'Still Thinking',
   proceeding: 'Proceeding',
   confirmed: 'Confirmed',
-  not_interested: 'Not Interested',
   lost: 'Lost',
-  no_response_dormant: 'No Response / Dormant',
+  no_response: 'No Response',
 };
 
-/** The 8 outcomes offered after completing a follow-up — deliberately a subset of PIPELINE_STAGES. */
+/** The options offered after completing a follow-up — every stage except the two an agent wouldn't manually pick themselves. */
 export const FOLLOWUP_OUTCOME_STAGES: PipelineStage[] = [
   'interested',
   'requested_changes',
-  'still_thinking',
   'proceeding',
   'confirmed',
-  'not_interested',
   'lost',
-  'no_response_dormant',
+  'no_response',
 ];
 
 /**
  * The one function that ever writes `quotations.pipeline_stage` — every
  * caller (drag on the Kanban board, completing a follow-up, sending a
- * quotation) goes through this, so "record who moved it, previous stage,
- * new stage, when" is guaranteed rather than something each call site has
- * to remember to do itself.
+ * quotation, or a quotation status change syncing the pipeline to match)
+ * goes through this, so "record who moved it, previous stage, new stage,
+ * when" is guaranteed rather than something each call site has to remember.
  */
 export async function updateQuotationPipelineStage(
   supabase: SupabaseClient,
@@ -64,7 +59,7 @@ export async function updateQuotationPipelineStage(
     .single();
   if (fetchError || !current) throw new Error('Quotation not found.');
 
-  const previousStage = current.pipeline_stage as PipelineStage;
+  const previousStage = current.pipeline_stage as PipelineStage | null;
   if (previousStage === newStage) return; // no-op, nothing to record
 
   const { error } = await supabase.from('quotations').update({ pipeline_stage: newStage }).eq('id', quotationId);
@@ -78,7 +73,7 @@ export async function updateQuotationPipelineStage(
     metadata: {
       previousStage,
       newStage,
-      previousStageLabel: PIPELINE_STAGE_LABELS[previousStage],
+      previousStageLabel: previousStage ? PIPELINE_STAGE_LABELS[previousStage] : null,
       newStageLabel: PIPELINE_STAGE_LABELS[newStage],
     },
   });
@@ -86,9 +81,11 @@ export async function updateQuotationPipelineStage(
 
 /**
  * Cards for the Kanban board — deliberately minimal per spec ("Do not show
- * quotation number, quoted price, assigned agent... on the card"). RLS on
- * `quotations` already scopes this to the caller's own/team quotations, same
- * as every other quotation query in the app.
+ * quotation number, quoted price, assigned agent... on the card"). Only
+ * quotations that have actually been sent appear (pipeline_stage is null
+ * for drafts) — this is not a quotation-management board, drafts stay on
+ * the Quotations tab. RLS on `quotations` already scopes this to the
+ * caller's own/team quotations, same as every other quotation query.
  */
 export async function listQuotationsForPipeline(supabase: SupabaseClient, agentId?: string) {
   let query = supabase
@@ -99,6 +96,7 @@ export async function listQuotationsForPipeline(supabase: SupabaseClient, agentI
        current_version:quotation_versions!quotations_current_version_id_fkey ( destination, travel_start_date )`
     )
     .is('deleted_at', null)
+    .not('pipeline_stage', 'is', null)
     .order('pipeline_stage_updated_at', { ascending: false });
 
   if (agentId) query = query.eq('assigned_agent_id', agentId);
@@ -113,8 +111,10 @@ export async function getPipelineDashboardCounts(supabase: SupabaseClient) {
   const { data } = await supabase.from('quotations').select('pipeline_stage').is('deleted_at', null);
   const rows = data ?? [];
 
-  const closedStages = new Set<PipelineStage>(['confirmed', 'not_interested', 'lost']);
-  const totalActiveLeads = rows.filter((r) => !closedStages.has(r.pipeline_stage as PipelineStage)).length;
+  const closedStages = new Set<PipelineStage>(['confirmed', 'lost']);
+  const totalActiveLeads = rows.filter(
+    (r) => r.pipeline_stage && !closedStages.has(r.pipeline_stage as PipelineStage)
+  ).length;
   const countOf = (stage: PipelineStage) => rows.filter((r) => r.pipeline_stage === stage).length;
 
   return {
@@ -122,6 +122,6 @@ export async function getPipelineDashboardCounts(supabase: SupabaseClient) {
     proceeding: countOf('proceeding'),
     confirmed: countOf('confirmed'),
     lost: countOf('lost'),
-    noResponse: countOf('no_response_dormant'),
+    noResponse: countOf('no_response'),
   };
 }

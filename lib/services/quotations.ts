@@ -3,6 +3,7 @@ import type { QuotationDraftInput } from '@/lib/validation/quotation';
 import { writeAudit } from './audit';
 import { setClientStatusByName } from './clients';
 import { generateFollowUpSchedule } from './followups';
+import { updateQuotationPipelineStage } from './pipeline';
 
 const VERSION_SELECT = `
   id, version_number, version_label, status, client_name_snapshot, destination,
@@ -552,6 +553,19 @@ export async function updateQuotationStatus(
     entityId: quotationId,
     metadata: { from: quotation.status, to: newStatus },
   });
+
+  // Keeps pipeline_stage from ever contradicting quotation status — a
+  // quotation can't sit at status=confirmed while its pipeline card is
+  // still on Follow-up, or status=cancelled while the card reads
+  // Proceeding. Only these two statuses have an unambiguous pipeline
+  // equivalent; every other status change (sent is handled separately in
+  // sendQuotation(), and the rest don't map to a specific stage) leaves the
+  // pipeline exactly where the agent last manually put it.
+  if (newStatus === 'confirmed') {
+    await updateQuotationPipelineStage(supabase, quotationId, 'confirmed', actingUserId);
+  } else if (newStatus === 'cancelled') {
+    await updateQuotationPipelineStage(supabase, quotationId, 'lost', actingUserId);
+  }
 
   // Returned so the calling Server Action knows which client to revalidate
   // in addition to the quotation itself — the client's status badge (on
