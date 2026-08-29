@@ -267,7 +267,7 @@ function CompletePanel({
   isPending: boolean;
   onSubmit: (payload: { followUpId: string; outcome: string; method: string; notes?: string }) => void;
 }) {
-  const [outcome, setOutcome] = useState<string>(FOLLOWUP_OUTCOMES[1]);
+  const [outcome, setOutcome] = useState<string>(FOLLOWUP_OUTCOMES[1] ?? FOLLOWUP_OUTCOMES[0] ?? 'interested');
   const [method, setMethod] = useState<string>(FOLLOWUP_METHODS[0]);
   const [notes, setNotes] = useState('');
 

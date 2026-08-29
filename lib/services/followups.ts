@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeAudit } from './audit';
+import { updateQuotationPipelineStage, FOLLOWUP_OUTCOME_STAGES, type PipelineStage } from './pipeline';
 
 async function getFollowUpScheduleDays(supabase: SupabaseClient): Promise<number[]> {
   const { data } = await supabase.from('quotation_settings').select('followup_schedule_days').limit(1).maybeSingle();
@@ -141,6 +142,14 @@ export async function completeFollowUp(
     entityId: followUpId,
     metadata: { outcome: params.outcome, method: params.method },
   });
+
+  // "After completing a follow-up, ask the agent for the current lead
+  // status" — the outcome IS that status when it's one of the 8 pipeline
+  // stages a follow-up can resolve to; updateQuotationPipelineStage handles
+  // its own "who moved it / previous / new / when" audit entry.
+  if (followUp.quotation_id && FOLLOWUP_OUTCOME_STAGES.includes(params.outcome as PipelineStage)) {
+    await updateQuotationPipelineStage(supabase, followUp.quotation_id, params.outcome as PipelineStage, actingUserId);
+  }
 }
 
 export async function rescheduleFollowUp(

@@ -357,9 +357,20 @@ export async function sendQuotation(supabase: SupabaseClient, quotationId: strin
 
   const { error: qError } = await supabase
     .from('quotations')
-    .update({ status: 'sent' })
+    .update({ status: 'sent', pipeline_stage: 'quotation_sent' })
     .eq('id', quotationId);
   if (qError) throw new Error(`Failed to update quotation status: ${qError.message}`);
+
+  // Pipeline stage change gets its own audit entry (previous → new), same
+  // as every other pipeline move, even though it's happening automatically
+  // here rather than from a manual drag on the Kanban board.
+  await writeAudit(supabase, {
+    userId: actingUserId,
+    action: 'quotation.pipeline_stage_changed',
+    entityType: 'quotation',
+    entityId: quotationId,
+    metadata: { previousStage: quotation.pipeline_stage, newStage: 'quotation_sent' },
+  });
 
   await setClientStatusByName(
     supabase,

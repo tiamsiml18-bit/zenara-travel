@@ -5,6 +5,7 @@ import { RankedBarChart } from '@/components/dashboard/ranked-bar-chart';
 import { AgentPerformanceTable } from '@/components/dashboard/agent-performance-table';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
+import { getPipelineDashboardCounts } from '@/lib/services/pipeline';
 import {
   getDashboardKpis,
   getProfitSummary,
@@ -26,7 +27,7 @@ export default async function DashboardPage() {
   const canSeeProfit = user.role === 'admin' || user.role === 'manager';
   const canSeeAgentTable = user.role === 'admin' || user.role === 'manager';
 
-  const [kpis, monthlyQuotations, monthlyBookings, topDestinations, leadSources, conversionRate, agentPerformance, profit] =
+  const [kpis, monthlyQuotations, monthlyBookings, topDestinations, leadSources, conversionRate, agentPerformance, profit, pipelineCounts] =
     await Promise.all([
       getDashboardKpis(supabase),
       getMonthlyQuotationVolume(supabase),
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
       // rows to admin/manager/owning-agent, but we also skip the call
       // entirely for agents so the dashboard never even asks for it.
       canSeeProfit ? getProfitSummary(supabase) : Promise.resolve(null),
+      getPipelineDashboardCounts(supabase),
     ]);
 
   return (
@@ -77,6 +79,25 @@ export default async function DashboardPage() {
             </>
           )}
           <KpiCard label="Conversion rate" value={`${conversionRate}%`} />
+        </div>
+
+        {/* Sales pipeline — the Kanban itself lives on Follow-ups; these are
+            just the at-a-glance counts. Follow-ups due/overdue already have
+            their own KPI cards above, not repeated here. */}
+        <div className="mb-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-display text-sm font-semibold text-ink-900">Sales pipeline</h3>
+            <a href="/followups?view=pipeline" className="text-sm font-medium text-harbor-600 hover:underline">
+              Open pipeline board &rarr;
+            </a>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <KpiCard label="Total active leads" value={String(pipelineCounts.totalActiveLeads)} />
+            <KpiCard label="Proceeding" value={String(pipelineCounts.proceeding)} tone="positive" />
+            <KpiCard label="Confirmed" value={String(pipelineCounts.confirmed)} tone="positive" />
+            <KpiCard label="Lost" value={String(pipelineCounts.lost)} tone={pipelineCounts.lost > 0 ? 'negative' : 'default'} />
+            <KpiCard label="No response" value={String(pipelineCounts.noResponse)} tone={pipelineCounts.noResponse > 0 ? 'warning' : 'default'} />
+          </div>
         </div>
 
         {/* Charts */}

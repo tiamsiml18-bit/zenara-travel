@@ -9,6 +9,7 @@ import {
   followUpNoteSchema,
 } from '@/lib/validation/followup';
 import * as followupsService from '@/lib/services/followups';
+import { updateQuotationPipelineStage, type PipelineStage } from '@/lib/services/pipeline';
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -73,5 +74,19 @@ export async function addFollowUpNoteAction(input: { followUpId: string; note: s
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to add note.' };
+  }
+}
+
+/** Called when a card is dragged to a new column on the Kanban board. */
+export async function updatePipelineStageAction(quotationId: string, newStage: PipelineStage): Promise<ActionResult> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await updateQuotationPipelineStage(supabase, quotationId, newStage, user.id);
+    revalidatePath('/followups');
+    revalidatePath('/dashboard');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to move card.' };
   }
 }
