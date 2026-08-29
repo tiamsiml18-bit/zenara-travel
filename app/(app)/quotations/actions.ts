@@ -28,6 +28,7 @@ export async function createQuotationDraftAction(input: QuotationDraftInput): Pr
     );
     revalidatePath('/quotations');
     revalidatePath(`/clients/${parsed.data.clientId}`);
+    revalidatePath('/dashboard');
     return { ok: true, quotationId, quotationNumber };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to create quotation.' };
@@ -48,6 +49,8 @@ export async function reviseQuotationAction(
   try {
     await quotationsService.reviseQuotation(supabase, quotationId, parsed.data, user.id);
     revalidatePath(`/quotations/${quotationId}`);
+    revalidatePath('/quotations');
+    revalidatePath('/dashboard');
     return { ok: true, quotationId };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to revise quotation.' };
@@ -57,9 +60,14 @@ export async function reviseQuotationAction(
 export async function sendQuotationAction(quotationId: string) {
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  await quotationsService.sendQuotation(supabase, quotationId, user.id);
+  const { clientId } = await quotationsService.sendQuotation(supabase, quotationId, user.id);
   revalidatePath(`/quotations/${quotationId}`);
+  revalidatePath('/quotations');
   revalidatePath('/followups');
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath('/clients');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
 }
 
 export async function duplicateQuotationAction(quotationId: string): Promise<ActionResult> {
@@ -68,6 +76,7 @@ export async function duplicateQuotationAction(quotationId: string): Promise<Act
   try {
     const result = await quotationsService.duplicateQuotation(supabase, quotationId, user.id);
     revalidatePath('/quotations');
+    revalidatePath('/dashboard');
     return { ok: true, quotationId: result.quotationId, quotationNumber: result.quotationNumber };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to duplicate quotation.' };
