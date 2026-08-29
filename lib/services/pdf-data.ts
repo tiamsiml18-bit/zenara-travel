@@ -28,7 +28,7 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     .select(
       `id, version_label, client_name_snapshot, destination, travel_start_date, travel_end_date,
        num_adults, num_children, hotel_name, num_bedrooms, price_per_person, total_price, currency,
-       consultant_name_snapshot`
+       consultant_name_snapshot, num_seniors, num_infants`
     )
     .eq('id', quotation.current_version_id)
     .single();
@@ -84,6 +84,8 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
       travelEndDate: version.travel_end_date as string,
       numAdults: version.num_adults as number,
       numChildren: version.num_children as number,
+      numSeniors: (version.num_seniors as number) ?? 0,
+      numInfants: (version.num_infants as number) ?? 0,
       hotelName: version.hotel_name as string | null,
       numBedrooms: version.num_bedrooms as number | null,
     },

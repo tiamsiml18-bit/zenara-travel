@@ -22,10 +22,19 @@ export const quotationDraftSchema = z
     travelEndDate: z.string().min(1, 'End date is required.'),
     numAdults: z.coerce.number().int().min(1, 'At least one adult is required.'),
     numChildren: z.coerce.number().int().min(0).default(0),
+    numSeniors: z.coerce.number().int().min(0).default(0),
+    numInfants: z.coerce.number().int().min(0).default(0),
     hotelName: z.string().trim().max(200).optional().or(z.literal('')),
     numBedrooms: z.coerce.number().int().min(0).optional().nullable(),
     pricePerPerson: z.coerce.number().min(0).optional().nullable(),
     totalPrice: z.coerce.number().min(0, 'Total price cannot be negative.'),
+    // Optional per-category rates — only used if the agent opens the guest
+    // pricing breakdown; otherwise pricePerPerson/totalPrice above are the
+    // whole story, same as before this feature existed.
+    pricePerSenior: z.coerce.number().min(0).optional().nullable(),
+    pricePerAdult: z.coerce.number().min(0).optional().nullable(),
+    pricePerChild: z.coerce.number().min(0).optional().nullable(),
+    pricePerInfant: z.coerce.number().min(0).optional().nullable(),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
     // Which named consultant prepared this quote — see agency_consultants;

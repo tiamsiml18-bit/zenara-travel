@@ -188,8 +188,14 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
             <View>
               <Text style={styles.customerLabel}>Guests</Text>
               <Text style={styles.customerValue}>
-                {trip.numAdults} adult{trip.numAdults !== 1 ? 's' : ''}
-                {trip.numChildren > 0 ? `, ${trip.numChildren} child${trip.numChildren !== 1 ? 'ren' : ''}` : ''}
+                {[
+                  trip.numSeniors > 0 ? `${trip.numSeniors} senior${trip.numSeniors !== 1 ? 's' : ''}` : null,
+                  `${trip.numAdults} adult${trip.numAdults !== 1 ? 's' : ''}`,
+                  trip.numChildren > 0 ? `${trip.numChildren} child${trip.numChildren !== 1 ? 'ren' : ''}` : null,
+                  trip.numInfants > 0 ? `${trip.numInfants} infant${trip.numInfants !== 1 ? 's' : ''}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
               </Text>
             </View>
             {trip.hotelName && (

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { clsx } from 'clsx';
 import { Topbar } from '@/components/layout/topbar';
 import { FollowUpCard } from '@/components/followups/followup-card';
+import { AgentFilterSelect } from '@/components/followups/agent-filter-select';
 import { createClient } from '@/lib/supabase/server';
 import { listFollowUps, getFollowUpCounts } from '@/lib/services/followups';
 import { listAgents } from '@/lib/services/lookups';
@@ -65,19 +66,7 @@ export default async function FollowUpsPage({
           {agents.length > 0 && (
             <form action="/followups" className="flex gap-2">
               <input type="hidden" name="tab" value={bucket} />
-              <select
-                name="agent"
-                defaultValue={params.agent ?? ''}
-                onChange={(e) => e.currentTarget.form?.requestSubmit()}
-                className="rounded-md border border-sand-200 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">All agents</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.full_name}
-                  </option>
-                ))}
-              </select>
+              <AgentFilterSelect agents={agents} defaultValue={params.agent ?? ''} />
             </form>
           )}
         </div>

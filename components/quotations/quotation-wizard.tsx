@@ -29,10 +29,16 @@ export interface QuotationWizardInitialData {
   travelEndDate: string;
   numAdults: number;
   numChildren: number;
+  numSeniors?: number;
+  numInfants?: number;
   hotelName: string;
   numBedrooms: number;
   pricePerPerson: number | null;
   totalPrice: number;
+  pricePerSenior?: number | null;
+  pricePerAdult?: number | null;
+  pricePerChild?: number | null;
+  pricePerInfant?: number | null;
   notes: string;
   itinerary: ItineraryDayDraft[];
   inclusions: string[];
@@ -88,10 +94,16 @@ export function QuotationWizard({
     travelEndDate: initialData?.travelEndDate ?? '',
     numAdults: initialData?.numAdults ?? 2,
     numChildren: initialData?.numChildren ?? 0,
+    numSeniors: initialData?.numSeniors ?? 0,
+    numInfants: initialData?.numInfants ?? 0,
     hotelName: initialData?.hotelName ?? '',
     numBedrooms: initialData?.numBedrooms ?? 1,
     pricePerPerson: (initialData?.pricePerPerson ?? '') as number | '',
     totalPrice: (initialData?.totalPrice ?? '') as number | '',
+    pricePerSenior: (initialData?.pricePerSenior ?? '') as number | '',
+    pricePerAdult: (initialData?.pricePerAdult ?? '') as number | '',
+    pricePerChild: (initialData?.pricePerChild ?? '') as number | '',
+    pricePerInfant: (initialData?.pricePerInfant ?? '') as number | '',
     markup: (initialData?.markup ?? '') as number | '',
     notes: initialData?.notes ?? '',
     consultantId: initialData?.consultantId ?? '',
@@ -181,10 +193,16 @@ export function QuotationWizard({
       travelEndDate: trip.travelEndDate,
       numAdults: trip.numAdults,
       numChildren: trip.numChildren,
+      numSeniors: trip.numSeniors,
+      numInfants: trip.numInfants,
       hotelName: trip.hotelName,
       numBedrooms: trip.numBedrooms || null,
       pricePerPerson: trip.pricePerPerson === '' ? null : Number(trip.pricePerPerson),
       totalPrice: Number(trip.totalPrice),
+      pricePerSenior: trip.pricePerSenior === '' ? null : Number(trip.pricePerSenior),
+      pricePerAdult: trip.pricePerAdult === '' ? null : Number(trip.pricePerAdult),
+      pricePerChild: trip.pricePerChild === '' ? null : Number(trip.pricePerChild),
+      pricePerInfant: trip.pricePerInfant === '' ? null : Number(trip.pricePerInfant),
       notes: trip.notes,
       consultantId: trip.consultantId,
       inclusions,
@@ -419,19 +437,34 @@ export function QuotationWizard({
                 onChange={(v) => setTrip((t) => ({ ...t, travelEndDate: v }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <LabeledInput
-                label="Adults"
-                type="number"
-                value={String(trip.numAdults)}
-                onChange={(v) => setTrip((t) => ({ ...t, numAdults: Number(v) }))}
-              />
-              <LabeledInput
-                label="Children"
-                type="number"
-                value={String(trip.numChildren)}
-                onChange={(v) => setTrip((t) => ({ ...t, numChildren: Number(v) }))}
-              />
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink-700">Guests</label>
+              <div className="grid grid-cols-4 gap-3">
+                <LabeledInput
+                  label="Senior citizens"
+                  type="number"
+                  value={String(trip.numSeniors)}
+                  onChange={(v) => setTrip((t) => ({ ...t, numSeniors: Number(v) }))}
+                />
+                <LabeledInput
+                  label="Adults"
+                  type="number"
+                  value={String(trip.numAdults)}
+                  onChange={(v) => setTrip((t) => ({ ...t, numAdults: Number(v) }))}
+                />
+                <LabeledInput
+                  label="Children"
+                  type="number"
+                  value={String(trip.numChildren)}
+                  onChange={(v) => setTrip((t) => ({ ...t, numChildren: Number(v) }))}
+                />
+                <LabeledInput
+                  label="Infant / toddler"
+                  type="number"
+                  value={String(trip.numInfants)}
+                  onChange={(v) => setTrip((t) => ({ ...t, numInfants: Number(v) }))}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <LabeledInput
@@ -461,6 +494,46 @@ export function QuotationWizard({
                   type="number"
                   value={String(trip.totalPrice)}
                   onChange={(v) => setTrip((t) => ({ ...t, totalPrice: v === '' ? '' : Number(v) }))}
+                />
+              </div>
+
+              <div className="mt-4 border-t border-sand-200 pt-4">
+                <p className="mb-2 text-sm font-medium text-ink-700">
+                  Price by guest type <span className="font-normal text-ink-500">(optional)</span>
+                </p>
+                <p className="mb-3 text-xs text-ink-500">
+                  Seniors, children, and infants are often priced differently \u2014 fill in a rate for whichever
+                  categories apply and use the calculated total below, or leave this blank and just set the total
+                  above directly.
+                </p>
+                <GuestPricingBreakdown
+                  counts={{
+                    senior: trip.numSeniors,
+                    adult: trip.numAdults,
+                    child: trip.numChildren,
+                    infant: trip.numInfants,
+                  }}
+                  prices={{
+                    senior: trip.pricePerSenior,
+                    adult: trip.pricePerAdult,
+                    child: trip.pricePerChild,
+                    infant: trip.pricePerInfant,
+                  }}
+                  onPriceChange={(category, value) =>
+                    setTrip((t) => {
+                      switch (category) {
+                        case 'senior':
+                          return { ...t, pricePerSenior: value };
+                        case 'adult':
+                          return { ...t, pricePerAdult: value };
+                        case 'child':
+                          return { ...t, pricePerChild: value };
+                        case 'infant':
+                          return { ...t, pricePerInfant: value };
+                      }
+                    })
+                  }
+                  onUseTotal={(total) => setTrip((t) => ({ ...t, totalPrice: total }))}
                 />
               </div>
 
@@ -546,7 +619,17 @@ export function QuotationWizard({
             </p>
             <ReviewRow label="Destination" value={trip.destination} />
             <ReviewRow label="Travel dates" value={`${trip.travelStartDate} \u2013 ${trip.travelEndDate}`} />
-            <ReviewRow label="Guests" value={`${trip.numAdults} adults, ${trip.numChildren} children`} />
+            <ReviewRow
+              label="Guests"
+              value={[
+                trip.numSeniors > 0 && `${trip.numSeniors} senior${trip.numSeniors !== 1 ? 's' : ''}`,
+                `${trip.numAdults} adult${trip.numAdults !== 1 ? 's' : ''}`,
+                trip.numChildren > 0 && `${trip.numChildren} child${trip.numChildren !== 1 ? 'ren' : ''}`,
+                trip.numInfants > 0 && `${trip.numInfants} infant${trip.numInfants !== 1 ? 's' : ''}`,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            />
             <ReviewRow label="Hotel" value={`${trip.hotelName || '\u2014'} (${trip.numBedrooms} bedrooms)`} />
             <ReviewRow label="Itinerary days" value={String(itinerary.length)} />
             <ReviewRow label="Inclusions / Exclusions" value={`${inclusions.length} / ${exclusions.length}`} />
@@ -612,6 +695,93 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
  * client-side arithmetic for display; the actual persisted profit/margin is
  * still computed by the generated columns on quotation_pricing_internal.
  */
+type GuestCategory = 'senior' | 'adult' | 'child' | 'infant';
+
+const GUEST_CATEGORY_LABELS: Record<GuestCategory, string> = {
+  senior: 'Senior citizen',
+  adult: 'Adult',
+  child: 'Child',
+  infant: 'Infant / toddler',
+};
+
+/**
+ * Optional per-category rate table (senior/adult/child/infant), each with
+ * its own price and a live-computed subtotal — travel packages frequently
+ * price these differently. Deliberately doesn't force totalPrice to follow
+ * this automatically; the agent clicks "Use this total" to apply it, so a
+ * quotation that's already been priced a simpler way is never silently
+ * overwritten just because this section happens to be visible.
+ */
+function GuestPricingBreakdown({
+  counts,
+  prices,
+  onPriceChange,
+  onUseTotal,
+}: {
+  counts: Record<GuestCategory, number>;
+  prices: Record<GuestCategory, number | ''>;
+  onPriceChange: (category: GuestCategory, value: number | '') => void;
+  onUseTotal: (total: number) => void;
+}) {
+  const categories: GuestCategory[] = ['senior', 'adult', 'child', 'infant'];
+  const rows = categories
+    .filter((c) => counts[c] > 0)
+    .map((c) => {
+      const price = prices[c] === '' ? 0 : Number(prices[c]);
+      return { category: c, count: counts[c], price, subtotal: counts[c] * price };
+    });
+  const total = rows.reduce((sum, r) => sum + r.subtotal, 0);
+  const hasAnyPrice = rows.some((r) => r.price > 0);
+
+  if (rows.length === 0) {
+    return <p className="text-xs text-ink-500">Set guest counts above first, then rates will appear here.</p>;
+  }
+
+  return (
+    <div>
+      <div className="space-y-2">
+        {rows.map((r) => (
+          <div key={r.category} className="flex items-center gap-2">
+            <span className="w-32 shrink-0 text-xs text-ink-700">
+              {GUEST_CATEGORY_LABELS[r.category]} <span className="text-ink-500">×{r.count}</span>
+            </span>
+            <div className="relative flex-1">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
+                PHP
+              </span>
+              <input
+                type="number"
+                min={0}
+                value={prices[r.category]}
+                onChange={(e) => onPriceChange(r.category, e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="Rate per person"
+                className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              />
+            </div>
+            <span className="font-ticket w-24 shrink-0 text-right text-xs text-ink-700">
+              {r.subtotal > 0 ? `PHP ${r.subtotal.toLocaleString('en-PH')}` : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+      {hasAnyPrice && (
+        <div className="mt-3 flex items-center justify-between border-t border-sand-200 pt-2">
+          <span className="text-sm font-medium text-ink-700">
+            Calculated total: <span className="font-ticket text-ink-900">PHP {total.toLocaleString('en-PH')}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => onUseTotal(total)}
+            className="rounded-md border border-harbor-500 px-3 py-1 text-xs font-medium text-harbor-600 hover:bg-harbor-50"
+          >
+            Use this total
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfitPreview({
   supplierCost,
   markup,
