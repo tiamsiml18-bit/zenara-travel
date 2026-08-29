@@ -135,3 +135,22 @@ export async function addClientNoteAction(formData: FormData) {
   await clientsService.addClientNote(supabase, parsed.data.clientId, parsed.data.note, user.id);
   revalidatePath(`/clients/${parsed.data.clientId}`);
 }
+
+/**
+ * Archiving is a "major change" per the confirmation policy — the button
+ * that calls this is gated by a confirm dialog client-side; this action
+ * itself doesn't ask again, it just executes once called.
+ */
+export async function archiveClientAction(clientId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await clientsService.archiveClient(supabase, clientId, user.id);
+    revalidatePath('/clients');
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath('/dashboard');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to archive client.' };
+  }
+}

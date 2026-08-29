@@ -3,6 +3,7 @@ import { Plus, Pencil, Phone, Mail, MessageCircle } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ActivityTimeline } from '@/components/clients/activity-timeline';
+import { ArchiveClientButton } from '@/components/clients/archive-client-button';
 import { createClient } from '@/lib/supabase/server';
 import { getClientById, getClientTimeline, getClientNotes } from '@/lib/services/clients';
 import { listQuotationsByClient } from '@/lib/services/quotations';
@@ -40,9 +41,12 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
             <div className="rounded-lg border border-sand-200 bg-white p-5">
               <div className="mb-3 flex items-start justify-between">
                 {client.status && <StatusBadge label={client.status.name} />}
-                <Link href={`/clients/${id}/edit`} className="text-ink-500 hover:text-harbor-600">
-                  <Pencil className="h-4 w-4" />
-                </Link>
+                <div className="flex items-center gap-3">
+                  <Link href={`/clients/${id}/edit`} className="text-ink-500 hover:text-harbor-600">
+                    <Pencil className="h-4 w-4" />
+                  </Link>
+                  <ArchiveClientButton clientId={id} clientName={client.full_name} />
+                </div>
               </div>
 
               <div className="space-y-2 text-sm">

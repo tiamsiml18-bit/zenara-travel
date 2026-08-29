@@ -13,6 +13,7 @@ import {
   getPackageDetailsAction,
 } from '@/app/(app)/quotations/actions';
 import { quickCreateClientAction } from '@/app/(app)/clients/actions';
+import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { QuotationDraftInput, CostItemInput } from '@/lib/validation/quotation';
 
 type Client = { id: string; full_name: string; email: string | null; mobile_number: string | null };
@@ -58,6 +59,7 @@ export function QuotationWizard({
   initialClientId,
   mode = 'create',
   quotationId,
+  nextVersionLabel,
   initialData,
 }: {
   clients: Client[];
@@ -67,6 +69,7 @@ export function QuotationWizard({
   initialClientId?: string;
   mode?: 'create' | 'revise';
   quotationId?: string;
+  nextVersionLabel?: string;
   initialData?: QuotationWizardInitialData;
 }) {
   const router = useRouter();
@@ -76,6 +79,7 @@ export function QuotationWizard({
   const [step, setStep] = useState(mode === 'revise' ? 2 : 0);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { confirm, dialog } = useConfirmDialog();
 
   // Step 1
   const [clientMode, setClientMode] = useState<'existing' | 'new'>('existing');
@@ -183,7 +187,7 @@ export function QuotationWizard({
     return true;
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setError(null);
     const input: QuotationDraftInput = {
       clientId,
@@ -213,6 +217,32 @@ export function QuotationWizard({
       markup: trip.markup === '' ? 0 : Number(trip.markup),
     };
 
+    // A single confirmation for the whole revision, with a short summary of
+    // what actually changed — not a popup per field. Normal draft saves
+    // (mode === 'create', or editing a draft in place) never hit this.
+    if (mode === 'revise' && initialData) {
+      const summary: { label: string; from: string; to: string }[] = [];
+      const add = (label: string, from: string, to: string) => {
+        if (from !== to) summary.push({ label, from, to });
+      };
+      add('Destination', initialData.destination, trip.destination);
+      add('Travel start', initialData.travelStartDate, trip.travelStartDate);
+      add('Travel end', initialData.travelEndDate, trip.travelEndDate);
+      add('Hotel', initialData.hotelName || '\u2014', trip.hotelName || '\u2014');
+      add('Total price', `PHP ${Number(initialData.totalPrice).toLocaleString('en-PH')}`, `PHP ${Number(input.totalPrice).toLocaleString('en-PH')}`);
+      add('Itinerary days', String(initialData.itinerary?.length ?? 0), String(itinerary.length));
+      add('Inclusions', String(initialData.inclusions?.length ?? 0), String(inclusions.length));
+      add('Exclusions', String(initialData.exclusions?.length ?? 0), String(exclusions.length));
+
+      const ok = await confirm({
+        title: `Save this quotation as ${nextVersionLabel ?? 'a new revision'}?`,
+        description: 'The original stays exactly as the client received it \u2014 this creates a new version.',
+        summary,
+        confirmLabel: 'Save Revision',
+      });
+      if (!ok) return;
+    }
+
     startTransition(async () => {
       const result =
         mode === 'revise' && quotationId
@@ -228,6 +258,7 @@ export function QuotationWizard({
 
   return (
     <div className="max-w-3xl">
+      {dialog}
       {/* Step indicator */}
       <ol className="mb-8 flex items-center">
         {steps.map((label, localIndex) => {

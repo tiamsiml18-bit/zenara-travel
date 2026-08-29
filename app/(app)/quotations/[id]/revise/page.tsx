@@ -12,7 +12,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
   const { id } = await params;
   const supabase = await createClient();
 
-  const { quotation, currentVersion } = await getQuotationById(supabase, id);
+  const { quotation, versions, currentVersion } = await getQuotationById(supabase, id);
   if (!currentVersion) throw new Error('This quotation has no version to revise.');
 
   // A version that's still a draft is edited in place via the quotation
@@ -41,6 +41,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
         <QuotationWizard
           mode="revise"
           quotationId={id}
+          nextVersionLabel={`Rev ${(versions?.length ?? 1) + 1}`}
           packages={packages}
           sources={sources}
           consultants={consultants}

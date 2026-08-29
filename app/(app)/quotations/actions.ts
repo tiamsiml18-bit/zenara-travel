@@ -87,6 +87,20 @@ export async function redirectToQuotation(quotationId: string) {
   redirect(`/quotations/${quotationId}`);
 }
 
+/** Archiving is gated by a confirmation dialog client-side; this action just executes. */
+export async function archiveQuotationAction(quotationId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await quotationsService.archiveQuotation(supabase, quotationId, user.id);
+    revalidatePath('/quotations');
+    revalidatePath(`/quotations/${quotationId}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to archive quotation.' };
+  }
+}
+
 export async function getPackageDetailsAction(packageId: string) {
   await requireUser();
   const supabase = await createSupabaseServerClient();

@@ -9,9 +9,16 @@
 // being its own small component below rather than reading isPending here.
 import { useFormState, useFormStatus } from 'react-dom';
 import type { FormState } from '@/app/(app)/clients/actions';
+import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 
 type Option = { id: string; name: string };
 type Agent = { id: string; full_name: string };
+
+// Per the confirmation policy: routine status progression (New Lead →
+// Contacted → Quotation Sent → Negotiating, etc.) saves directly, but these
+// terminal/high-stakes statuses get a confirmation — they represent a real
+// business outcome, not just administrative progress.
+const MAJOR_STATUS_NAMES = new Set(['Confirmed', 'Paid', 'Cancelled', 'Lost']);
 
 export function ClientForm({
   action,
@@ -47,9 +54,63 @@ export function ClientForm({
 }) {
   const [state, formAction] = useFormState<FormState, FormData>(action, undefined);
   const err = (field: string) => state?.fieldErrors?.[field];
+  const { confirm, dialog } = useConfirmDialog();
+
+  // Only an existing client being edited has a "before" state worth
+  // comparing against — a brand-new client's initial status/agent isn't a
+  // "change" that needs confirming, per the policy (normal creation, and
+  // normal edits, never show a popup; only edits to specific major fields
+  // on an existing record do).
+  const isEditing = Boolean(defaultValues?.assignedAgentId || defaultValues?.statusId);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    if (isEditing) {
+      const newAgentId = String(formData.get('assignedAgentId') ?? '');
+      const newStatusId = String(formData.get('statusId') ?? '');
+      const agentChanged = defaultValues?.assignedAgentId && newAgentId !== defaultValues.assignedAgentId;
+      const newStatusName = statuses.find((s) => s.id === newStatusId)?.name;
+      const statusChangedToMajor =
+        defaultValues?.statusId &&
+        newStatusId !== defaultValues.statusId &&
+        newStatusName &&
+        MAJOR_STATUS_NAMES.has(newStatusName);
+
+      if (agentChanged || statusChangedToMajor) {
+        const summary: { label: string; from: string; to: string }[] = [];
+        if (agentChanged) {
+          summary.push({
+            label: 'Assigned agent',
+            from: agents.find((a) => a.id === defaultValues?.assignedAgentId)?.full_name ?? '\u2014',
+            to: agents.find((a) => a.id === newAgentId)?.full_name ?? '\u2014',
+          });
+        }
+        if (statusChangedToMajor) {
+          summary.push({
+            label: 'Status',
+            from: statuses.find((s) => s.id === defaultValues?.statusId)?.name ?? '\u2014',
+            to: newStatusName ?? '\u2014',
+          });
+        }
+        const ok = await confirm({
+          title: 'Confirm this change?',
+          description: 'This is a major change to the client record.',
+          summary,
+          confirmLabel: 'Save changes',
+        });
+        if (!ok) return;
+      }
+    }
+
+    formAction(formData);
+  }
 
   return (
-    <form action={formAction} className="max-w-3xl space-y-8">
+    <form onSubmit={handleSubmit} className="max-w-3xl space-y-8">
+      {dialog}
       {state?.error && (
         <div className="rounded-md border border-coral-500/30 bg-coral-500/5 px-3 py-2 text-sm text-coral-600">
           {state.error}

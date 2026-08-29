@@ -4,6 +4,7 @@ import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quotations/quotation-actions';
 import { QuotationStatusControls, ConvertToBookingButton } from '@/components/quotations/quotation-status-controls';
+import { ArchiveQuotationButton } from '@/components/quotations/archive-quotation-button';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { getBookingForQuotation } from '@/lib/services/bookings';
@@ -84,6 +85,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               </Link>
             )}
             <DuplicateQuotationButton quotationId={id} />
+            <ArchiveQuotationButton quotationId={id} quotationNumber={quotation.quotation_number} />
           </div>
         </div>
 

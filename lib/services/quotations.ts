@@ -18,6 +18,7 @@ export interface QuotationListFilters {
   destination?: string;
   page?: number;
   pageSize?: number;
+  includeArchived?: boolean;
 }
 
 export async function listQuotations(supabase: SupabaseClient, filters: QuotationListFilters = {}) {
@@ -40,6 +41,11 @@ export async function listQuotations(supabase: SupabaseClient, filters: Quotatio
     .is('deleted_at', null)
     .order('updated_at', { ascending: false })
     .range(from, to);
+
+  // Archived quotations are hidden by default (that's the whole point of
+  // the Archive button) but never actually excluded before — `is_archived`
+  // existed on the table with no query ever checking it.
+  if (!filters.includeArchived) query = query.eq('is_archived', false);
 
   if (filters.status) query = query.eq('status', filters.status);
   if (filters.agentId) query = query.eq('assigned_agent_id', filters.agentId);
@@ -479,6 +485,25 @@ const QUOTATION_TO_CLIENT_STATUS: Partial<Record<string, string>> = {
   lost: 'Lost',
   expired: 'Expired',
 };
+
+/**
+ * Archive is a soft, reversible hide — not deletion. Uses the dedicated
+ * `is_archived` flag (kept separate from `deleted_at`, which this app
+ * reserves for actual removal from every query, whereas an archived
+ * quotation should still be findable if someone goes looking for it).
+ * Gated by a confirmation dialog client-side; this function just executes.
+ */
+export async function archiveQuotation(supabase: SupabaseClient, quotationId: string, actingUserId: string) {
+  const { error } = await supabase.from('quotations').update({ is_archived: true }).eq('id', quotationId);
+  if (error) throw new Error(`Failed to archive quotation: ${error.message}`);
+  await writeAudit(supabase, { userId: actingUserId, action: 'quotation.archived', entityType: 'quotation', entityId: quotationId });
+}
+
+export async function unarchiveQuotation(supabase: SupabaseClient, quotationId: string, actingUserId: string) {
+  const { error } = await supabase.from('quotations').update({ is_archived: false }).eq('id', quotationId);
+  if (error) throw new Error(`Failed to restore quotation: ${error.message}`);
+  await writeAudit(supabase, { userId: actingUserId, action: 'quotation.unarchived', entityType: 'quotation', entityId: quotationId });
+}
 
 export async function updateQuotationStatus(
   supabase: SupabaseClient,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClientInput } from '@/lib/validation/client';
-import { writeAudit } from './audit';
+import { writeAudit, diffFields, writeFieldChangeAudit } from './audit';
+import { unwrapToOne } from '@/lib/utils/unwrap-embed';
 
 const CLIENT_LIST_SELECT = `
   id, full_name, mobile_number, email, destination, travel_start_date, travel_end_date,
@@ -137,15 +138,95 @@ export async function updateClient(
   input: ClientInput,
   actingUserId: string
 ) {
+  // Fetch the "before" state, with lookup names resolved, so the audit
+  // entry reads "Lead source: Facebook Ads → Referral" instead of two raw
+  // UUIDs nobody can interpret later. This runs before the update so it's
+  // genuinely the prior state, not a re-read of what we're about to write.
+  const { data: before } = await supabase
+    .from('clients')
+    .select(
+      `full_name, mobile_number, email, messenger_handle, instagram_handle, whatsapp_number,
+       destination, travel_start_date, travel_end_date, num_adults, num_children, quoted_price, notes,
+       source:client_sources ( name ), status:client_statuses ( name ), agent:users!clients_assigned_agent_id_fkey ( full_name )`
+    )
+    .eq('id', clientId)
+    .single();
+
   const { error } = await supabase.from('clients').update(toDbRow(input)).eq('id', clientId);
   if (error) throw new Error(`Failed to update client: ${error.message}`);
 
-  await writeAudit(supabase, {
-    userId: actingUserId,
-    action: 'client.updated',
-    entityType: 'client',
-    entityId: clientId,
-  });
+  if (before) {
+    const [{ data: newSource }, { data: newStatus }, { data: newAgent }] = await Promise.all([
+      input.sourceId ? supabase.from('client_sources').select('name').eq('id', input.sourceId).single() : Promise.resolve({ data: null }),
+      input.statusId ? supabase.from('client_statuses').select('name').eq('id', input.statusId).single() : Promise.resolve({ data: null }),
+      input.assignedAgentId ? supabase.from('users').select('full_name').eq('id', input.assignedAgentId).single() : Promise.resolve({ data: null }),
+    ]);
+
+    const beforeSource = unwrapToOne((before as { source: unknown }).source) as { name: string } | null;
+    const beforeStatus = unwrapToOne((before as { status: unknown }).status) as { name: string } | null;
+    const beforeAgent = unwrapToOne((before as { agent: unknown }).agent) as { full_name: string } | null;
+
+    const changes = diffFields(
+      {
+        fullName: before.full_name,
+        mobileNumber: before.mobile_number,
+        email: before.email,
+        messengerHandle: before.messenger_handle,
+        instagramHandle: before.instagram_handle,
+        whatsappNumber: before.whatsapp_number,
+        destination: before.destination,
+        travelStartDate: before.travel_start_date,
+        travelEndDate: before.travel_end_date,
+        numAdults: before.num_adults,
+        numChildren: before.num_children,
+        quotedPrice: before.quoted_price,
+        notes: before.notes,
+        source: beforeSource?.name ?? null,
+        status: beforeStatus?.name ?? null,
+        agent: beforeAgent?.full_name ?? null,
+      },
+      {
+        fullName: input.fullName,
+        mobileNumber: input.mobileNumber || null,
+        email: input.email || null,
+        messengerHandle: input.messengerHandle || null,
+        instagramHandle: input.instagramHandle || null,
+        whatsappNumber: input.whatsappNumber || null,
+        destination: input.destination || null,
+        travelStartDate: input.travelStartDate || null,
+        travelEndDate: input.travelEndDate || null,
+        numAdults: input.numAdults,
+        numChildren: input.numChildren,
+        quotedPrice: input.quotedPrice ?? null,
+        notes: input.notes || null,
+        source: newSource?.name ?? null,
+        status: newStatus?.name ?? null,
+        agent: newAgent?.full_name ?? null,
+      },
+      {
+        fullName: 'Full name',
+        mobileNumber: 'Mobile number',
+        email: 'Email',
+        messengerHandle: 'Messenger',
+        instagramHandle: 'Instagram',
+        whatsappNumber: 'WhatsApp',
+        destination: 'Destination',
+        travelStartDate: 'Travel start date',
+        travelEndDate: 'Travel end date',
+        numAdults: 'Adults',
+        numChildren: 'Children',
+        quotedPrice: 'Quoted price',
+        notes: 'Notes',
+        source: 'Lead source',
+        status: 'Status',
+        agent: 'Assigned agent',
+      }
+    );
+
+    await writeFieldChangeAudit(supabase, { userId: actingUserId, entityType: 'client', entityId: clientId, changes });
+  } else {
+    await writeAudit(supabase, { userId: actingUserId, action: 'client.updated', entityType: 'client', entityId: clientId });
+  }
 }
 
 export async function addClientNote(
@@ -165,6 +246,29 @@ export async function addClientNote(
     description: note.length > 140 ? `${note.slice(0, 140)}\u2026` : note,
     user_id: actingUserId,
   });
+}
+
+/**
+ * Archive is implemented as the same soft-delete already used everywhere
+ * else (deleted_at) — it removes the client from every active list/query
+ * without destroying the record, consistent with "archiving," not
+ * permanent deletion. Gated by a confirmation dialog client-side; this
+ * function itself doesn't re-check that, since confirmation is a UI
+ * concern, not a data-integrity one — RLS is what actually protects who
+ * can call this.
+ */
+export async function archiveClient(supabase: SupabaseClient, clientId: string, actingUserId: string) {
+  const { error } = await supabase.from('clients').update({ deleted_at: new Date().toISOString() }).eq('id', clientId);
+  if (error) throw new Error(`Failed to archive client: ${error.message}`);
+
+  await writeAudit(supabase, { userId: actingUserId, action: 'client.archived', entityType: 'client', entityId: clientId });
+}
+
+export async function restoreClient(supabase: SupabaseClient, clientId: string, actingUserId: string) {
+  const { error } = await supabase.from('clients').update({ deleted_at: null }).eq('id', clientId);
+  if (error) throw new Error(`Failed to restore client: ${error.message}`);
+
+  await writeAudit(supabase, { userId: actingUserId, action: 'client.restored', entityType: 'client', entityId: clientId });
 }
 
 export async function setClientStatusByName(
