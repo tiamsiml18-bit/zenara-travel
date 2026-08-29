@@ -14,9 +14,14 @@ export async function convertToBookingAction(quotationId: string): Promise<Actio
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
   try {
-    const { bookingId } = await bookingsService.convertQuotationToBooking(supabase, quotationId, user.id);
+    const { bookingId, clientId } = await bookingsService.convertQuotationToBooking(supabase, quotationId, user.id);
     revalidatePath('/bookings');
     revalidatePath(`/quotations/${quotationId}`);
+    revalidatePath('/quotations');
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath('/clients');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
     return { ok: true, data: { bookingId } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to create booking.' };
@@ -33,6 +38,8 @@ export async function updateBookingStatusAction(input: { bookingId: string; stat
     await bookingsService.updateBookingStatus(supabase, parsed.data.bookingId, parsed.data.status, user.id);
     revalidatePath(`/bookings/${input.bookingId}`);
     revalidatePath('/bookings');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to update booking status.' };
@@ -50,6 +57,9 @@ export async function addPaymentAction(input: PaymentInput): Promise<ActionResul
   try {
     await paymentsService.addPayment(supabase, parsed.data, user.id);
     revalidatePath(`/bookings/${input.bookingId}`);
+    revalidatePath('/bookings');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to record payment.' };
@@ -61,9 +71,13 @@ export async function updateQuotationStatusAction(input: { quotationId: string; 
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
   try {
-    await quotationsService.updateQuotationStatus(supabase, input.quotationId, input.status, user.id);
+    const { clientId } = await quotationsService.updateQuotationStatus(supabase, input.quotationId, input.status, user.id);
     revalidatePath(`/quotations/${input.quotationId}`);
     revalidatePath('/quotations');
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath('/clients');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to update status.' };

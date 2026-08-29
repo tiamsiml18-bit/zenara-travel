@@ -1,85 +1,94 @@
 'use server';
 
+import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
-import { paymentSchema, bookingStatusSchema, type PaymentInput } from '@/lib/validation/booking';
-import * as bookingsService from '@/lib/services/bookings';
-import * as paymentsService from '@/lib/services/payments';
+import { quotationDraftSchema, type QuotationDraftInput } from '@/lib/validation/quotation';
 import * as quotationsService from '@/lib/services/quotations';
+import { getPackageForQuotation } from '@/lib/services/packages';
 
-export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
+export type ActionResult =
+  | { ok: true; quotationId: string; quotationNumber?: string }
+  | { ok: false; error: string };
 
-export async function convertToBookingAction(quotationId: string): Promise<ActionResult<{ bookingId: string }>> {
+export async function createQuotationDraftAction(input: QuotationDraftInput): Promise<ActionResult> {
   const user = await requireUser();
+  const parsed = quotationDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid quotation data.' };
+  }
+
   const supabase = await createSupabaseServerClient();
   try {
-    const { bookingId, clientId } = await bookingsService.convertQuotationToBooking(supabase, quotationId, user.id);
-    revalidatePath('/bookings');
+    const { quotationId, quotationNumber } = await quotationsService.createDraftQuotation(
+      supabase,
+      parsed.data,
+      user.id
+    );
+    revalidatePath('/quotations');
+    revalidatePath(`/clients/${parsed.data.clientId}`);
+    revalidatePath('/dashboard');
+    return { ok: true, quotationId, quotationNumber };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to create quotation.' };
+  }
+}
+
+export async function reviseQuotationAction(
+  quotationId: string,
+  input: QuotationDraftInput
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = quotationDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid quotation data.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  try {
+    await quotationsService.reviseQuotation(supabase, quotationId, parsed.data, user.id);
     revalidatePath(`/quotations/${quotationId}`);
     revalidatePath('/quotations');
-    revalidatePath(`/clients/${clientId}`);
-    revalidatePath('/clients');
     revalidatePath('/dashboard');
-    revalidatePath('/reports');
-    return { ok: true, data: { bookingId } };
+    return { ok: true, quotationId };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Failed to create booking.' };
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to revise quotation.' };
   }
 }
 
-export async function updateBookingStatusAction(input: { bookingId: string; status: string }): Promise<ActionResult> {
+export async function sendQuotationAction(quotationId: string) {
   const user = await requireUser();
-  const parsed = bookingStatusSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: 'Invalid status.' };
-
   const supabase = await createSupabaseServerClient();
-  try {
-    await bookingsService.updateBookingStatus(supabase, parsed.data.bookingId, parsed.data.status, user.id);
-    revalidatePath(`/bookings/${input.bookingId}`);
-    revalidatePath('/bookings');
-    revalidatePath('/dashboard');
-    revalidatePath('/reports');
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Failed to update booking status.' };
-  }
+  const { clientId } = await quotationsService.sendQuotation(supabase, quotationId, user.id);
+  revalidatePath(`/quotations/${quotationId}`);
+  revalidatePath('/quotations');
+  revalidatePath('/followups');
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath('/clients');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
 }
 
-export async function addPaymentAction(input: PaymentInput): Promise<ActionResult> {
-  const user = await requireUser();
-  const parsed = paymentSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid payment details.' };
-  }
-
-  const supabase = await createSupabaseServerClient();
-  try {
-    await paymentsService.addPayment(supabase, parsed.data, user.id);
-    revalidatePath(`/bookings/${input.bookingId}`);
-    revalidatePath('/bookings');
-    revalidatePath('/dashboard');
-    revalidatePath('/reports');
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Failed to record payment.' };
-  }
-}
-
-/** Used from the quotation detail page to move a sent quotation to Negotiating/Confirmed/Cancelled/Lost/Expired. */
-export async function updateQuotationStatusAction(input: { quotationId: string; status: string }): Promise<ActionResult> {
+export async function duplicateQuotationAction(quotationId: string): Promise<ActionResult> {
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
   try {
-    const { clientId } = await quotationsService.updateQuotationStatus(supabase, input.quotationId, input.status, user.id);
-    revalidatePath(`/quotations/${input.quotationId}`);
+    const result = await quotationsService.duplicateQuotation(supabase, quotationId, user.id);
     revalidatePath('/quotations');
-    revalidatePath(`/clients/${clientId}`);
-    revalidatePath('/clients');
     revalidatePath('/dashboard');
-    revalidatePath('/reports');
-    return { ok: true };
+    return { ok: true, quotationId: result.quotationId, quotationNumber: result.quotationNumber };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Failed to update status.' };
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to duplicate quotation.' };
   }
+}
+
+export async function redirectToQuotation(quotationId: string) {
+  redirect(`/quotations/${quotationId}`);
+}
+
+export async function getPackageDetailsAction(packageId: string) {
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  return getPackageForQuotation(supabase, packageId);
 }
