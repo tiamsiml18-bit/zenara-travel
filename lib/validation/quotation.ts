@@ -7,6 +7,10 @@ export const itineraryDaySchema = z.object({
   title: z.string().trim().min(1, 'Give this day a title.').max(200),
   description: z.string().trim().max(2000).optional().or(z.literal('')),
   activities: z.array(z.string().trim().min(1)).default([]),
+  // Traceability only — which tour/free-time preset this day was seeded
+  // from, if any. Never read back live; the fields above are the actual
+  // snapshot the agent can freely edit afterward.
+  sourceTourId: z.string().uuid().optional().nullable(),
 });
 
 export const costItemSchema = z.object({

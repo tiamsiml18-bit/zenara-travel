@@ -49,7 +49,7 @@ export async function getPackageById(supabase: SupabaseClient, packageId: string
       supabase.from('packages').select('*').eq('id', packageId).is('deleted_at', null).single(),
       supabase
         .from('package_itineraries')
-        .select('id, day_number, title, description, activities')
+        .select('id, day_number, title, description, activities, source_tour_id')
         .eq('package_id', packageId)
         .order('day_number'),
       supabase.from('package_inclusions').select('id, item').eq('package_id', packageId).order('sort_order'),
@@ -66,6 +66,7 @@ export async function getPackageById(supabase: SupabaseClient, packageId: string
       description: d.description ?? '',
       activities: d.activities ?? [],
       dayDate: '',
+      sourceTourId: d.source_tour_id ?? null,
     })),
     inclusions: (inclusions ?? []).map((i) => i.item),
     exclusions: (exclusions ?? []).map((e) => e.item),
@@ -94,6 +95,7 @@ async function replacePackageChildren(supabase: SupabaseClient, packageId: strin
         title: d.title,
         description: d.description || null,
         activities: d.activities,
+        source_tour_id: d.sourceTourId || null,
       }))
     );
     if (error) throw new Error(`Failed to save itinerary: ${error.message}`);
@@ -185,7 +187,7 @@ export async function getPackageForQuotation(supabase: SupabaseClient, packageId
       supabase.from('packages').select('*').eq('id', packageId).single(),
       supabase
         .from('package_itineraries')
-        .select('day_number, title, description, activities')
+        .select('day_number, title, description, activities, source_tour_id')
         .eq('package_id', packageId)
         .order('day_number'),
       supabase.from('package_inclusions').select('item').eq('package_id', packageId).order('sort_order'),
@@ -202,6 +204,7 @@ export async function getPackageForQuotation(supabase: SupabaseClient, packageId
       description: d.description ?? '',
       activities: d.activities ?? [],
       dayDate: '',
+      sourceTourId: d.source_tour_id ?? null,
     })),
     inclusions: (inclusions ?? []).map((i) => i.item),
     exclusions: (exclusions ?? []).map((e) => e.item),

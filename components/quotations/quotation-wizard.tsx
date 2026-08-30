@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
-import { ItineraryBuilder, type ItineraryDayDraft } from './itinerary-builder';
+import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from './itinerary-builder';
 import { TagListInput } from './tag-list-input';
 import { CostBreakdownEditor } from './cost-breakdown-editor';
 import { SupplierImportPanel, type AppliedSupplierData } from './supplier-import-panel';
@@ -62,6 +62,7 @@ export function QuotationWizard({
   packages,
   sources,
   consultants,
+  tours = [],
   initialClientId,
   mode = 'create',
   quotationId,
@@ -72,6 +73,7 @@ export function QuotationWizard({
   packages: PackageOption[];
   sources: Source[];
   consultants: { id: string; full_name: string }[];
+  tours?: TourPickerItem[];
   initialClientId?: string;
   mode?: 'create' | 'revise';
   quotationId?: string;
@@ -184,6 +186,42 @@ export function QuotationWizard({
   const [itinerary, setItinerary] = useState<ItineraryDayDraft[]>(initialData?.itinerary ?? []);
   const [inclusions, setInclusions] = useState<string[]>(initialData?.inclusions ?? []);
   const [exclusions, setExclusions] = useState<string[]>(initialData?.exclusions ?? []);
+
+  /**
+   * Fires when a tour is picked from any day's "Select Tour" dropdown.
+   * Inclusions/exclusions get merged in (skipping exact duplicates, since
+   * two tours in the same trip often share things like "hotel pickup").
+   * Guest-type rates ADD to whatever's already there rather than replacing
+   * it — a trip with two paid tours (e.g. Island Hopping + Sunset Cruise)
+   * genuinely costs the sum of both, so accumulating is the correct
+   * default; the agent can still edit any rate afterward. A tour's flat
+   * group_cost (a shared cost that doesn't scale per person, like a boat
+   * rental) becomes its own line in the internal cost breakdown instead of
+   * a per-guest rate, since that's a different kind of cost entirely.
+   */
+  function handleTourSelected(tour: TourPickerItem) {
+    setInclusions((prev) => Array.from(new Set([...prev, ...tour.default_inclusions])));
+    setExclusions((prev) => Array.from(new Set([...prev, ...tour.default_exclusions])));
+
+    setGuestRates((prev) => {
+      const next = { ...prev };
+      const addPrice = (type: GuestType, tourPrice: number | null) => {
+        if (!tourPrice) return;
+        const current = next[type].price === '' ? 0 : Number(next[type].price);
+        next[type] = { ...next[type], price: current + tourPrice };
+      };
+      addPrice('senior', tour.price_senior);
+      addPrice('adult', tour.price_adult);
+      addPrice('child', tour.price_child);
+      addPrice('infant', tour.price_infant);
+      addPrice('pwd', tour.price_pwd);
+      return next;
+    });
+
+    if (tour.group_cost) {
+      setCostItems((prev) => [...prev, { label: tour.name, amount: tour.group_cost as number }]);
+    }
+  }
 
   const steps = mode === 'revise' ? STEPS.slice(2) : STEPS;
   const stepOffset = mode === 'revise' ? 2 : 0;
@@ -765,7 +803,9 @@ export function QuotationWizard({
           </div>
         )}
 
-        {step === 3 && <ItineraryBuilder days={itinerary} onChange={setItinerary} />}
+        {step === 3 && (
+          <ItineraryBuilder days={itinerary} onChange={setItinerary} tours={tours} onTourSelected={handleTourSelected} />
+        )}
 
         {step === 4 && (
           <div className="grid grid-cols-2 gap-6">

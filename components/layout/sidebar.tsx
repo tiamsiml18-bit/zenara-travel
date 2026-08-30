@@ -5,6 +5,7 @@ import {
   Bell,
   Briefcase,
   Package,
+  Map,
   BarChart3,
   Settings,
   UploadCloud,
@@ -60,6 +61,7 @@ export function Sidebar({
         <NavLink href="/followups" label="Follow-ups" icon={<Bell className="h-4 w-4 shrink-0" strokeWidth={1.75} />} badge={followUpsDueCount} />
         <NavLink href="/bookings" label="Bookings" icon={<Briefcase className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
 
         {user.role === 'admin' && (

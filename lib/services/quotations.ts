@@ -114,7 +114,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     await Promise.all([
       supabase
         .from('quotation_itinerary_days')
-        .select('id, day_number, day_date, title, description, activities')
+        .select('id, day_number, day_date, title, description, activities, source_tour_id')
         .eq('quotation_version_id', versionId)
         .order('day_number'),
       supabase
@@ -221,6 +221,7 @@ async function insertVersionChildren(
         title: d.title,
         description: d.description || null,
         activities: d.activities,
+        source_tour_id: d.sourceTourId || null,
       }))
     );
     if (error) throw new Error(`Failed to save itinerary: ${error.message}`);
@@ -773,6 +774,7 @@ export async function duplicateQuotation(
       title: d.title,
       description: d.description ?? '',
       activities: d.activities ?? [],
+      sourceTourId: d.source_tour_id ?? null,
     })),
     feeItems,
     costItems,

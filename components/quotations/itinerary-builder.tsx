@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, X, Sparkles } from 'lucide-react';
+import { FREE_TIME_OPTIONS } from '@/lib/utils/free-time-options';
 
 export interface ItineraryDayDraft {
   dayNumber: number;
@@ -9,14 +10,40 @@ export interface ItineraryDayDraft {
   title: string;
   description: string;
   activities: string[];
+  sourceTourId?: string | null;
+}
+
+/** Matches lib/services/tours.ts's listToursForPicker() return shape. */
+export interface TourPickerItem {
+  id: string;
+  name: string;
+  destination: string | null;
+  description: string | null;
+  activities: string[];
+  default_inclusions: string[];
+  default_exclusions: string[];
+  price_senior: number | null;
+  price_adult: number | null;
+  price_child: number | null;
+  price_infant: number | null;
+  price_pwd: number | null;
+  group_cost: number | null;
 }
 
 export function ItineraryBuilder({
   days,
   onChange,
+  tours = [],
+  onTourSelected,
 }: {
   days: ItineraryDayDraft[];
   onChange: (days: ItineraryDayDraft[]) => void;
+  // Optional — the package form doesn't have guest-pricing to feed, so it
+  // can pass tours without onTourSelected and just get the itinerary
+  // auto-fill; the quotation wizard passes both, so tour selection also
+  // pre-fills inclusions/exclusions/pricing.
+  tours?: TourPickerItem[];
+  onTourSelected?: (tour: TourPickerItem) => void;
 }) {
   const [activityDraft, setActivityDraft] = useState<Record<number, string>>({});
 
@@ -28,7 +55,7 @@ export function ItineraryBuilder({
     onChange(
       renumber([
         ...days,
-        { dayNumber: days.length + 1, dayDate: '', title: '', description: '', activities: [] },
+        { dayNumber: days.length + 1, dayDate: '', title: '', description: '', activities: [], sourceTourId: null },
       ])
     );
   }
@@ -70,6 +97,32 @@ export function ItineraryBuilder({
     });
   }
 
+  /**
+   * Handles both "Add Tour" (a blank day) and "Replace Tour" (a day that
+   * already has content) with the same action — selecting anything from the
+   * dropdown always fills this day's title/activities from the pick,
+   * replacing whatever was there before. That's the same operation either
+   * way; there's no need for two separate buttons.
+   */
+  function handleTourPick(index: number, value: string) {
+    if (!value) return;
+    const freeTime = FREE_TIME_OPTIONS.find((f) => f.id === value);
+    if (freeTime) {
+      updateDay(index, { title: freeTime.title, description: '', activities: [...freeTime.activities], sourceTourId: null });
+      return;
+    }
+    const tour = tours.find((t) => t.id === value);
+    if (tour) {
+      updateDay(index, {
+        title: tour.name,
+        description: tour.description ?? '',
+        activities: [...tour.activities],
+        sourceTourId: tour.id,
+      });
+      onTourSelected?.(tour);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {days.map((day, index) => (
@@ -80,7 +133,7 @@ export function ItineraryBuilder({
             </span>
             <input
               value={day.title}
-              onChange={(e) => updateDay(index, { title: e.target.value })}
+              onChange={(e) => updateDay(index, { title: e.target.value, sourceTourId: null })}
               placeholder="Day title, e.g. Arrival | Free Time"
               className="flex-1 rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
@@ -101,6 +154,44 @@ export function ItineraryBuilder({
                 <Trash2 className="h-4 w-4 text-coral-500" />
               </IconButton>
             </div>
+          </div>
+
+          {/* Select Tour — loads a saved tour (or a Free Time preset)
+              straight from the library, so the agent never retypes a tour's
+              activities by hand. Picking here always fills this day fresh;
+              it's the same action whether the day was blank (Add) or
+              already had a different tour (Replace). */}
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-harbor-500" />
+            <select
+              value=""
+              onChange={(e) => {
+                handleTourPick(index, e.target.value);
+                e.target.value = '';
+              }}
+              className="flex-1 rounded-md border border-sand-200 bg-sand-50 px-3 py-1.5 text-sm text-ink-700 outline-none ring-harbor-400 focus:ring-2"
+            >
+              <option value="">
+                {day.sourceTourId ? 'Replace tour…' : 'Select tour or free time…'}
+              </option>
+              <optgroup label="Free Time">
+                {FREE_TIME_OPTIONS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.title}
+                  </option>
+                ))}
+              </optgroup>
+              {tours.length > 0 && (
+                <optgroup label="Tours Library">
+                  {tours.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {t.destination ? ` — ${t.destination}` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
           </div>
 
           <textarea

@@ -6,6 +6,7 @@ const itineraryDaySchema = z.object({
   description: z.string().trim().optional().or(z.literal('')),
   activities: z.array(z.string().trim().min(1)).default([]),
   dayDate: z.string().optional().or(z.literal('')), // unused for templates, kept for shared component compatibility
+  sourceTourId: z.string().uuid().optional().nullable(), // traceability only, see tours.ts
 });
 
 export const packageFormSchema = z.object({

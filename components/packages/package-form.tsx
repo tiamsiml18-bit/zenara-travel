@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ItineraryBuilder, type ItineraryDayDraft } from '@/components/quotations/itinerary-builder';
+import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from '@/components/quotations/itinerary-builder';
 import { TagListInput } from '@/components/quotations/tag-list-input';
 import { createPackageAction, updatePackageAction } from '@/app/(app)/packages/actions';
 import type { PackageFormInput } from '@/lib/validation/package';
@@ -23,10 +23,12 @@ export function PackageForm({
   mode = 'create',
   packageId,
   initialData,
+  tours = [],
 }: {
   mode?: 'create' | 'edit';
   packageId?: string;
   initialData?: PackageFormInitialData;
+  tours?: TourPickerItem[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -41,6 +43,14 @@ export function PackageForm({
   const [itinerary, setItinerary] = useState<ItineraryDayDraft[]>(initialData?.itinerary ?? []);
   const [inclusions, setInclusions] = useState<string[]>(initialData?.inclusions ?? []);
   const [exclusions, setExclusions] = useState<string[]>(initialData?.exclusions ?? []);
+
+  // Packages have no per-guest-type pricing of their own (that's set once a
+  // package becomes an actual quotation) — selecting a tour here only needs
+  // to merge its default inclusions/exclusions, skipping exact duplicates.
+  function handleTourSelected(tour: TourPickerItem) {
+    setInclusions((prev) => Array.from(new Set([...prev, ...tour.default_inclusions])));
+    setExclusions((prev) => Array.from(new Set([...prev, ...tour.default_exclusions])));
+  }
 
   function handleSubmit() {
     setError(null);
@@ -141,7 +151,7 @@ export function PackageForm({
 
       <section className="rounded-lg border border-sand-200 bg-white p-5">
         <h3 className="mb-4 font-display text-sm font-semibold text-ink-900">Default itinerary</h3>
-        <ItineraryBuilder days={itinerary} onChange={setItinerary} />
+        <ItineraryBuilder days={itinerary} onChange={setItinerary} tours={tours} onTourSelected={handleTourSelected} />
       </section>
 
       <section className="grid grid-cols-2 gap-6">

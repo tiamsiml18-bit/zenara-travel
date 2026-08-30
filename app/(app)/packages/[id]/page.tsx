@@ -2,13 +2,17 @@ import { Topbar } from '@/components/layout/topbar';
 import { PackageForm } from '@/components/packages/package-form';
 import { createClient } from '@/lib/supabase/server';
 import { getPackageById } from '@/lib/services/packages';
+import { listToursForPicker } from '@/lib/services/tours';
 import { requireUser } from '@/lib/auth/session';
 
 export default async function PackageDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
   const supabase = await createClient();
-  const { package: pkg, itinerary, inclusions, exclusions } = await getPackageById(supabase, id);
+  const [{ package: pkg, itinerary, inclusions, exclusions }, tours] = await Promise.all([
+    getPackageById(supabase, id),
+    listToursForPicker(supabase),
+  ]);
 
   const canManage = user.role === 'admin' || user.role === 'manager';
 
@@ -20,6 +24,7 @@ export default async function PackageDetailPage({ params }: { params: Promise<{ 
           <PackageForm
             mode="edit"
             packageId={id}
+            tours={tours}
             initialData={{
               name: pkg.name,
               destination: pkg.destination,

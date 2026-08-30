@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { listActivePackages } from '@/lib/services/packages';
 import { listClientSources, listConsultants } from '@/lib/services/lookups';
+import { listToursForPicker } from '@/lib/services/tours';
 import { requireUser } from '@/lib/auth/session';
 
 export default async function ReviseQuotationPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,12 +23,13 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
     redirect(`/quotations/${id}`);
   }
 
-  const [{ itinerary, inclusions, exclusions, costItems, feeItems, guestRates }, pricing, packages, sources, consultants] = await Promise.all([
+  const [{ itinerary, inclusions, exclusions, costItems, feeItems, guestRates }, pricing, packages, sources, consultants, tours] = await Promise.all([
     getVersionDetail(supabase, currentVersion.id),
     getPricingForVersion(supabase, currentVersion.id),
     listActivePackages(supabase),
     listClientSources(supabase),
     listConsultants(supabase),
+    listToursForPicker(supabase),
   ]);
 
   return (
@@ -45,6 +47,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
           packages={packages}
           sources={sources}
           consultants={consultants}
+          tours={tours}
           clients={[]}
           initialData={{
             clientId: quotation.client_id,
@@ -68,6 +71,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
               title: d.title,
               description: d.description ?? '',
               activities: d.activities ?? [],
+              sourceTourId: d.source_tour_id ?? null,
             })),
             inclusions: inclusions.map((i) => i.item),
             exclusions: exclusions.map((e) => e.item),
