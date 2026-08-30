@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { Plus } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Pagination } from '@/components/ui/pagination';
+import { QuotationFilterBar } from '@/components/quotations/quotation-filter-bar';
 import { createClient } from '@/lib/supabase/server';
 import { listQuotations } from '@/lib/services/quotations';
 import { listConsultants } from '@/lib/services/lookups';
@@ -43,55 +45,14 @@ export default async function QuotationsPage({
     page: params.page ? Number(params.page) : 1,
   });
 
-  const STATUS_OPTIONS = [
-    'draft', 'sent', 'viewed', 'follow_up', 'negotiating', 'confirmed', 'paid', 'cancelled', 'lost', 'expired',
-  ];
-
   return (
     <>
       <Topbar title="Quotations" />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <form className="flex flex-wrap gap-2" action="/quotations">
-            <select name="status" defaultValue={params.status} className="rounded-md border border-sand-200 px-3 py-2 text-sm">
-              <option value="">All statuses</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-            {/* Filters by consultant, not the technical assigned-agent
-                account — with one shared login across the team, filtering by
-                assigned agent would never narrow anything down, since every
-                quotation has the same value there. Consultant is the field
-                that actually distinguishes who worked on it. */}
-            <select name="consultant" defaultValue={params.consultant} className="rounded-md border border-sand-200 px-3 py-2 text-sm">
-              <option value="">All consultants</option>
-              {consultants.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name}
-                </option>
-              ))}
-            </select>
-            <input
-              type="date"
-              name="from"
-              defaultValue={params.from}
-              title="Travel date from"
-              className="rounded-md border border-sand-200 px-3 py-2 text-sm"
-            />
-            <input
-              type="date"
-              name="to"
-              defaultValue={params.to}
-              title="Travel date to"
-              className="rounded-md border border-sand-200 px-3 py-2 text-sm"
-            />
-            <button type="submit" className="rounded-md border border-sand-200 px-3 py-2 text-sm hover:bg-sand-100">
-              Filter
-            </button>
-          </form>
+          <Suspense fallback={<div className="h-[42px]" />}>
+            <QuotationFilterBar consultants={consultants} />
+          </Suspense>
 
           <Link
             href="/quotations/new"
