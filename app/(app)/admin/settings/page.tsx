@@ -50,6 +50,21 @@ export default async function AgencySettingsPage() {
             <TextAreaField label="Payment instructions" name="paymentInstructions" defaultValue={settings.payment_instructions ?? ''} />
           </Section>
 
+          <Section title="Payment fees">
+            <p className="mb-3 text-xs text-ink-500">
+              These percentages feed directly into every new quotation's Bank Fee calculation — change them here
+              rather than in code.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                label="Credit Card fee (%)"
+                name="creditCardFeePct"
+                defaultValue={String((settings.credit_card_fee_pct ?? 0.029) * 100)}
+              />
+              <Field label="PayPal fee (%)" name="paypalFeePct" defaultValue={String((settings.paypal_fee_pct ?? 0.039) * 100)} />
+            </div>
+          </Section>
+
           <div className="flex justify-end">
             <button type="submit" className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600">
               Save settings

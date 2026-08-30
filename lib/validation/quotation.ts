@@ -46,13 +46,31 @@ export const quotationDraftSchema = z
     hotelName: z.string().trim().max(200).optional().or(z.literal('')),
     numBedrooms: z.coerce.number().int().min(0).optional().nullable(),
 
-    // Total package price is NEVER user-entered — it's always calculated
-    // server-side from guestRates × the guest counts above (see
-    // lib/utils/guest-pricing.ts, the one function that ever computes it).
-    // Kept as a field here only because it's convenient for the wizard to
-    // pass its own live-calculated value through so the UI, the stored
-    // record, and the PDF all read from a single calculation path — the
-    // server recalculates and overwrites this rather than trusting it.
+    // Structured supplier-cost inputs, replicating the agency's Excel
+    // quotation template exactly (formula-by-formula confirmed before
+    // implementation). The Adult airfare rate is never entered directly —
+    // it's the remainder of the marked-up group total once every other
+    // guest type's manually-entered supplier rate is subtracted out, split
+    // across the actual adult count. See lib/utils/guest-pricing.ts for the
+    // literal formulas this feeds.
+    airfareActualRate: z.coerce.number().min(0).default(0),
+    airfareSeniorRate: z.coerce.number().min(0).default(0),
+    airfareChildRate: z.coerce.number().min(0).default(0),
+    airfareInfantRate: z.coerce.number().min(0).default(0),
+    airfarePwdRate: z.coerce.number().min(0).default(0),
+    hotelActualRate: z.coerce.number().min(0).default(0),
+    transferActualRate: z.coerce.number().min(0).default(0),
+
+    // Determines which admin-configurable fee % (agency_settings) applies —
+    // never a hardcoded percentage in application code.
+    paymentMethod: z.enum(['credit_card', 'paypal', 'none']).default('credit_card'),
+
+    // Tour contribution only — both the client rate and the supplier cost
+    // accumulated as tours are picked in the itinerary step (see
+    // handleTourSelected in the wizard). Combined server-side with the
+    // Airfare/Hotel/Transfer inputs above into the final per-guest-type
+    // numbers; never entered directly by the agent, and never the same
+    // amount counted twice.
     guestRates: z.array(guestRateSchema).default([]),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
@@ -70,11 +88,14 @@ export const quotationDraftSchema = z
     // Optional and empty by default; purely there for when it's needed.
     feeItems: z.array(costItemSchema).default([]),
 
-    // Internal-only cost breakdown for non-per-person costs (airfare, hotel,
-    // a shared van transfer) — adds together WITH the per-guest-type
-    // supplier costs above into one total supplier_cost, rather than
-    // replacing them. Never appears on the client-facing PDF.
+    // "Other Supplier Costs" — for anything genuinely outside Airfare,
+    // Hotel, Transfer, and Tours (a visa fee, a permit, a one-off request).
+    // Never a place to re-enter a cost that already has its own structured
+    // field above — duplicating a cost between here and Airfare/Hotel/
+    // Transfer/Tours is exactly what this restructuring exists to prevent.
     costItems: z.array(costItemSchema).default([]),
+    // The flat Zenara markup — one agent-entered amount, applied identically
+    // to every guest type (Excel: E27=F27=G27=H27, always the same number).
     markup: z.coerce.number().default(0),
   })
   .refine((d) => new Date(d.travelEndDate) >= new Date(d.travelStartDate), {

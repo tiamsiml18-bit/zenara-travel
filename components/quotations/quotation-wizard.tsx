@@ -21,10 +21,24 @@ import {
   GUEST_TYPE_LABELS,
   type GuestType,
   type GuestCounts,
+  type GuestRates,
   activeGuestTypes,
   calculateTotalPrice,
   calculateGuestSupplierCost,
+  calculateAirfareRates,
+  calculateHotelRatePerPerson,
+  calculateTransferRatePerPerson,
+  calculatePackagePerPax,
+  calculateBankFee,
+  calculateAdjustedPackage,
+  calculateFinalRatePerPax,
 } from '@/lib/utils/guest-pricing';
+
+const PAYMENT_METHOD_LABELS: Record<'credit_card' | 'paypal' | 'none', string> = {
+  credit_card: 'Credit Card',
+  paypal: 'PayPal',
+  none: 'No Fee',
+};
 
 type Client = { id: string; full_name: string; email: string | null; mobile_number: string | null };
 type PackageOption = { id: string; name: string; destination: string; num_days: number; num_nights: number };
@@ -47,6 +61,14 @@ export interface QuotationWizardInitialData {
   hotelName: string;
   numBedrooms: number;
   guestRates?: { guestType: GuestType; pricePerPerson: number; supplierCostPerPerson: number }[];
+  airfareActualRate?: number;
+  airfareSeniorRate?: number;
+  airfareChildRate?: number;
+  airfareInfantRate?: number;
+  airfarePwdRate?: number;
+  hotelActualRate?: number;
+  transferActualRate?: number;
+  paymentMethod?: 'credit_card' | 'paypal' | 'none';
   notes: string;
   itinerary: ItineraryDayDraft[];
   inclusions: string[];
@@ -64,6 +86,7 @@ export function QuotationWizard({
   sources,
   consultants,
   tours = [],
+  feePercentages = { creditCard: 0.029, paypal: 0.039 },
   initialClientId,
   mode = 'create',
   quotationId,
@@ -75,6 +98,10 @@ export function QuotationWizard({
   sources: Source[];
   consultants: { id: string; full_name: string }[];
   tours?: TourPickerItem[];
+  // Admin-configurable (agency_settings) — passed in so the wizard's live
+  // preview computes the exact same Bank Fee the server will, rather than
+  // guessing at a hardcoded percentage.
+  feePercentages?: { creditCard: number; paypal: number };
   initialClientId?: string;
   mode?: 'create' | 'revise' | 'edit';
   quotationId?: string;
@@ -116,6 +143,18 @@ export function QuotationWizard({
     markup: (initialData?.markup ?? '') as number | '',
     notes: initialData?.notes ?? '',
     consultantId: initialData?.consultantId ?? '',
+    // Structured supplier-cost inputs — replicating the agency's Excel
+    // quotation exactly. Senior/Child/Infant/PWD airfare rates are manual
+    // supplier-provided rates, never derived; the Adult rate is always the
+    // computed remainder (see computedAirfareRates below).
+    airfareActualRate: (initialData?.airfareActualRate ?? '') as number | '',
+    airfareSeniorRate: (initialData?.airfareSeniorRate ?? '') as number | '',
+    airfareChildRate: (initialData?.airfareChildRate ?? '') as number | '',
+    airfareInfantRate: (initialData?.airfareInfantRate ?? '') as number | '',
+    airfarePwdRate: (initialData?.airfarePwdRate ?? '') as number | '',
+    hotelActualRate: (initialData?.hotelActualRate ?? '') as number | '',
+    transferActualRate: (initialData?.transferActualRate ?? '') as number | '',
+    paymentMethod: initialData?.paymentMethod ?? ('credit_card' as 'credit_card' | 'paypal' | 'none'),
   });
   // Per guest type — client rate AND internal supplier cost, side by side,
   // since the agent needs both to see the margin while pricing a trip.
@@ -157,14 +196,48 @@ export function QuotationWizard({
     pwd: trip.numPwd,
   };
   const activeTypes = activeGuestTypes(guestCounts);
-  const clientRateMap = Object.fromEntries(
+  // Tour contribution only — accumulated via handleTourSelected() as tours
+  // are picked in the itinerary step. Airfare/Hotel/Transfer are computed
+  // separately below and combined with this, exactly matching the server's
+  // computeFullPricing() so the wizard's live preview can never disagree
+  // with what actually gets saved.
+  const tourClientRateMap = Object.fromEntries(
     GUEST_TYPES.map((t) => [t, guestRates[t].price === '' ? 0 : Number(guestRates[t].price)])
   ) as Record<GuestType, number>;
-  const supplierCostMap = Object.fromEntries(
+  const tourSupplierCostMap = Object.fromEntries(
     GUEST_TYPES.map((t) => [t, guestRates[t].cost === '' ? 0 : Number(guestRates[t].cost)])
   ) as Record<GuestType, number>;
+
+  const numVal = (v: number | '') => (v === '' ? 0 : Number(v));
+  const computedAirfareRates = calculateAirfareRates(
+    {
+      actualRate: numVal(trip.airfareActualRate),
+      seniorRate: numVal(trip.airfareSeniorRate),
+      childRate: numVal(trip.airfareChildRate),
+      infantRate: numVal(trip.airfareInfantRate),
+      pwdRate: numVal(trip.airfarePwdRate),
+    },
+    guestCounts
+  );
+  const computedHotelRate = calculateHotelRatePerPerson(numVal(trip.hotelActualRate), guestCounts);
+  const computedTransferRate = calculateTransferRatePerPerson(numVal(trip.transferActualRate), guestCounts);
+  const computedPackagePerPax = calculatePackagePerPax(computedAirfareRates, computedHotelRate, computedTransferRate, tourClientRateMap);
+  const feePct = trip.paymentMethod === 'credit_card' ? feePercentages.creditCard : trip.paymentMethod === 'paypal' ? feePercentages.paypal : 0;
+  const computedBankFee = calculateBankFee(computedPackagePerPax, feePct);
+  const computedAdjustedPackage = calculateAdjustedPackage(computedPackagePerPax, computedBankFee);
+  const clientRateMap = calculateFinalRatePerPax(computedAdjustedPackage, numVal(trip.markup)) as Record<GuestType, number>;
+  const supplierCostMap = tourSupplierCostMap;
+
   const computedTotalPrice = calculateTotalPrice(guestCounts, clientRateMap);
   const computedGuestSupplierCost = calculateGuestSupplierCost(guestCounts, supplierCostMap);
+  const computedTotalSupplierCost =
+    numVal(trip.airfareActualRate) +
+    numVal(trip.hotelActualRate) +
+    numVal(trip.transferActualRate) +
+    costItems.reduce((sum, i) => sum + (i.amount || 0), 0) +
+    computedGuestSupplierCost;
+  const computedProfit = computedTotalPrice - computedTotalSupplierCost;
+  const computedMarginPct = computedTotalPrice > 0 ? (computedProfit / computedTotalPrice) * 100 : 0;
 
   // Only meaningful in revise mode — the original quotation's total,
   // recomputed the same way, purely for the "what changed" summary shown
@@ -303,9 +376,20 @@ export function QuotationWizard({
       numBedrooms: trip.numBedrooms || null,
       guestRates: activeTypes.map((guestType) => ({
         guestType,
-        pricePerPerson: clientRateMap[guestType],
-        supplierCostPerPerson: supplierCostMap[guestType],
+        // Tour contribution only — the server combines this with the
+        // structured Airfare/Hotel/Transfer inputs below. Sending the
+        // already-final computed rate here would double-count those.
+        pricePerPerson: tourClientRateMap[guestType],
+        supplierCostPerPerson: tourSupplierCostMap[guestType],
       })),
+      airfareActualRate: numVal(trip.airfareActualRate),
+      airfareSeniorRate: numVal(trip.airfareSeniorRate),
+      airfareChildRate: numVal(trip.airfareChildRate),
+      airfareInfantRate: numVal(trip.airfareInfantRate),
+      airfarePwdRate: numVal(trip.airfarePwdRate),
+      hotelActualRate: numVal(trip.hotelActualRate),
+      transferActualRate: numVal(trip.transferActualRate),
+      paymentMethod: trip.paymentMethod,
       notes: trip.notes,
       consultantId: trip.consultantId,
       inclusions,
@@ -637,11 +721,197 @@ export function QuotationWizard({
               />
             </div>
 
+            {/* INTERNAL PRICING — shown first per spec. Structured Airfare/
+                Hotel/Transfer inputs replicate the agency's Excel exactly;
+                everything derived from them (Adult airfare rate, Hotel/
+                Transfer rate per pax, Bank Fee, Total Supplier Cost, Profit,
+                Margin) is read-only and computed, never typed in. */}
+            <button
+              type="button"
+              onClick={() => setShowPricing((s) => !s)}
+              className="text-sm font-medium text-harbor-600 hover:underline"
+            >
+              {showPricing ? 'Hide' : 'Show'} internal pricing (supplier cost &amp; markup)
+            </button>
+            {showPricing && (
+              <div className="space-y-4 rounded-md border border-coral-500/30 bg-coral-500/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-coral-600">
+                  Internal only — never appears on the client PDF
+                </p>
+
+                {/* AIRFARE */}
+                <div className="rounded-md border border-sand-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Airfare</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <PriceField
+                      label="Actual Group Rate"
+                      value={trip.airfareActualRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareActualRate: v }))}
+                    />
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-ink-700">Markup</label>
+                      <p className="rounded-md bg-sand-50 px-3 py-1.5 text-sm text-ink-500">10% (applied automatically)</p>
+                    </div>
+                  </div>
+                  <p className="mb-2 mt-3 text-xs text-ink-500">
+                    Senior, Child, Infant/Toddler, and PWD rates are supplier-provided — enter them as given, never
+                    derived from the Adult rate.
+                  </p>
+                  <div className="grid grid-cols-4 gap-3">
+                    <PriceField
+                      label="Senior Rate"
+                      value={trip.airfareSeniorRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareSeniorRate: v }))}
+                    />
+                    <PriceField
+                      label="Child Rate"
+                      value={trip.airfareChildRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareChildRate: v }))}
+                    />
+                    <PriceField
+                      label="Infant/Toddler Rate"
+                      value={trip.airfareInfantRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareInfantRate: v }))}
+                    />
+                    <PriceField
+                      label="PWD Rate"
+                      value={trip.airfarePwdRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfarePwdRate: v }))}
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between rounded-md bg-sand-50 px-3 py-2">
+                    <span className="text-xs text-ink-500">Adult Rate (automatically calculated)</span>
+                    <span className="font-ticket text-sm font-semibold text-ink-900">
+                      PHP {computedAirfareRates.adult!.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* HOTEL */}
+                <div className="rounded-md border border-sand-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Hotel</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <PriceField
+                      label="Actual Group Rate"
+                      value={trip.hotelActualRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, hotelActualRate: v }))}
+                    />
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-ink-700">Markup</label>
+                      <p className="rounded-md bg-sand-50 px-3 py-1.5 text-sm text-ink-500">10% (applied automatically)</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between rounded-md bg-sand-50 px-3 py-2">
+                    <span className="text-xs text-ink-500">Rate Per PAX (automatically calculated, same for every guest type)</span>
+                    <span className="font-ticket text-sm font-semibold text-ink-900">
+                      PHP {computedHotelRate.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* TRANSFER */}
+                <div className="rounded-md border border-sand-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Transfer</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <PriceField
+                      label="Actual Group Rate"
+                      value={trip.transferActualRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, transferActualRate: v }))}
+                    />
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-ink-700">Markup</label>
+                      <p className="rounded-md bg-sand-50 px-3 py-1.5 text-sm text-ink-500">20% (applied automatically)</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between rounded-md bg-sand-50 px-3 py-2">
+                    <span className="text-xs text-ink-500">Rate Per PAX (automatically calculated, same for every guest type)</span>
+                    <span className="font-ticket text-sm font-semibold text-ink-900">
+                      PHP {computedTransferRate.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* TOURS */}
+                {activeTypes.some((t) => tourClientRateMap[t] > 0) && (
+                  <div className="rounded-md border border-sand-200 bg-white p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Tours</p>
+                    <p className="mb-2 text-xs text-ink-500">
+                      Pulled automatically from the Tours library as tours are selected in the Itinerary step — never
+                      re-entered here.
+                    </p>
+                    <div className="space-y-1">
+                      {activeTypes
+                        .filter((t) => tourClientRateMap[t] > 0)
+                        .map((t) => (
+                          <div key={t} className="flex items-center justify-between text-xs text-ink-700">
+                            <span>{GUEST_TYPE_LABELS[t]}</span>
+                            <span className="font-ticket">PHP {tourClientRateMap[t].toLocaleString('en-PH')} / person</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* OTHER SUPPLIER COSTS */}
+                <div className="rounded-md border border-sand-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Other Supplier Costs</p>
+                  <p className="mb-2 text-xs text-ink-500">
+                    Only for costs genuinely outside Airfare, Hotel, Transfer, and Tours — a visa fee, a permit, a
+                    one-off request.
+                  </p>
+                  <CostBreakdownEditor items={costItems} onChange={setCostItems} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 border-t border-coral-500/20 pt-4">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink-700">Payment Method</label>
+                    <select
+                      value={trip.paymentMethod}
+                      onChange={(e) => setTrip((t) => ({ ...t, paymentMethod: e.target.value as typeof trip.paymentMethod }))}
+                      className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+                    >
+                      <option value="credit_card">Credit Card ({(feePercentages.creditCard * 100).toFixed(1)}%)</option>
+                      <option value="paypal">PayPal ({(feePercentages.paypal * 100).toFixed(1)}%)</option>
+                      <option value="none">No Fee</option>
+                    </select>
+                  </div>
+                  <PriceField
+                    label="Zenara Markup (flat, per person)"
+                    value={trip.markup}
+                    onChange={(v) => setTrip((t) => ({ ...t, markup: v }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 border-t border-coral-500/20 pt-4 text-center">
+                  <div>
+                    <p className="text-xs text-ink-500">Total Supplier Cost</p>
+                    <p className="font-ticket text-sm font-semibold text-ink-900">
+                      PHP {computedTotalSupplierCost.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-500">Profit</p>
+                    <p className={`font-ticket text-sm font-semibold ${computedProfit < 0 ? 'text-coral-600' : 'text-ink-900'}`}>
+                      PHP {computedProfit.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-500">Margin</p>
+                    <p className={`font-ticket text-sm font-semibold ${computedMarginPct < 0 ? 'text-coral-600' : 'text-ink-900'}`}>
+                      {computedMarginPct.toFixed(2)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CLIENT-FACING PRICING — shown second, entirely computed from
+                the internal pricing above. Nothing here is directly typed. */}
             <div className="rounded-md border border-sand-200 p-4">
               <p className="mb-1 text-sm font-medium text-ink-900">Client-facing price</p>
               <p className="mb-3 text-xs text-ink-500">
-                Enter a rate per person for each guest type below — the total is calculated automatically and
-                can’t be typed in directly.
+                Calculated automatically from Airfare, Hotel, Transfer, and Tours above — nothing here is typed in
+                directly.
               </p>
               {activeTypes.length === 0 ? (
                 <p className="text-xs text-ink-500">Set a guest count above first, then rates appear here.</p>
@@ -649,7 +919,7 @@ export function QuotationWizard({
                 <div className="space-y-2">
                   <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-ink-500">
                     <span>Guest type</span>
-                    <span>Rate per person (PHP)</span>
+                    <span>Final rate per person</span>
                     <span className="text-right">Subtotal</span>
                   </div>
                   {activeTypes.map((guestType) => {
@@ -660,25 +930,11 @@ export function QuotationWizard({
                         <span className="text-sm text-ink-700">
                           {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">×{count}</span>
                         </span>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
-                            PHP
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={guestRates[guestType].price}
-                            onChange={(e) =>
-                              setGuestRates((g) => ({
-                                ...g,
-                                [guestType]: { ...g[guestType], price: e.target.value === '' ? '' : Number(e.target.value) },
-                              }))
-                            }
-                            className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
-                          />
-                        </div>
+                        <span className="font-ticket text-sm text-ink-700">
+                          PHP {rate.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                        </span>
                         <span className="font-ticket w-28 shrink-0 text-right text-sm text-ink-700">
-                          PHP {(rate * count).toLocaleString('en-PH')}
+                          PHP {(rate * count).toLocaleString('en-PH', { maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     );
@@ -689,7 +945,7 @@ export function QuotationWizard({
               <div className="mt-4 flex items-center justify-between rounded-md bg-sand-50 px-3 py-2.5">
                 <span className="text-sm font-medium text-ink-700">Total package price</span>
                 <span className="font-ticket text-lg font-semibold text-ink-900">
-                  PHP {computedTotalPrice.toLocaleString('en-PH')}
+                  PHP {computedTotalPrice.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
                 </span>
               </div>
 
@@ -710,89 +966,6 @@ export function QuotationWizard({
                 />
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowPricing((s) => !s)}
-              className="text-sm font-medium text-harbor-600 hover:underline"
-            >
-              {showPricing ? 'Hide' : 'Show'} internal pricing (supplier cost &amp; markup)
-            </button>
-            {showPricing && (
-              <div className="rounded-md border border-coral-500/30 bg-coral-500/5 p-4">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-coral-600">
-                  Internal only — never appears on the client PDF
-                </p>
-
-                {activeTypes.length > 0 && (
-                  <div className="mb-4">
-                    <p className="mb-2 text-sm font-medium text-ink-700">Supplier cost by guest type</p>
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-ink-500">
-                        <span>Guest type</span>
-                        <span>Cost per person</span>
-                        <span>Selling per person</span>
-                        <span className="text-right">Margin</span>
-                      </div>
-                      {activeTypes.map((guestType) => {
-                        const count = guestCounts[guestType];
-                        const cost = supplierCostMap[guestType];
-                        const rate = clientRateMap[guestType];
-                        const marginTotal = (rate - cost) * count;
-                        return (
-                          <div key={guestType} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
-                            <span className="text-sm text-ink-700">
-                              {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">×{count}</span>
-                            </span>
-                            <div className="relative">
-                              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
-                                PHP
-                              </span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={guestRates[guestType].cost}
-                                onChange={(e) =>
-                                  setGuestRates((g) => ({
-                                    ...g,
-                                    [guestType]: { ...g[guestType], cost: e.target.value === '' ? '' : Number(e.target.value) },
-                                  }))
-                                }
-                                className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
-                              />
-                            </div>
-                            <span className="font-ticket text-sm text-ink-500">PHP {rate.toLocaleString('en-PH')}</span>
-                            <span
-                              className={`font-ticket w-24 shrink-0 text-right text-sm ${marginTotal < 0 ? 'text-coral-600' : 'text-ink-700'}`}
-                            >
-                              PHP {marginTotal.toLocaleString('en-PH')}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <p className="mb-3 text-sm font-medium text-ink-700">
-                  Other supplier costs <span className="font-normal text-ink-500">(airfare, hotel, transfers — shared, not per person)</span>
-                </p>
-                <CostBreakdownEditor items={costItems} onChange={setCostItems} />
-                <div className="mt-4 border-t border-coral-500/20 pt-4">
-                  <LabeledInput
-                    label="Markup (PHP)"
-                    type="number"
-                    value={String(trip.markup)}
-                    onChange={(v) => setTrip((t) => ({ ...t, markup: v === '' ? '' : Number(v) }))}
-                  />
-                </div>
-                <ProfitPreview
-                  supplierCost={costItems.reduce((sum, i) => sum + (i.amount || 0), 0) + computedGuestSupplierCost}
-                  markup={trip.markup === '' ? 0 : Number(trip.markup)}
-                  sellingPrice={computedTotalPrice}
-                />
-              </div>
-            )}
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Notes (internal)</label>
@@ -939,6 +1112,25 @@ function ProfitPreview({
         <p className={`font-ticket mt-0.5 font-semibold ${margin < 0 ? 'text-coral-600' : 'text-harbor-700'}`}>
           {margin}%
         </p>
+      </div>
+    </div>
+  );
+}
+
+/** A labeled PHP-prefixed number input, used throughout the Internal Pricing panel for every "actual rate" / manual supplier-rate field. */
+function PriceField({ label, value, onChange }: { label: string; value: number | ''; onChange: (v: number | '') => void }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium text-ink-700">{label}</label>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">PHP</span>
+        <input
+          type="number"
+          min={0}
+          value={value}
+          onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
+          className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+        />
       </div>
     </div>
   );

@@ -35,6 +35,10 @@ export async function updateAgencySettingsAction(id: string, formData: FormData)
       paymentInstructions: field('paymentInstructions'),
       defaultCurrency: field('defaultCurrency') ?? 'PHP',
       quotationNumberPrefix: field('quotationNumberPrefix') ?? 'QT',
+      // Entered as a percentage (e.g. "2.9") for readability, stored as a
+      // fraction (0.029) since that's what the pricing formulas expect.
+      creditCardFeePct: Number(field('creditCardFeePct') ?? 2.9) / 100,
+      paypalFeePct: Number(field('paypalFeePct') ?? 3.9) / 100,
     });
     await writeAudit(supabase, { userId: user.id, action: 'settings.updated', entityType: 'agency_settings', entityId: id });
     revalidatePath('/admin/settings');

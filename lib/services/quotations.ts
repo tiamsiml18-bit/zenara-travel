@@ -169,7 +169,11 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
 export async function getPricingForVersion(supabase: SupabaseClient, versionId: string) {
   const { data } = await supabase
     .from('quotation_pricing_internal')
-    .select('supplier_cost, markup, selling_price, profit, profit_margin_pct')
+    .select(
+      `supplier_cost, markup, selling_price, profit, profit_margin_pct,
+       airfare_actual_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate,
+       hotel_actual_rate, transfer_actual_rate, payment_method`
+    )
     .eq('quotation_version_id', versionId)
     .maybeSingle();
   return data ?? null;
@@ -194,7 +198,7 @@ async function resolveConsultantName(supabase: SupabaseClient, consultantId?: st
   return data?.full_name ?? null;
 }
 
-import { calculateTotalPrice, calculateGuestSupplierCost, activeGuestTypes, GUEST_TYPES, GUEST_TYPE_LABELS, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
+import { calculateTotalPrice, calculateGuestSupplierCost, activeGuestTypes, GUEST_TYPES, GUEST_TYPE_LABELS, calculateAirfareRates, calculateHotelRatePerPerson, calculateTransferRatePerPerson, calculatePackagePerPax, calculateBankFee, calculateAdjustedPackage, calculateFinalRatePerPax, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
 
 /** Pulls the 5 guest counts off a QuotationDraftInput into the shape guest-pricing.ts expects. */
 function guestCountsOf(input: QuotationDraftInput): GuestCounts {
@@ -205,6 +209,61 @@ function guestCountsOf(input: QuotationDraftInput): GuestCounts {
     infant: input.numInfants,
     pwd: input.numPwd,
   };
+}
+
+/**
+ * The one function that computes a quotation's actual pricing — replicating
+ * the agency's Excel formula chain exactly (Airfare → Hotel → Transfer →
+ * Tours → Package per PAX → Bank Fee → Adjusted → Final Rate per PAX).
+ * Called from every place a version's pricing needs to be known (the
+ * version row's total_price, insertVersionChildren's guest_pricing rows) so
+ * there is exactly one calculation path, never three drifting copies of it.
+ */
+async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraftInput) {
+  const counts = guestCountsOf(input);
+
+  const tourClientRates: GuestRates = {};
+  const tourSupplierRates: GuestRates = {};
+  for (const rate of input.guestRates) {
+    tourClientRates[rate.guestType] = rate.pricePerPerson;
+    tourSupplierRates[rate.guestType] = rate.supplierCostPerPerson;
+  }
+
+  const airfareRates = calculateAirfareRates(
+    {
+      actualRate: input.airfareActualRate,
+      seniorRate: input.airfareSeniorRate,
+      childRate: input.airfareChildRate,
+      infantRate: input.airfareInfantRate,
+      pwdRate: input.airfarePwdRate,
+    },
+    counts
+  );
+  const hotelRatePerPerson = calculateHotelRatePerPerson(input.hotelActualRate, counts);
+  const transferRatePerPerson = calculateTransferRatePerPerson(input.transferActualRate, counts);
+  const packagePerPax = calculatePackagePerPax(airfareRates, hotelRatePerPerson, transferRatePerPerson, tourClientRates);
+
+  const { data: agencySettings } = await supabase
+    .from('agency_settings')
+    .select('credit_card_fee_pct, paypal_fee_pct')
+    .limit(1)
+    .single();
+  const feePct =
+    input.paymentMethod === 'credit_card'
+      ? (agencySettings?.credit_card_fee_pct ?? 0.029)
+      : input.paymentMethod === 'paypal'
+        ? (agencySettings?.paypal_fee_pct ?? 0.039)
+        : 0;
+  const bankFee = calculateBankFee(packagePerPax, feePct);
+  const adjustedPackage = calculateAdjustedPackage(packagePerPax, bankFee);
+  const clientRates = calculateFinalRatePerPax(adjustedPackage, input.markup);
+
+  const totalPrice = calculateTotalPrice(counts, clientRates);
+  const otherCostsTotal = input.costItems.reduce((sum, item) => sum + item.amount, 0);
+  const tourSupplierCostTotal = calculateGuestSupplierCost(counts, tourSupplierRates);
+  const supplierCost = input.airfareActualRate + input.hotelActualRate + input.transferActualRate + otherCostsTotal + tourSupplierCostTotal;
+
+  return { counts, clientRates, tourSupplierRates, totalPrice, supplierCost };
 }
 
 async function insertVersionChildren(
@@ -274,19 +333,15 @@ async function insertVersionChildren(
     if (error) throw new Error(`Failed to save cost breakdown: ${error.message}`);
   }
 
-  // Per-guest-type client rate and internal supplier cost — only for the
-  // categories actually present (quantity > 0). Uses the exact same
-  // calculateTotalPrice()/calculateGuestSupplierCost() the wizard used to
-  // show its live "read-only total" preview, so what the agent saw while
-  // building the quote is guaranteed to match what gets stored.
-  const counts = guestCountsOf(input);
+  // ==========================================================================
+  // Pricing — replicates the agency's Excel quotation formula chain exactly
+  // (verified cell-by-cell against real data before this was built). See
+  // computeFullPricing() above — the single calculation path shared with the
+  // quotation_versions row itself, so the two can never disagree.
+  // ==========================================================================
+  const { counts, clientRates, tourSupplierRates, supplierCost } = await computeFullPricing(supabase, input);
   const active = activeGuestTypes(counts);
-  const clientRates: GuestRates = {};
-  const supplierRates: GuestRates = {};
-  for (const rate of input.guestRates) {
-    clientRates[rate.guestType] = rate.pricePerPerson;
-    supplierRates[rate.guestType] = rate.supplierCostPerPerson;
-  }
+  const totalPrice = calculateTotalPrice(counts, clientRates);
 
   if (active.length > 0) {
     const { error: guestPricingError } = await supabase.from('quotation_guest_pricing').insert(
@@ -302,7 +357,7 @@ async function insertVersionChildren(
       active.map((guestType) => ({
         quotation_version_id: versionId,
         guest_type: guestType,
-        supplier_cost_per_person: supplierRates[guestType] ?? 0,
+        supplier_cost_per_person: tourSupplierRates[guestType] ?? 0,
       }))
     );
     if (guestPricingInternalError) {
@@ -310,18 +365,19 @@ async function insertVersionChildren(
     }
   }
 
-  // Total supplier cost = the flat/shared cost-item breakdown (airfare,
-  // hotel, etc — costs that don't scale per person) PLUS the per-guest-type
-  // supplier costs — the two sources genuinely add together rather than one
-  // replacing the other, since a real trip has both kinds of cost.
-  const supplierCost = input.costItems.reduce((sum, item) => sum + item.amount, 0) + calculateGuestSupplierCost(counts, supplierRates);
-  const totalPrice = calculateTotalPrice(counts, clientRates);
-
   const { error: pricingError } = await supabase.from('quotation_pricing_internal').insert({
     quotation_version_id: versionId,
     supplier_cost: supplierCost,
     markup: input.markup,
     selling_price: totalPrice,
+    airfare_actual_rate: input.airfareActualRate,
+    airfare_senior_rate: input.airfareSeniorRate,
+    airfare_child_rate: input.airfareChildRate,
+    airfare_infant_rate: input.airfareInfantRate,
+    airfare_pwd_rate: input.airfarePwdRate,
+    hotel_actual_rate: input.hotelActualRate,
+    transfer_actual_rate: input.transferActualRate,
+    payment_method: input.paymentMethod,
   });
   if (pricingError) throw new Error(`Failed to save pricing: ${pricingError.message}`);
 
@@ -378,9 +434,7 @@ export async function updateDraftQuotation(
 
   const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
-  const clientRatesForTotal: GuestRates = {};
-  for (const r of input.guestRates) clientRatesForTotal[r.guestType] = r.pricePerPerson;
-  const computedTotalPrice = calculateTotalPrice(guestCountsOf(input), clientRatesForTotal);
+  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = await computeFullPricing(supabase, input);
 
   const { error: quotationUpdateError } = await supabase
     .from('quotations')
@@ -474,9 +528,7 @@ export async function createDraftQuotation(
   // total_price is never anything the agent typed — see
   // lib/utils/guest-pricing.ts for the one formula this and
   // insertVersionChildren() both use.
-  const clientRatesForTotal: GuestRates = {};
-  for (const r of input.guestRates) clientRatesForTotal[r.guestType] = r.pricePerPerson;
-  const computedTotalPrice = calculateTotalPrice(guestCountsOf(input), clientRatesForTotal);
+  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = await computeFullPricing(supabase, input);
 
   try {
     const { data: version, error: vError } = await supabase
@@ -631,9 +683,7 @@ export async function reviseQuotation(
   const { data: client } = await supabase.from('clients').select('full_name').eq('id', quotation.client_id).single();
   const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
-  const revisedClientRates: GuestRates = {};
-  for (const r of input.guestRates) revisedClientRates[r.guestType] = r.pricePerPerson;
-  const revisedTotalPrice = calculateTotalPrice(guestCountsOf(input), revisedClientRates);
+  const { clientRates: revisedClientRates, totalPrice: revisedTotalPrice } = await computeFullPricing(supabase, input);
 
   const { data: version, error: vError } = await supabase
     .from('quotation_versions')
@@ -864,6 +914,14 @@ export async function duplicateQuotation(
     hotelName: currentVersion.hotel_name ?? '',
     numBedrooms: currentVersion.num_bedrooms,
     guestRates,
+    airfareActualRate: pricing?.airfare_actual_rate ?? 0,
+    airfareSeniorRate: pricing?.airfare_senior_rate ?? 0,
+    airfareChildRate: pricing?.airfare_child_rate ?? 0,
+    airfareInfantRate: pricing?.airfare_infant_rate ?? 0,
+    airfarePwdRate: pricing?.airfare_pwd_rate ?? 0,
+    hotelActualRate: pricing?.hotel_actual_rate ?? 0,
+    transferActualRate: pricing?.transfer_actual_rate ?? 0,
+    paymentMethod: (pricing?.payment_method as 'credit_card' | 'paypal' | 'none') ?? 'credit_card',
     notes: currentVersion.notes ?? '',
     inclusions: inclusions.map((i) => i.item),
     exclusions: exclusions.map((e) => e.item),

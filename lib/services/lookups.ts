@@ -65,6 +65,8 @@ export async function updateAgencySettings(
     paymentInstructions: string | null;
     defaultCurrency: string;
     quotationNumberPrefix: string;
+    creditCardFeePct?: number;
+    paypalFeePct?: number;
   }
 ) {
   const { error } = await supabase
@@ -85,6 +87,8 @@ export async function updateAgencySettings(
       payment_instructions: updates.paymentInstructions,
       default_currency: updates.defaultCurrency,
       quotation_number_prefix: updates.quotationNumberPrefix,
+      credit_card_fee_pct: updates.creditCardFeePct,
+      paypal_fee_pct: updates.paypalFeePct,
     })
     .eq('id', id);
   if (error) throw new Error(`Failed to update agency settings: ${error.message}`);

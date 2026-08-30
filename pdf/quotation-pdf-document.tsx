@@ -179,7 +179,11 @@ function formatDate(iso: string) {
 }
 function formatMoney(n: number | null, currency: string) {
   if (n === null || n === undefined) return '—';
-  return `${currency} ${Number(n).toLocaleString('en-PH')}`;
+  // The calculation itself never rounds (see guest-pricing.ts) — only this
+  // final display step does, consistently to whole pesos, so amounts don't
+  // show a different number of decimals depending on what a given number's
+  // underlying floating-point value happens to look like.
+  return `${currency} ${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function InfoField({ label, value }: { label: string; value: string }) {

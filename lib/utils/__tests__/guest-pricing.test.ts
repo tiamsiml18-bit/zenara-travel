@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTotalPrice, calculateGuestSupplierCost, buildGuestLineItems, activeGuestTypes, type GuestCounts } from '@/lib/utils/guest-pricing';
+import {
+  calculateTotalPrice,
+  calculateGuestSupplierCost,
+  buildGuestLineItems,
+  activeGuestTypes,
+  calculateAirfareRates,
+  calculateHotelRatePerPerson,
+  calculateTransferRatePerPerson,
+  calculatePackagePerPax,
+  calculateBankFee,
+  calculateAdjustedPackage,
+  calculateFinalRatePerPax,
+  type GuestCounts,
+} from '@/lib/utils/guest-pricing';
 
 const ZERO_COUNTS: GuestCounts = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
 
@@ -106,5 +119,90 @@ describe('buildGuestLineItems — one row per active guest type, never combined'
     const lines = buildGuestLineItems(counts, { adult: 45000, senior: 40000 });
     expect(lines).toHaveLength(1);
     expect(lines[0]?.guestType).toBe('adult');
+  });
+});
+
+// ============================================================================
+// Real-data regression tests — the Japan / Patricia Ruth quotation, taken
+// directly from the agency's actual Excel template (5 Adults, 2 Seniors,
+// 1 Child/Toddler, 0 Infant). Every expected value below is the literal
+// cached value read out of that spreadsheet's cells, not a hand-computed
+// guess — if these ever fail, the app has drifted from the Excel source of
+// truth, which is exactly what this test suite exists to catch.
+// ============================================================================
+describe('Excel parity — Japan / Patricia Ruth quotation (5 Adults, 2 Seniors, 1 Child)', () => {
+  const counts: GuestCounts = { senior: 2, adult: 5, child: 1, infant: 0, pwd: 0 };
+
+  it('Airfare: Excel D9/E9 — (154,000 × 1.10) − (19,000×2 + 15,000) ÷ 5 adults = 23,280', () => {
+    const rates = calculateAirfareRates(
+      { actualRate: 154000, seniorRate: 19000, childRate: 15000, infantRate: 0, pwdRate: 0 },
+      counts
+    );
+    expect(rates.adult).toBe(23280);
+    expect(rates.senior).toBe(19000); // passed through unchanged, never derived
+    expect(rates.child).toBe(15000);
+  });
+
+  it('Hotel: Excel D10/E10 — (92,000 × 1.10) ÷ 8 total pax = 12,650, same for every guest type', () => {
+    const rate = calculateHotelRatePerPerson(92000, counts);
+    expect(rate).toBeCloseTo(12650, 6);
+  });
+
+  it('Transfer: Excel D11/E11 — (12,000 × 1.20) ÷ 8 total pax = 1,800', () => {
+    const rate = calculateTransferRatePerPerson(12000, counts);
+    expect(rate).toBe(1800);
+  });
+
+  it('Package per PAX: Excel E19/F19/G19 — Airfare + Hotel + Transfer + 3 Tours, per guest type', () => {
+    const airfareRates = calculateAirfareRates(
+      { actualRate: 154000, seniorRate: 19000, childRate: 15000, infantRate: 0, pwdRate: 0 },
+      counts
+    );
+    const hotelRate = calculateHotelRatePerPerson(92000, counts);
+    const transferRate = calculateTransferRatePerPerson(12000, counts);
+    // Mt. Fuji (5500/5000/1500) + Disneyland (9500/8500/2500) + Kamakura (4500/4000/0)
+    const tourRates = { senior: 5000 + 8500 + 4000, adult: 5500 + 9500 + 4500, child: 1500 + 2500 + 0, infant: 0, pwd: 0 };
+    const packagePerPax = calculatePackagePerPax(airfareRates, hotelRate, transferRate, tourRates);
+
+    expect(packagePerPax.adult).toBeCloseTo(57230, 6);
+    expect(packagePerPax.senior).toBeCloseTo(50950, 6);
+    expect(packagePerPax.child).toBeCloseTo(33450, 6);
+  });
+
+  it('Bank Fee: Excel E21/F21/G21 — Package per PAX × 2.9%', () => {
+    const bankFee = calculateBankFee({ adult: 57230, senior: 50950, child: 33450, infant: 0, pwd: 0 }, 0.029);
+    expect(bankFee.adult).toBeCloseTo(1659.67, 2);
+    expect(bankFee.senior).toBeCloseTo(1477.55, 2);
+    expect(bankFee.child).toBeCloseTo(970.05, 2);
+  });
+
+  it('Adjusted Package: Excel E25/F25/G25 — Package + Bank Fee, unrounded', () => {
+    const adjusted = calculateAdjustedPackage(
+      { adult: 57230, senior: 50950, child: 33450, infant: 0, pwd: 0 },
+      { adult: 1659.67, senior: 1477.55, child: 970.05, infant: 0, pwd: 0 }
+    );
+    expect(adjusted.adult).toBeCloseTo(58889.67, 2);
+    expect(adjusted.senior).toBeCloseTo(52427.55, 2);
+    expect(adjusted.child).toBeCloseTo(34420.05, 2);
+  });
+
+  it('Final Rate per PAX: Excel E29/F29/G29 — Adjusted Package + flat ₱5,000 Zenara Markup', () => {
+    const final = calculateFinalRatePerPax(
+      { adult: 58889.67, senior: 52427.55, child: 34420.05, infant: 0, pwd: 0 },
+      5000
+    );
+    expect(final.adult).toBeCloseTo(63889.67, 2);
+    expect(final.senior).toBeCloseTo(57427.55, 2);
+    expect(final.child).toBeCloseTo(39420.05, 2);
+  });
+
+  it('never rounds mid-calculation — the full unrounded decimal survives every step', () => {
+    // The Excel displays 58,890 and 63,890 (rounded for display only); the
+    // real carried-forward values are 58,889.67 and 63,889.67. Confirming
+    // the app's chain preserves that same unrounded precision throughout.
+    const bankFee = calculateBankFee({ adult: 57230, senior: 0, child: 0, infant: 0, pwd: 0 }, 0.029);
+    const adjusted = calculateAdjustedPackage({ adult: 57230, senior: 0, child: 0, infant: 0, pwd: 0 }, bankFee);
+    expect(adjusted.adult).not.toBe(58890); // not silently rounded to the display value
+    expect(adjusted.adult).toBeCloseTo(58889.67, 2);
   });
 });

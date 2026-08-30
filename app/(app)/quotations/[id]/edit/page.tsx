@@ -4,7 +4,7 @@ import { QuotationWizard } from '@/components/quotations/quotation-wizard';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { listActivePackages } from '@/lib/services/packages';
-import { listClientSources, listConsultants } from '@/lib/services/lookups';
+import { listClientSources, listConsultants, getAgencySettings } from '@/lib/services/lookups';
 import { listToursForPicker } from '@/lib/services/tours';
 import { requireUser } from '@/lib/auth/session';
 
@@ -32,6 +32,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
     sources,
     consultants,
     tours,
+    agencySettings,
   ] = await Promise.all([
     supabase
       .from('clients')
@@ -46,6 +47,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
     listClientSources(supabase),
     listConsultants(supabase),
     listToursForPicker(supabase),
+    getAgencySettings(supabase),
   ]);
 
   // The current client is guaranteed to appear in the picker even if
@@ -67,6 +69,10 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
           sources={sources}
           consultants={consultants}
           tours={tours}
+          feePercentages={{
+            creditCard: agencySettings?.credit_card_fee_pct ?? 0.029,
+            paypal: agencySettings?.paypal_fee_pct ?? 0.039,
+          }}
           initialData={{
             clientId: quotation.client_id,
             clientLabel: quotation.client?.full_name ?? '',
@@ -82,6 +88,14 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
             hotelName: currentVersion.hotel_name ?? '',
             numBedrooms: currentVersion.num_bedrooms ?? 1,
             guestRates,
+            airfareActualRate: pricing?.airfare_actual_rate ?? 0,
+            airfareSeniorRate: pricing?.airfare_senior_rate ?? 0,
+            airfareChildRate: pricing?.airfare_child_rate ?? 0,
+            airfareInfantRate: pricing?.airfare_infant_rate ?? 0,
+            airfarePwdRate: pricing?.airfare_pwd_rate ?? 0,
+            hotelActualRate: pricing?.hotel_actual_rate ?? 0,
+            transferActualRate: pricing?.transfer_actual_rate ?? 0,
+            paymentMethod: (pricing?.payment_method as 'credit_card' | 'paypal' | 'none') ?? 'credit_card',
             notes: currentVersion.notes ?? '',
             itinerary: itinerary.map((d) => ({
               dayNumber: d.day_number,
