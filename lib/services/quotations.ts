@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { QuotationDraftInput } from '@/lib/validation/quotation';
-import { writeAudit } from './audit';
+import { writeAudit, diffFields } from './audit';
 import { setClientStatusByName } from './clients';
 import { generateFollowUpSchedule } from './followups';
 import { updateQuotationPipelineStage } from './pipeline';
@@ -171,7 +171,7 @@ async function resolveConsultantName(supabase: SupabaseClient, consultantId?: st
   return data?.full_name ?? null;
 }
 
-import { calculateTotalPrice, calculateGuestSupplierCost, activeGuestTypes, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
+import { calculateTotalPrice, calculateGuestSupplierCost, activeGuestTypes, GUEST_TYPES, GUEST_TYPE_LABELS, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
 
 /** Pulls the 5 guest counts off a QuotationDraftInput into the shape guest-pricing.ts expects. */
 function guestCountsOf(input: QuotationDraftInput): GuestCounts {
@@ -562,6 +562,58 @@ export async function reviseQuotation(
     entityId: quotationId,
     metadata: { versionNumber: nextVersionNumber },
   });
+
+  // Field-level diff specifically for guest counts and per-guest-type
+  // rates — the two things this revision most likely changed on purpose,
+  // and the two things "record changes to guest quantities and guest-type
+  // rates" explicitly asks to be traceable. Reuses the same diffFields()
+  // pattern already used for client edits, so this reads the same way in
+  // Audit History (label, old value, new value) rather than inventing a
+  // second format.
+  const oldVersion = versions.find((v) => v.id === quotation.current_version_id);
+  if (oldVersion) {
+    const { guestRates: oldGuestRates } = await getVersionDetail(supabase, oldVersion.id);
+    const oldRateByType = Object.fromEntries(oldGuestRates.map((r) => [r.guestType, r.pricePerPerson]));
+    const newRateByType = Object.fromEntries(input.guestRates.map((r) => [r.guestType, r.pricePerPerson]));
+
+    const before: Record<string, number> = {
+      numSeniors: oldVersion.num_seniors ?? 0,
+      numAdults: oldVersion.num_adults,
+      numChildren: oldVersion.num_children,
+      numInfants: oldVersion.num_infants ?? 0,
+      numPwd: oldVersion.num_pwd ?? 0,
+    };
+    const after: Record<string, number> = {
+      numSeniors: input.numSeniors,
+      numAdults: input.numAdults,
+      numChildren: input.numChildren,
+      numInfants: input.numInfants,
+      numPwd: input.numPwd,
+    };
+    const labels: Record<string, string> = {
+      numSeniors: 'Senior citizen count',
+      numAdults: 'Adult count',
+      numChildren: 'Child count',
+      numInfants: 'Infant/toddler count',
+      numPwd: 'PWD count',
+    };
+    for (const guestType of GUEST_TYPES) {
+      before[`rate_${guestType}`] = oldRateByType[guestType] ?? 0;
+      after[`rate_${guestType}`] = newRateByType[guestType] ?? 0;
+      labels[`rate_${guestType}`] = `${GUEST_TYPE_LABELS[guestType]} rate`;
+    }
+
+    const guestChanges = diffFields(before, after, labels);
+    if (guestChanges.length > 0) {
+      await writeAudit(supabase, {
+        userId: actingUserId,
+        action: 'quotation.guest_pricing_changed',
+        entityType: 'quotation',
+        entityId: quotationId,
+        metadata: { versionNumber: nextVersionNumber, changes: guestChanges },
+      });
+    }
+  }
 
   return version.id as string;
 }

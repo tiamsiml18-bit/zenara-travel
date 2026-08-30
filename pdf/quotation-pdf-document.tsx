@@ -41,6 +41,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // A logo on a dark header bar is the one place a plain white background
+  // behind an uploaded PNG/JPEG would actually show as an ugly box, so this
+  // stays small and round-cornered rather than trying to fake transparency
+  // it may not have — most agency logos are square-ish anyway.
+  headerLogo: { width: 32, height: 32, borderRadius: 4 },
   agencyName: { fontSize: 15, fontWeight: 700 },
   agencyContact: { fontSize: 7, color: COLORS.harbor100, marginTop: 3, lineHeight: 1.4 },
   quoteMeta: { alignItems: 'flex-end' },
@@ -169,25 +175,31 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
   return (
     <Document title={`${quotationNumber} — ${trip.destination}`}>
       <Page size="A4" style={styles.page}>
-        <Image src={ZENARA_LOGO_DATA_URI} style={styles.watermark} fixed />
+        {/* Uses the agency's uploaded logo for the watermark once one exists;
+            falls back to the built-in default Zenara mark otherwise, so a
+            fresh install still looks finished before anyone uploads a logo. */}
+        <Image src={agency.logoUrl ?? ZENARA_LOGO_DATA_URI} style={styles.watermark} fixed />
 
         <View style={styles.header}>
-          <View>
-            <Text style={styles.agencyName}>{agency.name}</Text>
-            <Text style={styles.agencyContact}>
-              {[agency.phone, agency.email, agency.website].filter(Boolean).join('   ·   ')}
-            </Text>
-            {(agency.facebook || agency.instagram || agency.whatsapp) && (
+          <View style={styles.headerLeft}>
+            {agency.logoUrl && <Image src={agency.logoUrl} style={styles.headerLogo} />}
+            <View>
+              <Text style={styles.agencyName}>{agency.name}</Text>
               <Text style={styles.agencyContact}>
-                {[
-                  agency.facebook && `FB: ${agency.facebook}`,
-                  agency.instagram && `IG: ${agency.instagram}`,
-                  agency.whatsapp && `WhatsApp: ${agency.whatsapp}`,
-                ]
-                  .filter(Boolean)
-                  .join('   ·   ')}
+                {[agency.phone, agency.email, agency.website].filter(Boolean).join('   ·   ')}
               </Text>
-            )}
+              {(agency.facebook || agency.instagram || agency.whatsapp) && (
+                <Text style={styles.agencyContact}>
+                  {[
+                    agency.facebook && `FB: ${agency.facebook}`,
+                    agency.instagram && `IG: ${agency.instagram}`,
+                    agency.whatsapp && `WhatsApp: ${agency.whatsapp}`,
+                  ]
+                    .filter(Boolean)
+                    .join('   ·   ')}
+                </Text>
+              )}
+            </View>
           </View>
           <View style={styles.quoteMeta}>
             <Text style={styles.quoteNumber}>{quotationNumber}</Text>

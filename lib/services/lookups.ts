@@ -51,7 +51,7 @@ export async function updateAgencySettings(
   id: string,
   updates: {
     agencyName: string;
-    logoUrl: string | null;
+    logoUrl?: string | null;
     phone: string | null;
     email: string | null;
     facebook: string | null;

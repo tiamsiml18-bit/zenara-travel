@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/session';
 import { updateAgencySettings } from '@/lib/services/lookups';
+import { uploadAgencyLogo, removeAgencyLogo } from '@/lib/services/branding';
 import { writeAudit } from '@/lib/services/audit';
 
 export async function updateAgencySettingsAction(id: string, formData: FormData) {
@@ -21,7 +22,6 @@ export async function updateAgencySettingsAction(id: string, formData: FormData)
   try {
     await updateAgencySettings(supabase, id, {
       agencyName,
-      logoUrl: field('logoUrl'),
       phone: field('phone'),
       email: field('email'),
       facebook: field('facebook'),
@@ -43,4 +43,46 @@ export async function updateAgencySettingsAction(id: string, formData: FormData)
   }
 
   redirect('/admin/settings?saved=1');
+}
+
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(['image/jpeg', 'image/png']);
+
+export async function uploadLogoAction(
+  agencySettingsId: string,
+  formData: FormData
+): Promise<{ ok: true; logoUrl: string } | { ok: false; error: string }> {
+  const user = await requireRole('admin');
+  const supabase = await createSupabaseServerClient();
+
+  const file = formData.get('logo');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'Choose an image file first.' };
+  }
+  if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+    return { ok: false, error: 'Logo must be a JPEG or PNG image.' };
+  }
+  if (file.size > MAX_LOGO_BYTES) {
+    return { ok: false, error: 'Logo must be smaller than 5MB.' };
+  }
+
+  try {
+    const logoUrl = await uploadAgencyLogo(supabase, agencySettingsId, file, user.id);
+    revalidatePath('/admin/settings');
+    return { ok: true, logoUrl };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to upload logo.' };
+  }
+}
+
+export async function removeLogoAction(agencySettingsId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireRole('admin');
+  const supabase = await createSupabaseServerClient();
+  try {
+    await removeAgencyLogo(supabase, agencySettingsId, user.id);
+    revalidatePath('/admin/settings');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to remove logo.' };
+  }
 }

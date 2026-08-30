@@ -1,3 +1,4 @@
+import { LogoUploader } from '@/components/admin/logo-uploader';
 import { Topbar } from '@/components/layout/topbar';
 import { createClient } from '@/lib/supabase/server';
 import { getAgencySettings } from '@/lib/services/lookups';
@@ -20,7 +21,10 @@ export default async function AgencySettingsPage() {
         <form action={action} className="max-w-2xl space-y-6">
           <Section title="Agency identity">
             <Field label="Agency name" name="agencyName" defaultValue={settings.agency_name} required />
-            <Field label="Logo URL" name="logoUrl" defaultValue={settings.logo_url ?? ''} />
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink-700">Logo</label>
+              <LogoUploader agencySettingsId={settings.id} currentLogoUrl={settings.logo_url} />
+            </div>
           </Section>
 
           <Section title="Contact information">
