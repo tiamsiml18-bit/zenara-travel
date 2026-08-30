@@ -339,6 +339,105 @@ async function insertVersionChildren(
  * `create_quotation_draft(jsonb)` Postgres function — flagged in
  * ARCHITECTURE.md as a hardening item before scaling past the pilot team.
  */
+/**
+ * Edits a DRAFT quotation in place — no new version, no revision number
+ * bump. This is only safe because a draft was never sent to a client; the
+ * revision system (reviseQuotation, below) exists specifically for the
+ * case where that's no longer true. Reuses insertVersionChildren after
+ * clearing the existing children, so the exact same pricing/snapshot logic
+ * that powers creation also powers this edit.
+ */
+export async function updateDraftQuotation(
+  supabase: SupabaseClient,
+  quotationId: string,
+  input: QuotationDraftInput,
+  actingUserId: string
+) {
+  const { data: quotation, error: qFetchError } = await supabase
+    .from('quotations')
+    .select('id, current_version_id, quotation_versions:quotation_versions!quotations_current_version_id_fkey(status)')
+    .eq('id', quotationId)
+    .single();
+  if (qFetchError || !quotation) throw new Error('Quotation not found.');
+
+  const versionStatus = (
+    Array.isArray(quotation.quotation_versions) ? quotation.quotation_versions[0] : quotation.quotation_versions
+  )?.status;
+  if (versionStatus !== 'draft') {
+    throw new Error('This quotation has already been sent — use Edit to create a revision instead of editing it directly.');
+  }
+
+  const versionId = quotation.current_version_id as string;
+
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('full_name')
+    .eq('id', input.clientId)
+    .single();
+  if (clientError || !client) throw new Error('Client not found.');
+
+  const consultantName = await resolveConsultantName(supabase, input.consultantId);
+
+  const clientRatesForTotal: GuestRates = {};
+  for (const r of input.guestRates) clientRatesForTotal[r.guestType] = r.pricePerPerson;
+  const computedTotalPrice = calculateTotalPrice(guestCountsOf(input), clientRatesForTotal);
+
+  const { error: quotationUpdateError } = await supabase
+    .from('quotations')
+    .update({ client_id: input.clientId, package_id: input.packageId || null })
+    .eq('id', quotationId);
+  if (quotationUpdateError) throw new Error(`Failed to update quotation: ${quotationUpdateError.message}`);
+
+  const { error: vError } = await supabase
+    .from('quotation_versions')
+    .update({
+      client_name_snapshot: client.full_name,
+      destination: input.destination,
+      travel_start_date: input.travelStartDate,
+      travel_end_date: input.travelEndDate,
+      valid_until: input.validUntil,
+      num_adults: input.numAdults,
+      num_children: input.numChildren,
+      num_seniors: input.numSeniors,
+      num_infants: input.numInfants,
+      num_pwd: input.numPwd,
+      hotel_name: input.hotelName || null,
+      num_bedrooms: input.numBedrooms ?? null,
+      price_per_person: clientRatesForTotal.adult ?? null,
+      total_price: computedTotalPrice,
+      notes: input.notes || null,
+      consultant_id: input.consultantId || null,
+      consultant_name_snapshot: consultantName,
+    })
+    .eq('id', versionId);
+  if (vError) throw new Error(`Failed to update quotation version: ${vError.message}`);
+
+  // Clear and rebuild every child table — safe only while still a draft;
+  // the prevent_child_mutation_if_version_locked() trigger would reject
+  // this the moment status moves past 'draft'.
+  await Promise.all([
+    supabase.from('quotation_itinerary_days').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_inclusions').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_exclusions').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_fees').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_items').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_guest_pricing').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_guest_pricing_internal').delete().eq('quotation_version_id', versionId),
+  ]);
+  await supabase.from('quotation_pricing_internal').delete().eq('quotation_version_id', versionId);
+
+  await insertVersionChildren(supabase, versionId, input);
+
+  await writeAudit(supabase, {
+    userId: actingUserId,
+    action: 'quotation.draft_edited',
+    entityType: 'quotation',
+    entityId: quotationId,
+  });
+
+  return quotationId;
+}
+
 export async function createDraftQuotation(
   supabase: SupabaseClient,
   input: QuotationDraftInput,

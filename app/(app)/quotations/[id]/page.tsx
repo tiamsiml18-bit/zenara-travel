@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, Pencil } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quotations/quotation-actions';
@@ -67,6 +67,14 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             >
               <Download className="h-4 w-4" /> Download PDF
             </a>
+            {isDraft && (
+              <Link
+                href={`/quotations/${id}/edit`}
+                className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+              >
+                <Pencil className="h-4 w-4" /> Edit
+              </Link>
+            )}
             {isDraft && <SendQuotationButton quotationId={id} />}
             {existingBooking ? (
               <Link
@@ -83,7 +91,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                 href={`/quotations/${id}/revise`}
                 className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
               >
-                <RefreshCw className="h-4 w-4" /> Create revision
+                <Pencil className="h-4 w-4" /> Edit
               </Link>
             )}
             <DuplicateQuotationButton quotationId={id} />

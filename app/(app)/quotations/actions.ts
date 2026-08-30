@@ -57,6 +57,29 @@ export async function reviseQuotationAction(
   }
 }
 
+/** Draft-only in-place edit — see updateDraftQuotation() for why this never bumps a revision number. */
+export async function updateDraftQuotationAction(
+  quotationId: string,
+  input: QuotationDraftInput
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = quotationDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid quotation data.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  try {
+    await quotationsService.updateDraftQuotation(supabase, quotationId, parsed.data, user.id);
+    revalidatePath(`/quotations/${quotationId}`);
+    revalidatePath('/quotations');
+    revalidatePath('/dashboard');
+    return { ok: true, quotationId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to save changes.' };
+  }
+}
+
 export async function sendQuotationAction(quotationId: string) {
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();

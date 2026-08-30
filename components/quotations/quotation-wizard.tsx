@@ -10,6 +10,7 @@ import { SupplierImportPanel, type AppliedSupplierData } from './supplier-import
 import {
   createQuotationDraftAction,
   reviseQuotationAction,
+  updateDraftQuotationAction,
   getPackageDetailsAction,
 } from '@/app/(app)/quotations/actions';
 import { quickCreateClientAction } from '@/app/(app)/clients/actions';
@@ -75,7 +76,7 @@ export function QuotationWizard({
   consultants: { id: string; full_name: string }[];
   tours?: TourPickerItem[];
   initialClientId?: string;
-  mode?: 'create' | 'revise';
+  mode?: 'create' | 'revise' | 'edit';
   quotationId?: string;
   nextVersionLabel?: string;
   initialData?: QuotationWizardInitialData;
@@ -345,7 +346,9 @@ export function QuotationWizard({
       const result =
         mode === 'revise' && quotationId
           ? await reviseQuotationAction(quotationId, input)
-          : await createQuotationDraftAction(input);
+          : mode === 'edit' && quotationId
+            ? await updateDraftQuotationAction(quotationId, input)
+            : await createQuotationDraftAction(input);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -872,7 +875,7 @@ export function QuotationWizard({
             disabled={isPending}
             className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-60"
           >
-            {isPending ? 'Saving…' : mode === 'revise' ? 'Save revision' : 'Save draft'}
+            {isPending ? 'Saving…' : mode === 'revise' ? 'Save revision' : mode === 'edit' ? 'Save changes' : 'Save draft'}
           </button>
         )}
       </div>
