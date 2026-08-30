@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { Download, RefreshCw, Eye } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quotations/quotation-actions';
 import { QuotationStatusControls, ConvertToBookingButton } from '@/components/quotations/quotation-status-controls';
 import { ArchiveQuotationButton } from '@/components/quotations/archive-quotation-button';
+import { PdfPreviewButton } from '@/components/quotations/pdf-preview-button';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { getBookingForQuotation } from '@/lib/services/bookings';
@@ -59,14 +60,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             >
               View client
             </Link>
-            <a
-              href={`/api/quotations/${id}/pdf?preview=1`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
-            >
-              <Eye className="h-4 w-4" /> Preview
-            </a>
+            <PdfPreviewButton quotationId={id} />
             <a
               href={`/api/quotations/${id}/pdf`}
               className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"

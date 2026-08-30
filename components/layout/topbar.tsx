@@ -1,10 +1,14 @@
 import { Search, LogOut } from 'lucide-react';
 import { signOut } from '@/lib/auth/actions';
+import { BackButton } from './back-button';
 
 export function Topbar({ title }: { title: string }) {
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-sand-200 bg-white px-6">
-      <h1 className="font-display text-lg font-semibold text-ink-900">{title}</h1>
+      <div className="flex items-center gap-2">
+        <BackButton />
+        <h1 className="font-display text-lg font-semibold text-ink-900">{title}</h1>
+      </div>
 
       <div className="flex items-center gap-4">
         <form action="/search" className="relative hidden sm:block">
