@@ -31,6 +31,7 @@ describe('PDF data path — pricing isolation (security regression guard)', () =
 
   const forbiddenTerms = [
     'quotation_pricing_internal',
+    'quotation_guest_pricing_internal',
     'supplier_cost',
     'markup',
     'profit',
@@ -43,10 +44,10 @@ describe('PDF data path — pricing isolation (security regression guard)', () =
     });
   }
 
-  it('only exposes price_per_person and total_price as pricing fields', () => {
+  it('only exposes total_price and per-guest-type client rates as pricing fields', () => {
     // Sanity check that the file does still expose SOME pricing — proving
     // the test isn't trivially passing because pricing was removed entirely.
-    expect(source).toContain('price_per_person');
+    expect(source).toContain('quotation_guest_pricing');
     expect(source).toContain('total_price');
   });
 });

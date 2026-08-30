@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import type { QuotationPdfData } from '@/lib/services/pdf-data';
 import { ZENARA_LOGO_DATA_URI } from './zenara-logo';
+import { GUEST_TYPE_LABELS } from '@/lib/utils/guest-pricing';
 
 // Harbor/sand palette, matched to the app's design tokens, rendered as flat
 // hex since @react-pdf/renderer doesn't read CSS variables.
@@ -103,12 +104,37 @@ const styles = StyleSheet.create({
     borderColor: COLORS.sand200,
     borderRadius: 5,
     padding: 10,
+  },
+  priceBlockTitle: {
+    fontSize: 8,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: COLORS.ink500,
+    marginBottom: 6,
+  },
+  // One row per guest type — "2 guests × PHP 45,000" never combined with
+  // any other category's rate, matching the spec's example format exactly.
+  guestPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  priceLabel: { fontSize: 7, textTransform: 'uppercase', color: COLORS.ink500, letterSpacing: 0.5 },
-  priceValuePerPerson: { fontSize: 11, fontWeight: 700, marginTop: 2 },
-  priceValueTotal: { fontSize: 15, fontWeight: 700, marginTop: 2, color: COLORS.harbor700 },
+  guestPriceLabel: { fontSize: 9, fontWeight: 700, color: COLORS.ink900 },
+  guestPriceDetail: { fontSize: 7.5, color: COLORS.ink500, marginTop: 1 },
+  guestPriceSubtotal: { fontSize: 10, fontWeight: 700, color: COLORS.ink700 },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.sand200,
+    marginTop: 4,
+    paddingTop: 6,
+  },
+  totalLabel: { fontSize: 9.5, fontWeight: 700, color: COLORS.ink900, textTransform: 'uppercase', letterSpacing: 0.3 },
+  priceValueTotal: { fontSize: 15, fontWeight: 700, color: COLORS.harbor700 },
 
   termsBlock: { marginTop: 9, fontSize: 6.5, color: COLORS.ink500, lineHeight: 1.4 },
   termsTitle: { fontSize: 7.5, fontWeight: 700, color: COLORS.ink700, marginBottom: 2 },
@@ -193,6 +219,7 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
                   `${trip.numAdults} adult${trip.numAdults !== 1 ? 's' : ''}`,
                   trip.numChildren > 0 ? `${trip.numChildren} child${trip.numChildren !== 1 ? 'ren' : ''}` : null,
                   trip.numInfants > 0 ? `${trip.numInfants} infant${trip.numInfants !== 1 ? 's' : ''}` : null,
+                  trip.numPwd > 0 ? `${trip.numPwd} PWD` : null,
                 ]
                   .filter(Boolean)
                   .join(', ')}
@@ -268,14 +295,21 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
           )}
 
           <View style={styles.priceBlock}>
-            <View>
-              <Text style={styles.priceLabel}>Package rate</Text>
-              <Text style={styles.priceValuePerPerson}>
-                {pricing.pricePerPerson ? `${formatMoney(pricing.pricePerPerson, pricing.currency)} / person` : '—'}
-              </Text>
-            </View>
-            <View>
-              <Text style={styles.priceLabel}>Total tour package</Text>
+            <Text style={styles.priceBlockTitle}>Package Rate</Text>
+            {pricing.guestLines.length === 0 && <Text style={styles.listItem}>—</Text>}
+            {pricing.guestLines.map((line) => (
+              <View key={line.guestType} style={styles.guestPriceRow}>
+                <View>
+                  <Text style={styles.guestPriceLabel}>{GUEST_TYPE_LABELS[line.guestType]}</Text>
+                  <Text style={styles.guestPriceDetail}>
+                    {line.quantity} guest{line.quantity !== 1 ? 's' : ''} × {formatMoney(line.pricePerPerson, pricing.currency)}
+                  </Text>
+                </View>
+                <Text style={styles.guestPriceSubtotal}>{formatMoney(line.subtotal, pricing.currency)}</Text>
+              </View>
+            ))}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total Package</Text>
               <Text style={styles.priceValueTotal}>{formatMoney(pricing.totalPrice, pricing.currency)}</Text>
             </View>
           </View>

@@ -1,15 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { unwrapToOne } from '@/lib/utils/unwrap-embed';
+import { buildGuestLineItems, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
 
 /**
  * Client-safe quotation data for PDF rendering.
  *
  * SECURITY NOTE: this function's select list is hand-written and intentionally
- * never joins `quotation_pricing_internal`. There is no code path in this file
- * that can accidentally pull supplier cost, markup, or profit into a PDF —
- * the only price fields available here are `price_per_person` and
- * `total_price` on `quotation_versions`, which are the client-facing selling
- * price by design (see database/migrations/0001_init.sql).
+ * never joins `quotation_pricing_internal` or `quotation_guest_pricing_internal`
+ * — only `quotation_guest_pricing` (the client-facing rate table) is read here.
+ * There is no code path in this file that can accidentally pull supplier cost,
+ * markup, or profit into a PDF.
  */
 export async function getQuotationPdfData(supabase: SupabaseClient, quotationId: string) {
   const { data: quotation, error } = await supabase
@@ -28,36 +28,40 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     .select(
       `id, version_label, client_name_snapshot, destination, travel_start_date, travel_end_date,
        num_adults, num_children, hotel_name, num_bedrooms, price_per_person, total_price, currency,
-       consultant_name_snapshot, num_seniors, num_infants`
+       consultant_name_snapshot, num_seniors, num_infants, num_pwd`
     )
     .eq('id', quotation.current_version_id)
     .single();
   if (vError || !version) throw new Error('Quotation has no version to render.');
 
-  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: fees }] = await Promise.all([
-    supabase
-      .from('quotation_itinerary_days')
-      .select('day_number, title, description, activities')
-      .eq('quotation_version_id', version.id)
-      .order('day_number'),
-    supabase
-      .from('quotation_inclusions')
-      .select('item')
-      .eq('quotation_version_id', version.id)
-      .order('sort_order'),
-    supabase
-      .from('quotation_exclusions')
-      .select('item')
-      .eq('quotation_version_id', version.id)
-      .order('sort_order'),
-    // Client-facing by design (unlike quotation_pricing_internal above) —
-    // these are meant to show up on the PDF as their own labeled section.
-    supabase
-      .from('quotation_fees')
-      .select('label, amount')
-      .eq('quotation_version_id', version.id)
-      .order('sort_order'),
-  ]);
+  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: fees }, { data: guestPricing }] =
+    await Promise.all([
+      supabase
+        .from('quotation_itinerary_days')
+        .select('day_number, title, description, activities')
+        .eq('quotation_version_id', version.id)
+        .order('day_number'),
+      supabase
+        .from('quotation_inclusions')
+        .select('item')
+        .eq('quotation_version_id', version.id)
+        .order('sort_order'),
+      supabase
+        .from('quotation_exclusions')
+        .select('item')
+        .eq('quotation_version_id', version.id)
+        .order('sort_order'),
+      // Client-facing by design (unlike quotation_pricing_internal above) —
+      // these are meant to show up on the PDF as their own labeled section.
+      supabase
+        .from('quotation_fees')
+        .select('label, amount')
+        .eq('quotation_version_id', version.id)
+        .order('sort_order'),
+      // Client-facing rate per guest type — quotation_guest_pricing only,
+      // never its _internal counterpart (supplier cost).
+      supabase.from('quotation_guest_pricing').select('guest_type, price_per_person').eq('quotation_version_id', version.id),
+    ]);
 
   const { data: agency } = await supabase.from('agency_settings').select('*').limit(1).single();
 
@@ -73,6 +77,21 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     phone: assignedAgent?.phone ?? null,
   };
 
+  const counts: GuestCounts = {
+    senior: (version.num_seniors as number) ?? 0,
+    adult: version.num_adults as number,
+    child: version.num_children as number,
+    infant: (version.num_infants as number) ?? 0,
+    pwd: (version.num_pwd as number) ?? 0,
+  };
+  const rates: GuestRates = {};
+  for (const g of guestPricing ?? []) rates[g.guest_type as keyof GuestRates] = Number(g.price_per_person);
+
+  // Every line item the PDF shows (one row per guest type actually present)
+  // — built from the exact same function used when the quotation was
+  // priced, so this can never disagree with total_price stored below.
+  const guestLines = buildGuestLineItems(counts, rates);
+
   return {
     quotationNumber: quotation.quotation_number as string,
     versionLabel: version.version_label as string,
@@ -86,11 +105,12 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
       numChildren: version.num_children as number,
       numSeniors: (version.num_seniors as number) ?? 0,
       numInfants: (version.num_infants as number) ?? 0,
+      numPwd: (version.num_pwd as number) ?? 0,
       hotelName: version.hotel_name as string | null,
       numBedrooms: version.num_bedrooms as number | null,
     },
     pricing: {
-      pricePerPerson: version.price_per_person as number | null,
+      guestLines,
       totalPrice: version.total_price as number,
       currency: (version.currency as string) ?? 'PHP',
     },

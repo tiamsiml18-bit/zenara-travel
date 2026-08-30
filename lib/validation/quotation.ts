@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GUEST_TYPES } from '@/lib/utils/guest-pricing';
 
 export const itineraryDaySchema = z.object({
   dayNumber: z.number().int().min(1),
@@ -13,6 +14,17 @@ export const costItemSchema = z.object({
   amount: z.coerce.number().min(0, 'Cost cannot be negative.'),
 });
 
+// One rate per guest type — never a single combined "price per person."
+// supplierCostPerPerson is carried in the same input object for convenience
+// (the wizard's one form has both), but the service layer writes it to the
+// physically separate quotation_guest_pricing_internal table, never the
+// client-facing quotation_guest_pricing table.
+export const guestRateSchema = z.object({
+  guestType: z.enum(GUEST_TYPES),
+  pricePerPerson: z.coerce.number().min(0, 'Rate cannot be negative.').default(0),
+  supplierCostPerPerson: z.coerce.number().min(0, 'Cost cannot be negative.').default(0),
+});
+
 export const quotationDraftSchema = z
   .object({
     clientId: z.string().uuid('Select a client.'),
@@ -24,17 +36,18 @@ export const quotationDraftSchema = z
     numChildren: z.coerce.number().int().min(0).default(0),
     numSeniors: z.coerce.number().int().min(0).default(0),
     numInfants: z.coerce.number().int().min(0).default(0),
+    numPwd: z.coerce.number().int().min(0).default(0),
     hotelName: z.string().trim().max(200).optional().or(z.literal('')),
     numBedrooms: z.coerce.number().int().min(0).optional().nullable(),
-    pricePerPerson: z.coerce.number().min(0).optional().nullable(),
-    totalPrice: z.coerce.number().min(0, 'Total price cannot be negative.'),
-    // Optional per-category rates — only used if the agent opens the guest
-    // pricing breakdown; otherwise pricePerPerson/totalPrice above are the
-    // whole story, same as before this feature existed.
-    pricePerSenior: z.coerce.number().min(0).optional().nullable(),
-    pricePerAdult: z.coerce.number().min(0).optional().nullable(),
-    pricePerChild: z.coerce.number().min(0).optional().nullable(),
-    pricePerInfant: z.coerce.number().min(0).optional().nullable(),
+
+    // Total package price is NEVER user-entered — it's always calculated
+    // server-side from guestRates × the guest counts above (see
+    // lib/utils/guest-pricing.ts, the one function that ever computes it).
+    // Kept as a field here only because it's convenient for the wizard to
+    // pass its own live-calculated value through so the UI, the stored
+    // record, and the PDF all read from a single calculation path — the
+    // server recalculates and overwrites this rather than trusting it.
+    guestRates: z.array(guestRateSchema).default([]),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
     // Which named consultant prepared this quote — see agency_consultants;
@@ -51,14 +64,10 @@ export const quotationDraftSchema = z
     // Optional and empty by default; purely there for when it's needed.
     feeItems: z.array(costItemSchema).default([]),
 
-    // Internal-only cost breakdown — airfare, hotel, transfers, sleeper bus,
-    // any client-specific add-on the agent needs to price out. Persisted to
-    // quotation_items (tied 1:1 with this version) so it survives a revise
-    // for editing later, and summed server-side into supplier_cost on
-    // quotation_pricing_internal. Never appears on the client-facing PDF —
-    // that path only ever reads price_per_person/total_price from
-    // quotation_versions, which never joins quotation_items or
-    // quotation_pricing_internal (see lib/services/pdf-data.ts).
+    // Internal-only cost breakdown for non-per-person costs (airfare, hotel,
+    // a shared van transfer) — adds together WITH the per-guest-type
+    // supplier costs above into one total supplier_cost, rather than
+    // replacing them. Never appears on the client-facing PDF.
     costItems: z.array(costItemSchema).default([]),
     markup: z.coerce.number().default(0),
   })
@@ -68,4 +77,5 @@ export const quotationDraftSchema = z
   });
 
 export type CostItemInput = z.infer<typeof costItemSchema>;
+export type GuestRateInput = z.infer<typeof guestRateSchema>;
 export type QuotationDraftInput = z.infer<typeof quotationDraftSchema>;

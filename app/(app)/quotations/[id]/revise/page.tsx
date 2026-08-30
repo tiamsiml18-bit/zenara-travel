@@ -22,7 +22,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
     redirect(`/quotations/${id}`);
   }
 
-  const [{ itinerary, inclusions, exclusions, costItems, feeItems }, pricing, packages, sources, consultants] = await Promise.all([
+  const [{ itinerary, inclusions, exclusions, costItems, feeItems, guestRates }, pricing, packages, sources, consultants] = await Promise.all([
     getVersionDetail(supabase, currentVersion.id),
     getPricingForVersion(supabase, currentVersion.id),
     listActivePackages(supabase),
@@ -56,14 +56,10 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
             numChildren: currentVersion.num_children,
             numSeniors: currentVersion.num_seniors ?? 0,
             numInfants: currentVersion.num_infants ?? 0,
+            numPwd: currentVersion.num_pwd ?? 0,
             hotelName: currentVersion.hotel_name ?? '',
             numBedrooms: currentVersion.num_bedrooms ?? 1,
-            pricePerPerson: currentVersion.price_per_person,
-            totalPrice: currentVersion.total_price,
-            pricePerSenior: currentVersion.price_per_senior,
-            pricePerAdult: currentVersion.price_per_adult,
-            pricePerChild: currentVersion.price_per_child,
-            pricePerInfant: currentVersion.price_per_infant,
+            guestRates,
             notes: currentVersion.notes ?? '',
             itinerary: itinerary.map((d) => ({
               dayNumber: d.day_number,

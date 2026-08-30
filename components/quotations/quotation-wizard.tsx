@@ -15,6 +15,15 @@ import {
 import { quickCreateClientAction } from '@/app/(app)/clients/actions';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { QuotationDraftInput, CostItemInput } from '@/lib/validation/quotation';
+import {
+  GUEST_TYPES,
+  GUEST_TYPE_LABELS,
+  type GuestType,
+  type GuestCounts,
+  activeGuestTypes,
+  calculateTotalPrice,
+  calculateGuestSupplierCost,
+} from '@/lib/utils/guest-pricing';
 
 type Client = { id: string; full_name: string; email: string | null; mobile_number: string | null };
 type PackageOption = { id: string; name: string; destination: string; num_days: number; num_nights: number };
@@ -32,14 +41,10 @@ export interface QuotationWizardInitialData {
   numChildren: number;
   numSeniors?: number;
   numInfants?: number;
+  numPwd?: number;
   hotelName: string;
   numBedrooms: number;
-  pricePerPerson: number | null;
-  totalPrice: number;
-  pricePerSenior?: number | null;
-  pricePerAdult?: number | null;
-  pricePerChild?: number | null;
-  pricePerInfant?: number | null;
+  guestRates?: { guestType: GuestType; pricePerPerson: number; supplierCostPerPerson: number }[];
   notes: string;
   itinerary: ItineraryDayDraft[];
   inclusions: string[];
@@ -100,17 +105,31 @@ export function QuotationWizard({
     numChildren: initialData?.numChildren ?? 0,
     numSeniors: initialData?.numSeniors ?? 0,
     numInfants: initialData?.numInfants ?? 0,
+    numPwd: initialData?.numPwd ?? 0,
     hotelName: initialData?.hotelName ?? '',
     numBedrooms: initialData?.numBedrooms ?? 1,
-    pricePerPerson: (initialData?.pricePerPerson ?? '') as number | '',
-    totalPrice: (initialData?.totalPrice ?? '') as number | '',
-    pricePerSenior: (initialData?.pricePerSenior ?? '') as number | '',
-    pricePerAdult: (initialData?.pricePerAdult ?? '') as number | '',
-    pricePerChild: (initialData?.pricePerChild ?? '') as number | '',
-    pricePerInfant: (initialData?.pricePerInfant ?? '') as number | '',
     markup: (initialData?.markup ?? '') as number | '',
     notes: initialData?.notes ?? '',
     consultantId: initialData?.consultantId ?? '',
+  });
+  // Per guest type — client rate AND internal supplier cost, side by side,
+  // since the agent needs both to see the margin while pricing a trip.
+  // Total package price is never stored as its own piece of state here —
+  // it's always derived live from this plus the guest counts above (see
+  // computedTotalPrice below), matching "the system calculates it
+  // automatically."
+  const [guestRates, setGuestRates] = useState<Record<GuestType, { price: number | ''; cost: number | '' }>>(() => {
+    const initial: Record<GuestType, { price: number | ''; cost: number | '' }> = {
+      senior: { price: '', cost: '' },
+      adult: { price: '', cost: '' },
+      child: { price: '', cost: '' },
+      infant: { price: '', cost: '' },
+      pwd: { price: '', cost: '' },
+    };
+    for (const r of initialData?.guestRates ?? []) {
+      initial[r.guestType] = { price: r.pricePerPerson, cost: r.supplierCostPerPerson };
+    }
+    return initial;
   });
   const [costItems, setCostItems] = useState<CostItemInput[]>(
     initialData?.costItems ??
@@ -119,6 +138,44 @@ export function QuotationWizard({
       (initialData?.supplierCost ? [{ label: 'Supplier cost', amount: initialData.supplierCost }] : [])
   );
   const [feeItems, setFeeItems] = useState<CostItemInput[]>(initialData?.feeItems ?? []);
+
+  // Derived, never stored directly as state — this is what makes "the
+  // total is read-only and always correct" actually true, rather than a UI
+  // convention someone could accidentally violate. Both this and the
+  // server (see lib/services/quotations.ts) call the exact same
+  // calculateTotalPrice() from lib/utils/guest-pricing.ts.
+  const guestCounts: GuestCounts = {
+    senior: trip.numSeniors,
+    adult: trip.numAdults,
+    child: trip.numChildren,
+    infant: trip.numInfants,
+    pwd: trip.numPwd,
+  };
+  const activeTypes = activeGuestTypes(guestCounts);
+  const clientRateMap = Object.fromEntries(
+    GUEST_TYPES.map((t) => [t, guestRates[t].price === '' ? 0 : Number(guestRates[t].price)])
+  ) as Record<GuestType, number>;
+  const supplierCostMap = Object.fromEntries(
+    GUEST_TYPES.map((t) => [t, guestRates[t].cost === '' ? 0 : Number(guestRates[t].cost)])
+  ) as Record<GuestType, number>;
+  const computedTotalPrice = calculateTotalPrice(guestCounts, clientRateMap);
+  const computedGuestSupplierCost = calculateGuestSupplierCost(guestCounts, supplierCostMap);
+
+  // Only meaningful in revise mode — the original quotation's total,
+  // recomputed the same way, purely for the "what changed" summary shown
+  // before saving a revision.
+  const initialTotalPrice = initialData
+    ? calculateTotalPrice(
+        {
+          senior: initialData.numSeniors ?? 0,
+          adult: initialData.numAdults,
+          child: initialData.numChildren,
+          infant: initialData.numInfants ?? 0,
+          pwd: initialData.numPwd ?? 0,
+        },
+        Object.fromEntries((initialData.guestRates ?? []).map((r) => [r.guestType, r.pricePerPerson])) as Record<GuestType, number>
+      )
+    : 0;
   const [showPricing, setShowPricing] = useState(false);
 
   // Steps 4-5
@@ -181,7 +238,7 @@ export function QuotationWizard({
     if (step === 1) return packageMode === 'custom' || (packageMode === 'existing' && Boolean(packageId));
     if (step === 2) {
       return Boolean(
-        trip.destination && trip.travelStartDate && trip.travelEndDate && trip.numAdults > 0 && trip.totalPrice !== ''
+        trip.destination && trip.travelStartDate && trip.travelEndDate && trip.numAdults > 0 && computedTotalPrice > 0
       );
     }
     return true;
@@ -199,14 +256,14 @@ export function QuotationWizard({
       numChildren: trip.numChildren,
       numSeniors: trip.numSeniors,
       numInfants: trip.numInfants,
+      numPwd: trip.numPwd,
       hotelName: trip.hotelName,
       numBedrooms: trip.numBedrooms || null,
-      pricePerPerson: trip.pricePerPerson === '' ? null : Number(trip.pricePerPerson),
-      totalPrice: Number(trip.totalPrice),
-      pricePerSenior: trip.pricePerSenior === '' ? null : Number(trip.pricePerSenior),
-      pricePerAdult: trip.pricePerAdult === '' ? null : Number(trip.pricePerAdult),
-      pricePerChild: trip.pricePerChild === '' ? null : Number(trip.pricePerChild),
-      pricePerInfant: trip.pricePerInfant === '' ? null : Number(trip.pricePerInfant),
+      guestRates: activeTypes.map((guestType) => ({
+        guestType,
+        pricePerPerson: clientRateMap[guestType],
+        supplierCostPerPerson: supplierCostMap[guestType],
+      })),
       notes: trip.notes,
       consultantId: trip.consultantId,
       inclusions,
@@ -229,7 +286,7 @@ export function QuotationWizard({
       add('Travel start', initialData.travelStartDate, trip.travelStartDate);
       add('Travel end', initialData.travelEndDate, trip.travelEndDate);
       add('Hotel', initialData.hotelName || '\u2014', trip.hotelName || '\u2014');
-      add('Total price', `PHP ${Number(initialData.totalPrice).toLocaleString('en-PH')}`, `PHP ${Number(input.totalPrice).toLocaleString('en-PH')}`);
+      add('Total price', `PHP ${initialTotalPrice.toLocaleString('en-PH')}`, `PHP ${computedTotalPrice.toLocaleString('en-PH')}`);
       add('Itinerary days', String(initialData.itinerary?.length ?? 0), String(itinerary.length));
       add('Inclusions', String(initialData.inclusions?.length ?? 0), String(inclusions.length));
       add('Exclusions', String(initialData.exclusions?.length ?? 0), String(exclusions.length));
@@ -459,7 +516,20 @@ export function QuotationWizard({
                 label="Travel start date"
                 type="date"
                 value={trip.travelStartDate}
-                onChange={(v) => setTrip((t) => ({ ...t, travelStartDate: v }))}
+                onChange={(v) =>
+                  setTrip((t) => ({
+                    ...t,
+                    travelStartDate: v,
+                    // A blank native date input always opens its calendar
+                    // on today's month, no matter what — that's the actual
+                    // bug, not something React can override directly. The
+                    // fix is pre-filling the end date to the start date
+                    // whenever it's still empty, so its calendar opens
+                    // already sitting on the right month. Never touches an
+                    // end date the agent already set.
+                    travelEndDate: t.travelEndDate === '' ? v : t.travelEndDate,
+                  }))
+                }
               />
               <LabeledInput
                 label="Travel end date"
@@ -470,7 +540,7 @@ export function QuotationWizard({
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Guests</label>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 <LabeledInput
                   label="Senior citizens"
                   type="number"
@@ -495,6 +565,12 @@ export function QuotationWizard({
                   value={String(trip.numInfants)}
                   onChange={(v) => setTrip((t) => ({ ...t, numInfants: Number(v) }))}
                 />
+                <LabeledInput
+                  label="PWD"
+                  type="number"
+                  value={String(trip.numPwd)}
+                  onChange={(v) => setTrip((t) => ({ ...t, numPwd: Number(v) }))}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -512,60 +588,59 @@ export function QuotationWizard({
             </div>
 
             <div className="rounded-md border border-sand-200 p-4">
-              <p className="mb-3 text-sm font-medium text-ink-900">Client-facing price</p>
-              <div className="grid grid-cols-2 gap-3">
-                <LabeledInput
-                  label="Price per person (PHP)"
-                  type="number"
-                  value={String(trip.pricePerPerson)}
-                  onChange={(v) => setTrip((t) => ({ ...t, pricePerPerson: v === '' ? '' : Number(v) }))}
-                />
-                <LabeledInput
-                  label="Total package price (PHP)"
-                  type="number"
-                  value={String(trip.totalPrice)}
-                  onChange={(v) => setTrip((t) => ({ ...t, totalPrice: v === '' ? '' : Number(v) }))}
-                />
-              </div>
+              <p className="mb-1 text-sm font-medium text-ink-900">Client-facing price</p>
+              <p className="mb-3 text-xs text-ink-500">
+                Enter a rate per person for each guest type below \u2014 the total is calculated automatically and
+                can\u2019t be typed in directly.
+              </p>
+              {activeTypes.length === 0 ? (
+                <p className="text-xs text-ink-500">Set a guest count above first, then rates appear here.</p>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-ink-500">
+                    <span>Guest type</span>
+                    <span>Rate per person (PHP)</span>
+                    <span className="text-right">Subtotal</span>
+                  </div>
+                  {activeTypes.map((guestType) => {
+                    const count = guestCounts[guestType];
+                    const rate = clientRateMap[guestType];
+                    return (
+                      <div key={guestType} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                        <span className="text-sm text-ink-700">
+                          {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">\u00d7{count}</span>
+                        </span>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
+                            PHP
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={guestRates[guestType].price}
+                            onChange={(e) =>
+                              setGuestRates((g) => ({
+                                ...g,
+                                [guestType]: { ...g[guestType], price: e.target.value === '' ? '' : Number(e.target.value) },
+                              }))
+                            }
+                            className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+                          />
+                        </div>
+                        <span className="font-ticket w-28 shrink-0 text-right text-sm text-ink-700">
+                          PHP {(rate * count).toLocaleString('en-PH')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-              <div className="mt-4 border-t border-sand-200 pt-4">
-                <p className="mb-2 text-sm font-medium text-ink-700">
-                  Price by guest type <span className="font-normal text-ink-500">(optional)</span>
-                </p>
-                <p className="mb-3 text-xs text-ink-500">
-                  Seniors, children, and infants are often priced differently \u2014 fill in a rate for whichever
-                  categories apply and use the calculated total below, or leave this blank and just set the total
-                  above directly.
-                </p>
-                <GuestPricingBreakdown
-                  counts={{
-                    senior: trip.numSeniors,
-                    adult: trip.numAdults,
-                    child: trip.numChildren,
-                    infant: trip.numInfants,
-                  }}
-                  prices={{
-                    senior: trip.pricePerSenior,
-                    adult: trip.pricePerAdult,
-                    child: trip.pricePerChild,
-                    infant: trip.pricePerInfant,
-                  }}
-                  onPriceChange={(category, value) =>
-                    setTrip((t) => {
-                      switch (category) {
-                        case 'senior':
-                          return { ...t, pricePerSenior: value };
-                        case 'adult':
-                          return { ...t, pricePerAdult: value };
-                        case 'child':
-                          return { ...t, pricePerChild: value };
-                        case 'infant':
-                          return { ...t, pricePerInfant: value };
-                      }
-                    })
-                  }
-                  onUseTotal={(total) => setTrip((t) => ({ ...t, totalPrice: total }))}
-                />
+              <div className="mt-4 flex items-center justify-between rounded-md bg-sand-50 px-3 py-2.5">
+                <span className="text-sm font-medium text-ink-700">Total package price</span>
+                <span className="font-ticket text-lg font-semibold text-ink-900">
+                  PHP {computedTotalPrice.toLocaleString('en-PH')}
+                </span>
               </div>
 
               <div className="mt-4 border-t border-sand-200 pt-4">
@@ -598,7 +673,60 @@ export function QuotationWizard({
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-coral-600">
                   Internal only \u2014 never appears on the client PDF
                 </p>
-                <p className="mb-3 text-sm font-medium text-ink-700">Cost breakdown</p>
+
+                {activeTypes.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-sm font-medium text-ink-700">Supplier cost by guest type</p>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-ink-500">
+                        <span>Guest type</span>
+                        <span>Cost per person</span>
+                        <span>Selling per person</span>
+                        <span className="text-right">Margin</span>
+                      </div>
+                      {activeTypes.map((guestType) => {
+                        const count = guestCounts[guestType];
+                        const cost = supplierCostMap[guestType];
+                        const rate = clientRateMap[guestType];
+                        const marginTotal = (rate - cost) * count;
+                        return (
+                          <div key={guestType} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
+                            <span className="text-sm text-ink-700">
+                              {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">\u00d7{count}</span>
+                            </span>
+                            <div className="relative">
+                              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
+                                PHP
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={guestRates[guestType].cost}
+                                onChange={(e) =>
+                                  setGuestRates((g) => ({
+                                    ...g,
+                                    [guestType]: { ...g[guestType], cost: e.target.value === '' ? '' : Number(e.target.value) },
+                                  }))
+                                }
+                                className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+                              />
+                            </div>
+                            <span className="font-ticket text-sm text-ink-500">PHP {rate.toLocaleString('en-PH')}</span>
+                            <span
+                              className={`font-ticket w-24 shrink-0 text-right text-sm ${marginTotal < 0 ? 'text-coral-600' : 'text-ink-700'}`}
+                            >
+                              PHP {marginTotal.toLocaleString('en-PH')}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <p className="mb-3 text-sm font-medium text-ink-700">
+                  Other supplier costs <span className="font-normal text-ink-500">(airfare, hotel, transfers \u2014 shared, not per person)</span>
+                </p>
                 <CostBreakdownEditor items={costItems} onChange={setCostItems} />
                 <div className="mt-4 border-t border-coral-500/20 pt-4">
                   <LabeledInput
@@ -609,9 +737,9 @@ export function QuotationWizard({
                   />
                 </div>
                 <ProfitPreview
-                  supplierCost={costItems.reduce((sum, i) => sum + (i.amount || 0), 0)}
+                  supplierCost={costItems.reduce((sum, i) => sum + (i.amount || 0), 0) + computedGuestSupplierCost}
                   markup={trip.markup === '' ? 0 : Number(trip.markup)}
-                  sellingPrice={trip.totalPrice === '' ? 0 : Number(trip.totalPrice)}
+                  sellingPrice={computedTotalPrice}
                 />
               </div>
             )}
@@ -664,7 +792,7 @@ export function QuotationWizard({
             <ReviewRow label="Hotel" value={`${trip.hotelName || '\u2014'} (${trip.numBedrooms} bedrooms)`} />
             <ReviewRow label="Itinerary days" value={String(itinerary.length)} />
             <ReviewRow label="Inclusions / Exclusions" value={`${inclusions.length} / ${exclusions.length}`} />
-            <ReviewRow label="Total price" value={`PHP ${Number(trip.totalPrice || 0).toLocaleString()}`} />
+            <ReviewRow label="Total price" value={`PHP ${computedTotalPrice.toLocaleString('en-PH')}`} />
           </div>
         )}
       </div>
@@ -726,93 +854,6 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
  * client-side arithmetic for display; the actual persisted profit/margin is
  * still computed by the generated columns on quotation_pricing_internal.
  */
-type GuestCategory = 'senior' | 'adult' | 'child' | 'infant';
-
-const GUEST_CATEGORY_LABELS: Record<GuestCategory, string> = {
-  senior: 'Senior citizen',
-  adult: 'Adult',
-  child: 'Child',
-  infant: 'Infant / toddler',
-};
-
-/**
- * Optional per-category rate table (senior/adult/child/infant), each with
- * its own price and a live-computed subtotal — travel packages frequently
- * price these differently. Deliberately doesn't force totalPrice to follow
- * this automatically; the agent clicks "Use this total" to apply it, so a
- * quotation that's already been priced a simpler way is never silently
- * overwritten just because this section happens to be visible.
- */
-function GuestPricingBreakdown({
-  counts,
-  prices,
-  onPriceChange,
-  onUseTotal,
-}: {
-  counts: Record<GuestCategory, number>;
-  prices: Record<GuestCategory, number | ''>;
-  onPriceChange: (category: GuestCategory, value: number | '') => void;
-  onUseTotal: (total: number) => void;
-}) {
-  const categories: GuestCategory[] = ['senior', 'adult', 'child', 'infant'];
-  const rows = categories
-    .filter((c) => counts[c] > 0)
-    .map((c) => {
-      const price = prices[c] === '' ? 0 : Number(prices[c]);
-      return { category: c, count: counts[c], price, subtotal: counts[c] * price };
-    });
-  const total = rows.reduce((sum, r) => sum + r.subtotal, 0);
-  const hasAnyPrice = rows.some((r) => r.price > 0);
-
-  if (rows.length === 0) {
-    return <p className="text-xs text-ink-500">Set guest counts above first, then rates will appear here.</p>;
-  }
-
-  return (
-    <div>
-      <div className="space-y-2">
-        {rows.map((r) => (
-          <div key={r.category} className="flex items-center gap-2">
-            <span className="w-32 shrink-0 text-xs text-ink-700">
-              {GUEST_CATEGORY_LABELS[r.category]} <span className="text-ink-500">×{r.count}</span>
-            </span>
-            <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
-                PHP
-              </span>
-              <input
-                type="number"
-                min={0}
-                value={prices[r.category]}
-                onChange={(e) => onPriceChange(r.category, e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="Rate per person"
-                className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
-              />
-            </div>
-            <span className="font-ticket w-24 shrink-0 text-right text-xs text-ink-700">
-              {r.subtotal > 0 ? `PHP ${r.subtotal.toLocaleString('en-PH')}` : '—'}
-            </span>
-          </div>
-        ))}
-      </div>
-      {hasAnyPrice && (
-        <div className="mt-3 flex items-center justify-between border-t border-sand-200 pt-2">
-          <span className="text-sm font-medium text-ink-700">
-            Calculated total: <span className="font-ticket text-ink-900">PHP {total.toLocaleString('en-PH')}</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => onUseTotal(total)}
-            className="rounded-md border border-harbor-500 px-3 py-1 text-xs font-medium text-harbor-600 hover:bg-harbor-50"
-          >
-            Use this total
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ProfitPreview({
   supplierCost,
   markup,

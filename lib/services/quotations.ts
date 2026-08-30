@@ -10,7 +10,7 @@ const VERSION_SELECT = `
   travel_start_date, travel_end_date, num_adults, num_children, hotel_name,
   num_bedrooms, price_per_person, total_price, currency, notes, sent_at, created_at,
   consultant_id, consultant_name_snapshot,
-  num_seniors, num_infants, price_per_senior, price_per_adult, price_per_child, price_per_infant
+  num_seniors, num_infants, num_pwd
 `;
 
 export interface QuotationListFilters {
@@ -94,7 +94,7 @@ export async function getQuotationById(supabase: SupabaseClient, quotationId: st
 }
 
 export async function getVersionDetail(supabase: SupabaseClient, versionId: string) {
-  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: costItems }, { data: feeItems }] =
+  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: costItems }, { data: feeItems }, { data: guestPricing }, { data: guestPricingInternal }] =
     await Promise.all([
       supabase
         .from('quotation_itinerary_days')
@@ -121,13 +121,31 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
         .select('id, label, amount')
         .eq('quotation_version_id', versionId)
         .order('sort_order'),
+      supabase.from('quotation_guest_pricing').select('guest_type, price_per_person').eq('quotation_version_id', versionId),
+      // Internal supplier cost per guest type — RLS on this table already
+      // restricts it to admin/manager/owning-agent, same as
+      // quotation_pricing_internal; a plain agent viewing someone else's
+      // quotation simply gets an empty result here, not an error.
+      supabase
+        .from('quotation_guest_pricing_internal')
+        .select('guest_type, supplier_cost_per_person')
+        .eq('quotation_version_id', versionId),
     ]);
+
+  const supplierCostByType = new Map((guestPricingInternal ?? []).map((g) => [g.guest_type, Number(g.supplier_cost_per_person)]));
+  const guestRates = (guestPricing ?? []).map((g) => ({
+    guestType: g.guest_type as 'senior' | 'adult' | 'child' | 'infant' | 'pwd',
+    pricePerPerson: Number(g.price_per_person),
+    supplierCostPerPerson: supplierCostByType.get(g.guest_type) ?? 0,
+  }));
+
   return {
     itinerary: itinerary ?? [],
     inclusions: inclusions ?? [],
     exclusions: exclusions ?? [],
     costItems: (costItems ?? []).map((c) => ({ label: c.label, amount: Number(c.unit_price) })),
     feeItems: (feeItems ?? []).map((f) => ({ label: f.label, amount: Number(f.amount) })),
+    guestRates,
   };
 }
 
@@ -151,6 +169,19 @@ async function resolveConsultantName(supabase: SupabaseClient, consultantId?: st
   if (!consultantId) return null;
   const { data } = await supabase.from('agency_consultants').select('full_name').eq('id', consultantId).single();
   return data?.full_name ?? null;
+}
+
+import { calculateTotalPrice, calculateGuestSupplierCost, activeGuestTypes, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
+
+/** Pulls the 5 guest counts off a QuotationDraftInput into the shape guest-pricing.ts expects. */
+function guestCountsOf(input: QuotationDraftInput): GuestCounts {
+  return {
+    senior: input.numSeniors,
+    adult: input.numAdults,
+    child: input.numChildren,
+    infant: input.numInfants,
+    pwd: input.numPwd,
+  };
 }
 
 async function insertVersionChildren(
@@ -219,15 +250,58 @@ async function insertVersionChildren(
     if (error) throw new Error(`Failed to save cost breakdown: ${error.message}`);
   }
 
-  const supplierCost = input.costItems.reduce((sum, item) => sum + item.amount, 0);
+  // Per-guest-type client rate and internal supplier cost — only for the
+  // categories actually present (quantity > 0). Uses the exact same
+  // calculateTotalPrice()/calculateGuestSupplierCost() the wizard used to
+  // show its live "read-only total" preview, so what the agent saw while
+  // building the quote is guaranteed to match what gets stored.
+  const counts = guestCountsOf(input);
+  const active = activeGuestTypes(counts);
+  const clientRates: GuestRates = {};
+  const supplierRates: GuestRates = {};
+  for (const rate of input.guestRates) {
+    clientRates[rate.guestType] = rate.pricePerPerson;
+    supplierRates[rate.guestType] = rate.supplierCostPerPerson;
+  }
+
+  if (active.length > 0) {
+    const { error: guestPricingError } = await supabase.from('quotation_guest_pricing').insert(
+      active.map((guestType) => ({
+        quotation_version_id: versionId,
+        guest_type: guestType,
+        price_per_person: clientRates[guestType] ?? 0,
+      }))
+    );
+    if (guestPricingError) throw new Error(`Failed to save guest pricing: ${guestPricingError.message}`);
+
+    const { error: guestPricingInternalError } = await supabase.from('quotation_guest_pricing_internal').insert(
+      active.map((guestType) => ({
+        quotation_version_id: versionId,
+        guest_type: guestType,
+        supplier_cost_per_person: supplierRates[guestType] ?? 0,
+      }))
+    );
+    if (guestPricingInternalError) {
+      throw new Error(`Failed to save internal guest pricing: ${guestPricingInternalError.message}`);
+    }
+  }
+
+  // Total supplier cost = the flat/shared cost-item breakdown (airfare,
+  // hotel, etc — costs that don't scale per person) PLUS the per-guest-type
+  // supplier costs — the two sources genuinely add together rather than one
+  // replacing the other, since a real trip has both kinds of cost.
+  const supplierCost = input.costItems.reduce((sum, item) => sum + item.amount, 0) + calculateGuestSupplierCost(counts, supplierRates);
+  const totalPrice = calculateTotalPrice(counts, clientRates);
 
   const { error: pricingError } = await supabase.from('quotation_pricing_internal').insert({
     quotation_version_id: versionId,
     supplier_cost: supplierCost,
     markup: input.markup,
-    selling_price: input.totalPrice,
+    selling_price: totalPrice,
   });
   if (pricingError) throw new Error(`Failed to save pricing: ${pricingError.message}`);
+
+  return { totalPrice };
 }
 
 /**
@@ -273,6 +347,14 @@ export async function createDraftQuotation(
     .single();
   if (qError || !quotation) throw new Error(`Failed to create quotation: ${qError?.message}`);
 
+  // Computed here (not read from the request) so the version row's
+  // total_price is never anything the agent typed — see
+  // lib/utils/guest-pricing.ts for the one formula this and
+  // insertVersionChildren() both use.
+  const clientRatesForTotal: GuestRates = {};
+  for (const r of input.guestRates) clientRatesForTotal[r.guestType] = r.pricePerPerson;
+  const computedTotalPrice = calculateTotalPrice(guestCountsOf(input), clientRatesForTotal);
+
   try {
     const { data: version, error: vError } = await supabase
       .from('quotation_versions')
@@ -289,14 +371,16 @@ export async function createDraftQuotation(
         num_children: input.numChildren,
         num_seniors: input.numSeniors,
         num_infants: input.numInfants,
+        num_pwd: input.numPwd,
         hotel_name: input.hotelName || null,
         num_bedrooms: input.numBedrooms ?? null,
-        price_per_person: input.pricePerPerson ?? null,
-        total_price: input.totalPrice,
-        price_per_senior: input.pricePerSenior ?? null,
-        price_per_adult: input.pricePerAdult ?? null,
-        price_per_child: input.pricePerChild ?? null,
-        price_per_infant: input.pricePerInfant ?? null,
+        // Legacy single-rate field — kept populated with the adult rate
+        // (the closest thing to a "primary" rate) purely so any old report
+        // or view still expecting a single number has something sane to
+        // read; it's no longer shown as the quotation's real pricing
+        // anywhere, which is now always the per-guest-type breakdown.
+        price_per_person: clientRatesForTotal.adult ?? null,
+        total_price: computedTotalPrice,
         notes: input.notes || null,
         created_by: actingUserId,
         consultant_id: input.consultantId || null,
@@ -423,6 +507,10 @@ export async function reviseQuotation(
   const { data: client } = await supabase.from('clients').select('full_name').eq('id', quotation.client_id).single();
   const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
+  const revisedClientRates: GuestRates = {};
+  for (const r of input.guestRates) revisedClientRates[r.guestType] = r.pricePerPerson;
+  const revisedTotalPrice = calculateTotalPrice(guestCountsOf(input), revisedClientRates);
+
   const { data: version, error: vError } = await supabase
     .from('quotation_versions')
     .insert({
@@ -438,14 +526,11 @@ export async function reviseQuotation(
       num_children: input.numChildren,
       num_seniors: input.numSeniors,
       num_infants: input.numInfants,
+      num_pwd: input.numPwd,
       hotel_name: input.hotelName || null,
       num_bedrooms: input.numBedrooms ?? null,
-      price_per_person: input.pricePerPerson ?? null,
-      total_price: input.totalPrice,
-      price_per_senior: input.pricePerSenior ?? null,
-      price_per_adult: input.pricePerAdult ?? null,
-      price_per_child: input.pricePerChild ?? null,
-      price_per_infant: input.pricePerInfant ?? null,
+      price_per_person: revisedClientRates.adult ?? null,
+      total_price: revisedTotalPrice,
       notes: input.notes || null,
       created_by: actingUserId,
       consultant_id: input.consultantId || null,
@@ -582,7 +667,7 @@ export async function duplicateQuotation(
   const { currentVersion } = await getQuotationById(supabase, sourceQuotationId);
   if (!currentVersion) throw new Error('Source quotation has no version to duplicate.');
 
-  const { itinerary, inclusions, exclusions, costItems, feeItems } = await getVersionDetail(supabase, currentVersion.id);
+  const { itinerary, inclusions, exclusions, costItems, feeItems, guestRates } = await getVersionDetail(supabase, currentVersion.id);
   const pricing = await getPricingForVersion(supabase, currentVersion.id);
 
   const { quotation: sourceQuotation } = await getQuotationById(supabase, sourceQuotationId);
@@ -597,14 +682,10 @@ export async function duplicateQuotation(
     numChildren: currentVersion.num_children,
     numSeniors: currentVersion.num_seniors ?? 0,
     numInfants: currentVersion.num_infants ?? 0,
+    numPwd: currentVersion.num_pwd ?? 0,
     hotelName: currentVersion.hotel_name ?? '',
     numBedrooms: currentVersion.num_bedrooms,
-    pricePerPerson: currentVersion.price_per_person,
-    totalPrice: currentVersion.total_price,
-    pricePerSenior: currentVersion.price_per_senior,
-    pricePerAdult: currentVersion.price_per_adult,
-    pricePerChild: currentVersion.price_per_child,
-    pricePerInfant: currentVersion.price_per_infant,
+    guestRates,
     notes: currentVersion.notes ?? '',
     inclusions: inclusions.map((i) => i.item),
     exclusions: exclusions.map((e) => e.item),
