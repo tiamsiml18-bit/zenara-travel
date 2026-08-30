@@ -285,7 +285,7 @@ export function QuotationWizard({
       add('Destination', initialData.destination, trip.destination);
       add('Travel start', initialData.travelStartDate, trip.travelStartDate);
       add('Travel end', initialData.travelEndDate, trip.travelEndDate);
-      add('Hotel', initialData.hotelName || '\u2014', trip.hotelName || '\u2014');
+      add('Hotel', initialData.hotelName || '—', trip.hotelName || '—');
       add('Total price', `PHP ${initialTotalPrice.toLocaleString('en-PH')}`, `PHP ${computedTotalPrice.toLocaleString('en-PH')}`);
       add('Itinerary days', String(initialData.itinerary?.length ?? 0), String(itinerary.length));
       add('Inclusions', String(initialData.inclusions?.length ?? 0), String(inclusions.length));
@@ -293,7 +293,7 @@ export function QuotationWizard({
 
       const ok = await confirm({
         title: `Save this quotation as ${nextVersionLabel ?? 'a new revision'}?`,
-        description: 'The original stays exactly as the client received it \u2014 this creates a new version.',
+        description: 'The original stays exactly as the client received it — this creates a new version.',
         summary,
         confirmLabel: 'Save Revision',
       });
@@ -368,7 +368,7 @@ export function QuotationWizard({
                 <input
                   value={clientFilter}
                   onChange={(e) => setClientFilter(e.target.value)}
-                  placeholder="Search clients by name\u2026"
+                  placeholder="Search clients by name…"
                   className="mb-3 w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
                 />
                 <div className="max-h-64 overflow-y-auto rounded-md border border-sand-200">
@@ -495,7 +495,7 @@ export function QuotationWizard({
                 onChange={(e) => setTrip((t) => ({ ...t, consultantId: e.target.value }))}
                 className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
               >
-                <option value="">Select who's preparing this quote\u2026</option>
+                <option value="">Select who's preparing this quote…</option>
                 {consultants.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.full_name}
@@ -503,7 +503,7 @@ export function QuotationWizard({
                 ))}
               </select>
               <p className="mt-1 text-xs text-ink-500">
-                Shown on the client PDF as the travel consultant \u2014 pick yourself, not whoever's logged in.
+                Shown on the client PDF as the travel consultant — pick yourself, not whoever's logged in.
               </p>
             </div>
             <LabeledInput
@@ -590,8 +590,8 @@ export function QuotationWizard({
             <div className="rounded-md border border-sand-200 p-4">
               <p className="mb-1 text-sm font-medium text-ink-900">Client-facing price</p>
               <p className="mb-3 text-xs text-ink-500">
-                Enter a rate per person for each guest type below \u2014 the total is calculated automatically and
-                can\u2019t be typed in directly.
+                Enter a rate per person for each guest type below — the total is calculated automatically and
+                can’t be typed in directly.
               </p>
               {activeTypes.length === 0 ? (
                 <p className="text-xs text-ink-500">Set a guest count above first, then rates appear here.</p>
@@ -608,7 +608,7 @@ export function QuotationWizard({
                     return (
                       <div key={guestType} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
                         <span className="text-sm text-ink-700">
-                          {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">\u00d7{count}</span>
+                          {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">×{count}</span>
                         </span>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
@@ -648,7 +648,7 @@ export function QuotationWizard({
                   Additional fees / taxes <span className="font-normal text-ink-500">(optional)</span>
                 </p>
                 <p className="mb-3 text-xs text-ink-500">
-                  Shown to the client as its own section on the quotation \u2014 for a terminal fee, environmental fee,
+                  Shown to the client as its own section on the quotation — for a terminal fee, environmental fee,
                   VAT, or anything else worth listing separately. Leave empty if not needed.
                 </p>
                 <CostBreakdownEditor
@@ -656,7 +656,7 @@ export function QuotationWizard({
                   onChange={setFeeItems}
                   quickAddItems={['Tax', 'Terminal fee', 'Environmental fee']}
                   totalLabel="Total additional fees"
-                  customPlaceholder="Add a fee (e.g. VAT, service charge)\u2026"
+                  customPlaceholder="Add a fee (e.g. VAT, service charge)…"
                 />
               </div>
             </div>
@@ -671,7 +671,7 @@ export function QuotationWizard({
             {showPricing && (
               <div className="rounded-md border border-coral-500/30 bg-coral-500/5 p-4">
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-coral-600">
-                  Internal only \u2014 never appears on the client PDF
+                  Internal only — never appears on the client PDF
                 </p>
 
                 {activeTypes.length > 0 && (
@@ -692,7 +692,7 @@ export function QuotationWizard({
                         return (
                           <div key={guestType} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
                             <span className="text-sm text-ink-700">
-                              {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">\u00d7{count}</span>
+                              {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">×{count}</span>
                             </span>
                             <div className="relative">
                               <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">
@@ -725,7 +725,7 @@ export function QuotationWizard({
                 )}
 
                 <p className="mb-3 text-sm font-medium text-ink-700">
-                  Other supplier costs <span className="font-normal text-ink-500">(airfare, hotel, transfers \u2014 shared, not per person)</span>
+                  Other supplier costs <span className="font-normal text-ink-500">(airfare, hotel, transfers — shared, not per person)</span>
                 </p>
                 <CostBreakdownEditor items={costItems} onChange={setCostItems} />
                 <div className="mt-4 border-t border-coral-500/20 pt-4">
@@ -762,11 +762,11 @@ export function QuotationWizard({
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="mb-2 text-sm font-medium text-ink-900">Inclusions</p>
-              <TagListInput items={inclusions} onChange={setInclusions} placeholder="Add an inclusion\u2026" tone="positive" />
+              <TagListInput items={inclusions} onChange={setInclusions} placeholder="Add an inclusion…" tone="positive" />
             </div>
             <div>
               <p className="mb-2 text-sm font-medium text-ink-900">Exclusions</p>
-              <TagListInput items={exclusions} onChange={setExclusions} placeholder="Add an exclusion\u2026" tone="negative" />
+              <TagListInput items={exclusions} onChange={setExclusions} placeholder="Add an exclusion…" tone="negative" />
             </div>
           </div>
         )}
@@ -777,7 +777,7 @@ export function QuotationWizard({
               Review below, then save as a draft. You can edit or send it from the quotation page.
             </p>
             <ReviewRow label="Destination" value={trip.destination} />
-            <ReviewRow label="Travel dates" value={`${trip.travelStartDate} \u2013 ${trip.travelEndDate}`} />
+            <ReviewRow label="Travel dates" value={`${trip.travelStartDate} – ${trip.travelEndDate}`} />
             <ReviewRow
               label="Guests"
               value={[
@@ -789,7 +789,7 @@ export function QuotationWizard({
                 .filter(Boolean)
                 .join(', ')}
             />
-            <ReviewRow label="Hotel" value={`${trip.hotelName || '\u2014'} (${trip.numBedrooms} bedrooms)`} />
+            <ReviewRow label="Hotel" value={`${trip.hotelName || '—'} (${trip.numBedrooms} bedrooms)`} />
             <ReviewRow label="Itinerary days" value={String(itinerary.length)} />
             <ReviewRow label="Inclusions / Exclusions" value={`${inclusions.length} / ${exclusions.length}`} />
             <ReviewRow label="Total price" value={`PHP ${computedTotalPrice.toLocaleString('en-PH')}`} />
@@ -823,7 +823,7 @@ export function QuotationWizard({
             disabled={isPending}
             className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-60"
           >
-            {isPending ? 'Saving\u2026' : mode === 'revise' ? 'Save revision' : 'Save draft'}
+            {isPending ? 'Saving…' : mode === 'revise' ? 'Save revision' : 'Save draft'}
           </button>
         )}
       </div>

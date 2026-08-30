@@ -20,7 +20,7 @@ export function ArchiveQuotationButton({ quotationId, quotationNumber }: { quota
         onClick={async () => {
           const ok = await confirm({
             title: 'Archive this quotation?',
-            description: `${quotationNumber} will be hidden from the main quotations list. It isn't deleted \u2014 you can find and restore it later.`,
+            description: `${quotationNumber} will be hidden from the main quotations list. It isn't deleted — you can find and restore it later.`,
             confirmLabel: 'Archive',
             tone: 'danger',
           });

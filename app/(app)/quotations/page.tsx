@@ -9,11 +9,11 @@ import { listAgents } from '@/lib/services/lookups';
 import { requireUser } from '@/lib/auth/session';
 
 function formatDate(d?: string | null) {
-  if (!d) return '\u2014';
+  if (!d) return '—';
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 function formatMoney(n?: number | null) {
-  if (n === null || n === undefined) return '\u2014';
+  if (n === null || n === undefined) return '—';
   return `PHP ${Number(n).toLocaleString('en-PH')}`;
 }
 
@@ -104,7 +104,7 @@ export default async function QuotationsPage({
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-ink-700">{q.client?.full_name}</td>
-                  <td className="px-4 py-3 text-ink-700">{q.current_version?.destination ?? '\u2014'}</td>
+                  <td className="px-4 py-3 text-ink-700">{q.current_version?.destination ?? '—'}</td>
                   <td className="px-4 py-3 font-ticket text-ink-700">
                     {formatDate(q.current_version?.travel_start_date)}
                   </td>
@@ -112,7 +112,7 @@ export default async function QuotationsPage({
                   <td className="px-4 py-3">
                     <StatusBadge label={q.status} />
                   </td>
-                  <td className="px-4 py-3 text-ink-700">{q.agent?.full_name ?? '\u2014'}</td>
+                  <td className="px-4 py-3 text-ink-700">{q.agent?.full_name ?? '—'}</td>
                   <td className="px-4 py-3 text-ink-500">{formatDate(q.updated_at)}</td>
                 </tr>
               ))}

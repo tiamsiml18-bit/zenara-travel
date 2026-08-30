@@ -106,7 +106,7 @@ export function ItineraryBuilder({
           <textarea
             value={day.description}
             onChange={(e) => updateDay(index, { description: e.target.value })}
-            placeholder="Optional day description\u2026"
+            placeholder="Optional day description…"
             rows={2}
             className="mb-3 w-full rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
           />
@@ -132,7 +132,7 @@ export function ItineraryBuilder({
                   addActivity(index);
                 }
               }}
-              placeholder="Add an activity, press Enter\u2026"
+              placeholder="Add an activity, press Enter…"
               className="flex-1 rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <button

@@ -30,7 +30,7 @@ export function SendQuotationButton({ quotationId, disabled }: { quotationId: st
         }}
         className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-40"
       >
-        {isPending ? 'Sending\u2026' : 'Mark as sent'}
+        {isPending ? 'Sending…' : 'Mark as sent'}
       </button>
       {dialog}
     </div>
@@ -59,7 +59,7 @@ export function DuplicateQuotationButton({ quotationId }: { quotationId: string 
         }}
         className="rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100 disabled:opacity-40"
       >
-        {isPending ? 'Duplicating\u2026' : 'Duplicate'}
+        {isPending ? 'Duplicating…' : 'Duplicate'}
       </button>
       {error && <p className="mt-1 text-xs text-coral-600">{error}</p>}
     </div>

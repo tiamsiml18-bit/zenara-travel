@@ -19,7 +19,7 @@ export function ColumnMappingStep({
     <div>
       <p className="mb-4 text-sm text-ink-500">
         {sheet.rows.length.toLocaleString()} rows detected in <span className="font-medium text-ink-700">{sheet.fileName}</span>.
-        We've guessed a mapping below \u2014 review it and adjust anything that's wrong.
+        We've guessed a mapping below — review it and adjust anything that's wrong.
       </p>
 
       {missingRequired.length > 0 && (

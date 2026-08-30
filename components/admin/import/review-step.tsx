@@ -28,7 +28,7 @@ export function ReviewStep({ buckets }: { buckets: ReviewBucket }) {
           tone="warning"
           label="Duplicate"
           count={buckets.duplicates.length}
-          hint="Already exist \u2014 skipped"
+          hint="Already exist — skipped"
           onClick={buckets.duplicates.length > 0 ? () => setOpenPanel(openPanel === 'duplicates' ? null : 'duplicates') : undefined}
         />
         <SummaryCard
@@ -44,7 +44,7 @@ export function ReviewStep({ buckets }: { buckets: ReviewBucket }) {
       {buckets.valid.some((v) => v.warnings.length > 0) && (
         <p className="mb-4 text-xs text-ink-500">
           {buckets.valid.filter((v) => v.warnings.length > 0).length} valid row(s) have a status, agent, or source
-          that wasn't recognized \u2014 those rows will still import, just without that field set. Expand a row below to see details.
+          that wasn't recognized — those rows will still import, just without that field set. Expand a row below to see details.
         </p>
       )}
 
@@ -94,7 +94,7 @@ function SummaryCard({
       <p className="font-ticket text-2xl font-semibold text-ink-900">{count.toLocaleString()}</p>
       <p className="text-sm font-medium text-ink-700">{label}</p>
       <p className="text-xs text-ink-500">{hint}</p>
-      {onClick && <p className="mt-1 text-xs font-medium text-harbor-600">Click to review \u2192</p>}
+      {onClick && <p className="mt-1 text-xs font-medium text-harbor-600">Click to review →</p>}
     </Wrapper>
   );
 }

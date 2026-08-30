@@ -17,7 +17,7 @@ export default async function AdminUsersPage() {
       <Topbar title="Users" />
       <main className="flex-1 overflow-y-auto p-6">
         <p className="mb-4 max-w-2xl text-sm text-ink-500">
-          Role changes take effect immediately \u2014 Row Level Security in the database, not this screen, is what
+          Role changes take effect immediately — Row Level Security in the database, not this screen, is what
           actually enforces access, so a role change here changes what a person can query the moment they refresh.
           New teammates are provisioned in Supabase Auth first (see README), then appear here to have their role and
           manager assigned.

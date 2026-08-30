@@ -9,11 +9,11 @@ import { listClientStatuses, listAgents } from '@/lib/services/lookups';
 import { requireUser } from '@/lib/auth/session';
 
 function formatDate(d?: string | null) {
-  if (!d) return '\u2014';
+  if (!d) return '—';
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 function formatMoney(n?: number | null) {
-  if (n === null || n === undefined) return '\u2014';
+  if (n === null || n === undefined) return '—';
   return `PHP ${n.toLocaleString('en-PH', { minimumFractionDigits: 0 })}`;
 }
 
@@ -46,7 +46,7 @@ export default async function ClientsPage({
             <input
               name="q"
               defaultValue={params.q}
-              placeholder="Search by name, phone, or email\u2026"
+              placeholder="Search by name, phone, or email…"
               className="w-72 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <select name="status" defaultValue={params.status} className="rounded-md border border-sand-200 px-3 py-2 text-sm">
@@ -105,13 +105,13 @@ export default async function ClientsPage({
                     <Link href={`/clients/${c.id}`} className="font-medium text-ink-900 hover:text-harbor-600">
                       {c.full_name}
                     </Link>
-                    <p className="text-xs text-ink-500">{c.email || c.mobile_number || '\u2014'}</p>
+                    <p className="text-xs text-ink-500">{c.email || c.mobile_number || '—'}</p>
                   </td>
-                  <td className="px-4 py-3 text-ink-700">{c.destination || '\u2014'}</td>
+                  <td className="px-4 py-3 text-ink-700">{c.destination || '—'}</td>
                   <td className="px-4 py-3 font-ticket text-ink-700">{formatDate(c.travel_start_date)}</td>
                   <td className="px-4 py-3 font-ticket text-ink-700">{formatMoney(c.quoted_price)}</td>
                   <td className="px-4 py-3">{c.status && <StatusBadge label={c.status.name} />}</td>
-                  <td className="px-4 py-3 text-ink-700">{c.agent?.full_name ?? '\u2014'}</td>
+                  <td className="px-4 py-3 text-ink-700">{c.agent?.full_name ?? '—'}</td>
                   <td className="px-4 py-3 text-ink-500">{formatDate(c.updated_at)}</td>
                 </tr>
               ))}

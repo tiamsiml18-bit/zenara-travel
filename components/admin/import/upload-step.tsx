@@ -91,7 +91,7 @@ export function UploadStep({ onParsed }: { onParsed: (sheet: ParsedSheet) => voi
         }`}
       >
         {isParsing ? (
-          <p className="text-sm text-ink-500">Reading file\u2026</p>
+          <p className="text-sm text-ink-500">Reading file…</p>
         ) : (
           <>
             <UploadCloud className="mb-3 h-8 w-8 text-ink-500" strokeWidth={1.5} />
@@ -110,7 +110,7 @@ export function UploadStep({ onParsed }: { onParsed: (sheet: ParsedSheet) => voi
               />
             </label>
             <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-500">
-              <FileSpreadsheet className="h-3.5 w-3.5" /> .xlsx, .xls, or .csv \u2014 up to 20,000 rows
+              <FileSpreadsheet className="h-3.5 w-3.5" /> .xlsx, .xls, or .csv — up to 20,000 rows
             </p>
           </>
         )}

@@ -84,7 +84,7 @@ export function LogoUploader({ agencySettingsId, currentLogoUrl }: { agencySetti
             )}
           </div>
           <p className="text-xs text-ink-500">JPEG or PNG, up to 5MB. Used on the quotation PDF header and watermark.</p>
-          {isPending && <p className="text-xs text-harbor-600">Uploading\u2026</p>}
+          {isPending && <p className="text-xs text-harbor-600">Uploading…</p>}
           {error && <p className="text-xs text-coral-600">{error}</p>}
         </div>
       </div>

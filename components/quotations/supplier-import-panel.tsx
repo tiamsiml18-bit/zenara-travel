@@ -98,7 +98,7 @@ export function SupplierImportPanel({
             <Link2 className="h-4 w-4 text-harbor-600" /> Import from supplier URL
           </div>
           <p className="mb-3 text-sm text-ink-500">
-            Paste a public package page (e.g. from Klook) and we'll pull in whatever we can find \u2014 you'll review
+            Paste a public package page (e.g. from Klook) and we'll pull in whatever we can find — you'll review
             and edit everything before it's saved anywhere.
           </p>
           <div className="flex gap-2">
@@ -126,7 +126,7 @@ export function SupplierImportPanel({
       {state === 'loading' && (
         <div className="flex flex-col items-center py-10 text-center">
           <Loader2 className="mb-3 h-6 w-6 animate-spin text-harbor-600" />
-          <p className="text-sm text-ink-500">Reading that page\u2026</p>
+          <p className="text-sm text-ink-500">Reading that page…</p>
         </div>
       )}
 
@@ -169,7 +169,7 @@ export function SupplierImportPanel({
 
           {warnings.length > 0 && (
             <div className="mb-4 rounded-md border border-amber-300/50 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
-              <p className="mb-1 font-medium">Review carefully \u2014 some fields couldn't be found automatically:</p>
+              <p className="mb-1 font-medium">Review carefully — some fields couldn't be found automatically:</p>
               <ul className="list-inside list-disc space-y-0.5">
                 {warnings.map((w, i) => (
                   <li key={i}>{w}</li>
@@ -191,7 +191,7 @@ export function SupplierImportPanel({
               <input
                 value={pickupInfo}
                 onChange={(e) => setPickupInfo(e.target.value)}
-                placeholder="Not found \u2014 add if applicable"
+                placeholder="Not found — add if applicable"
                 className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
               />
             </Field>
@@ -199,7 +199,7 @@ export function SupplierImportPanel({
               <input
                 value={meals}
                 onChange={(e) => setMeals(e.target.value)}
-                placeholder="Not found \u2014 add if applicable"
+                placeholder="Not found — add if applicable"
                 className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
               />
             </Field>
@@ -220,11 +220,11 @@ export function SupplierImportPanel({
           <div className="mb-5 grid grid-cols-2 gap-6">
             <div>
               <p className="mb-2 text-sm font-medium text-ink-700">Inclusions</p>
-              <TagListInput items={inclusions} onChange={setInclusions} placeholder="Add an inclusion\u2026" tone="positive" />
+              <TagListInput items={inclusions} onChange={setInclusions} placeholder="Add an inclusion…" tone="positive" />
             </div>
             <div>
               <p className="mb-2 text-sm font-medium text-ink-700">Exclusions</p>
-              <TagListInput items={exclusions} onChange={setExclusions} placeholder="Add an exclusion\u2026" tone="negative" />
+              <TagListInput items={exclusions} onChange={setExclusions} placeholder="Add an exclusion…" tone="negative" />
             </div>
           </div>
 

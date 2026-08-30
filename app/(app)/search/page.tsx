@@ -26,7 +26,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             name="q"
             defaultValue={query}
             autoFocus
-            placeholder="Search clients, quotations, agents, destinations\u2026"
+            placeholder="Search clients, quotations, agents, destinations…"
             className="w-full rounded-md border border-sand-200 px-4 py-2.5 text-sm outline-none ring-harbor-400 focus:ring-2"
           />
         </form>
@@ -34,7 +34,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         {!query && <p className="text-sm text-ink-500">Search by client name, phone, email, quotation number, or destination.</p>}
 
         {query && clients.length === 0 && quotations.length === 0 && (
-          <p className="text-sm text-ink-500">No matches for \u201c{query}\u201d.</p>
+          <p className="text-sm text-ink-500">No matches for “{query}”.</p>
         )}
 
         {clients.length > 0 && (
@@ -50,7 +50,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   <div>
                     <p className="font-medium text-ink-900">{c.full_name}</p>
                     <p className="text-xs text-ink-500">
-                      {[c.email, c.mobile_number, c.destination].filter(Boolean).join(' \u00b7 ')}
+                      {[c.email, c.mobile_number, c.destination].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                 </Link>
@@ -72,7 +72,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   <div>
                     <p className="font-ticket font-medium text-ink-900">{qt.quotation_number}</p>
                     <p className="text-xs text-ink-500">
-                      {qt.client?.full_name} \u00b7 {qt.current_version?.destination ?? 'No destination set'}
+                      {qt.client?.full_name} · {qt.current_version?.destination ?? 'No destination set'}
                     </p>
                   </div>
                   <StatusBadge label={qt.status} />

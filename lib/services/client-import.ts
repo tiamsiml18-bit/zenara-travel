@@ -90,7 +90,7 @@ export async function bulkImportClients(
       )
       .select('id');
 
-    if (error) throw new Error(`Import failed on rows ${i + 1}\u2013${i + batch.length}: ${error.message}`);
+    if (error) throw new Error(`Import failed on rows ${i + 1}–${i + batch.length}: ${error.message}`);
 
     // Seed each new client's timeline, same as a manually-created client would get.
     if (inserted && inserted.length > 0) {

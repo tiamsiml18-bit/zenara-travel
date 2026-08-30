@@ -1,6 +1,7 @@
 import { requireUser } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
 import { Sidebar } from '@/components/layout/sidebar';
+import { getAgencySettings } from '@/lib/services/lookups';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Every authenticated route lives under this layout. requireUser() redirects
@@ -13,14 +14,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // for agents/managers and to everything for admins, so no extra role
   // branching is needed here — the query is identical for every role.
   const supabase = await createClient();
-  const { count: followUpsDueCount } = await supabase
-    .from('follow_ups')
-    .select('id', { count: 'exact', head: true })
-    .in('status', ['due', 'overdue']);
+  const [{ count: followUpsDueCount }, agencySettings] = await Promise.all([
+    supabase.from('follow_ups').select('id', { count: 'exact', head: true }).in('status', ['due', 'overdue']),
+    getAgencySettings(supabase),
+  ]);
 
   return (
     <div className="flex h-screen bg-sand-50">
-      <Sidebar user={user} followUpsDueCount={followUpsDueCount ?? 0} />
+      <Sidebar user={user} followUpsDueCount={followUpsDueCount ?? 0} logoUrl={agencySettings.logo_url} />
       <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   );

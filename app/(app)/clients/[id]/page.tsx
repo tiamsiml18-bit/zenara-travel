@@ -11,11 +11,11 @@ import { addClientNoteAction } from '../actions';
 import { requireUser } from '@/lib/auth/session';
 
 function formatDate(d?: string | null) {
-  if (!d) return '\u2014';
+  if (!d) return '—';
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 function formatMoney(n?: number | null) {
-  if (n === null || n === undefined) return '\u2014';
+  if (n === null || n === undefined) return '—';
   return `PHP ${Number(n).toLocaleString('en-PH')}`;
 }
 
@@ -68,19 +68,19 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
               </div>
 
               <dl className="mt-4 space-y-2 border-t border-sand-100 pt-4 text-sm">
-                <Row label="Source" value={client.source?.name ?? '\u2014'} />
-                <Row label="Destination" value={client.destination ?? '\u2014'} />
+                <Row label="Source" value={client.source?.name ?? '—'} />
+                <Row label="Destination" value={client.destination ?? '—'} />
                 <Row
                   label="Travel dates"
                   value={
                     client.travel_start_date
-                      ? `${formatDate(client.travel_start_date)} \u2013 ${formatDate(client.travel_end_date)}`
-                      : '\u2014'
+                      ? `${formatDate(client.travel_start_date)} – ${formatDate(client.travel_end_date)}`
+                      : '—'
                   }
                 />
                 <Row label="Guests" value={`${client.num_adults} adults, ${client.num_children} children`} />
                 <Row label="Quoted price" value={formatMoney(client.quoted_price)} />
-                <Row label="Assigned agent" value={client.agent?.full_name ?? '\u2014'} />
+                <Row label="Assigned agent" value={client.agent?.full_name ?? '—'} />
                 <Row label="Created" value={formatDate(client.created_at)} />
               </dl>
 
@@ -131,7 +131,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
                 <input type="hidden" name="clientId" value={id} />
                 <input
                   name="note"
-                  placeholder="Add a note\u2026"
+                  placeholder="Add a note…"
                   className="flex-1 rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
                 />
                 <button type="submit" className="rounded-md border border-sand-200 px-3 py-1.5 text-sm hover:bg-sand-100">

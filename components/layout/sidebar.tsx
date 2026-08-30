@@ -13,14 +13,29 @@ import {
 import { NavLink } from './nav-link';
 import type { AppUser } from '@/lib/auth/session';
 
-export function Sidebar({ user, followUpsDueCount = 0 }: { user: AppUser; followUpsDueCount?: number }) {
+export function Sidebar({
+  user,
+  followUpsDueCount = 0,
+  logoUrl,
+}: {
+  user: AppUser;
+  followUpsDueCount?: number;
+  logoUrl?: string | null;
+}) {
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col bg-harbor-900 text-sand-50">
-      {/* Tag head — agency mark, styled like the punched end of a luggage tag */}
+      {/* Tag head — agency mark, styled like the punched end of a luggage tag.
+          Falls back to the plain "Z" badge until a real logo is uploaded in
+          Settings — same fallback the PDF watermark uses. */}
       <div className="flex items-center gap-2.5 px-4 py-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-sand-50/25 font-display text-sm font-semibold">
-          Z
-        </span>
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL, not worth a next/image remote-domain config for a single small sidebar mark
+          <img src={logoUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-sand-50/25 font-display text-sm font-semibold">
+            Z
+          </span>
+        )}
         <div className="leading-tight">
           <p className="font-display text-sm font-semibold">Zenara</p>
           <p className="text-[11px] uppercase tracking-wide text-harbor-100/50">Travel &amp; Tours</p>

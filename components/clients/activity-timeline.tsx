@@ -1,18 +1,18 @@
 import Link from 'next/link';
 
 const ICON_BY_TYPE: Record<string, string> = {
-  client_created: '\u2600',
-  quotation_created: '\u2709',
-  quotation_sent: '\u27a4',
-  quotation_revised: '\u21bb',
-  quotation_duplicated: '\u29c9',
-  quotation_status_changed: '\u25c9',
-  client_status_changed: '\u25c9',
-  followup_completed: '\u2713',
-  booking_created: '\u2708',
-  payment_added: '\u20b1',
-  note_added: '\u270e',
-  manual: '\u270e',
+  client_created: '☀',
+  quotation_created: '✉',
+  quotation_sent: '➤',
+  quotation_revised: '↻',
+  quotation_duplicated: '⧉',
+  quotation_status_changed: '◉',
+  client_status_changed: '◉',
+  followup_completed: '✓',
+  booking_created: '✈',
+  payment_added: '₱',
+  note_added: '✎',
+  manual: '✎',
 };
 
 export function ActivityTimeline({
@@ -39,7 +39,7 @@ export function ActivityTimeline({
             <span className="absolute left-[15px] top-6 h-full w-px bg-sand-200" aria-hidden />
           )}
           <span className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand-200 bg-white text-xs">
-            {ICON_BY_TYPE[a.activity_type] ?? '\u2022'}
+            {ICON_BY_TYPE[a.activity_type] ?? '•'}
           </span>
           <div className="pt-0.5">
             <p className="text-sm text-ink-900">
@@ -58,7 +58,7 @@ export function ActivityTimeline({
                 hour: 'numeric',
                 minute: '2-digit',
               })}
-              {a.user?.full_name ? ` \u00b7 ${a.user.full_name}` : ''}
+              {a.user?.full_name ? ` · ${a.user.full_name}` : ''}
             </p>
           </div>
         </li>

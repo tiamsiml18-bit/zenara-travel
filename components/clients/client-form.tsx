@@ -84,15 +84,15 @@ export function ClientForm({
         if (agentChanged) {
           summary.push({
             label: 'Assigned agent',
-            from: agents.find((a) => a.id === defaultValues?.assignedAgentId)?.full_name ?? '\u2014',
-            to: agents.find((a) => a.id === newAgentId)?.full_name ?? '\u2014',
+            from: agents.find((a) => a.id === defaultValues?.assignedAgentId)?.full_name ?? '—',
+            to: agents.find((a) => a.id === newAgentId)?.full_name ?? '—',
           });
         }
         if (statusChangedToMajor) {
           summary.push({
             label: 'Status',
-            from: statuses.find((s) => s.id === defaultValues?.statusId)?.name ?? '\u2014',
-            to: newStatusName ?? '\u2014',
+            from: statuses.find((s) => s.id === defaultValues?.statusId)?.name ?? '—',
+            to: newStatusName ?? '—',
           });
         }
         const ok = await confirm({
@@ -259,7 +259,7 @@ function SubmitButton({ label }: { label: string }) {
       disabled={pending}
       className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-60"
     >
-      {pending ? 'Saving\u2026' : label}
+      {pending ? 'Saving…' : label}
     </button>
   );
 }

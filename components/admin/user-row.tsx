@@ -79,7 +79,7 @@ export function UserRowEditor({
             disabled={isPending || isSelf}
             className="rounded-md border border-sand-200 px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-sand-100 disabled:opacity-50"
           >
-            {isPending ? 'Saving\u2026' : 'Save'}
+            {isPending ? 'Saving…' : 'Save'}
           </button>
           {isSelf && <span className="text-xs text-ink-500">Ask another admin to change your own account</span>}
           {error && <span className="text-xs text-coral-600">{error}</span>}

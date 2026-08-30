@@ -6,11 +6,12 @@ import { getQuotationById } from '@/lib/services/quotations';
 
 export const runtime = 'nodejs'; // react-pdf needs Node APIs, not the edge runtime
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // requireUser() redirects browser navigations, but this is a fetch/download
   // endpoint — a redirect would corrupt the response, so we also handle the
   // unauthenticated case explicitly with a 401 below as a safety net.
   const { id } = await params;
+  const isPreview = request.nextUrl.searchParams.get('preview') === '1';
 
   try {
     await requireUser();
@@ -31,6 +32,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const pdfBuffer = await renderQuotationPdf(supabase, id);
     const fileName = pdfFileName(quotation.quotation_number, currentVersion.version_label);
 
+    // Preview opens the exact same PDF in the browser's built-in viewer
+    // (a new tab) instead of downloading — same bytes, same generation
+    // path, so what an agent previews is guaranteed to be byte-identical to
+    // what they'd actually download or send, not a separate rendering.
+    // "inline" is what makes the browser render it rather than save it.
+    const disposition = isPreview ? 'inline' : 'attachment';
+
     // NextResponse's BodyInit typing doesn't accept a Node Buffer directly in
     // this TS/lib configuration (Buffer vs. the DOM Uint8Array shape) — an
     // explicit Uint8Array view over the same bytes satisfies it without a copy.
@@ -38,7 +46,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `${disposition}; filename="${fileName}"`,
         'Cache-Control': 'private, no-store',
       },
     });

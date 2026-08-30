@@ -5,7 +5,7 @@ import { z } from 'zod';
 // request can never skip validation.
 export const clientSchema = z
   .object({
-    fullName: z.string().trim().min(2, 'Enter the client\u2019s full name.').max(200),
+    fullName: z.string().trim().min(2, 'Enter the client’s full name.').max(200),
     mobileNumber: z.string().trim().max(30).optional().or(z.literal('')),
     email: z.string().trim().email('Enter a valid email address.').max(200).optional().or(z.literal('')),
     messengerHandle: z.string().trim().max(120).optional().or(z.literal('')),

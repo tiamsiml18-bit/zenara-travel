@@ -50,7 +50,7 @@ function findItinerary($: cheerio.CheerioAPI): ExtractedItineraryDay[] {
   const days: ExtractedItineraryDay[] = [];
   $('h2, h3, h4').each((_, el) => {
     const text = $(el).text().trim();
-    const match = text.match(/^day\s*(\d+)\b[:\-\u2013]?\s*(.*)$/i);
+    const match = text.match(/^day\s*(\d+)\b[:\-–]?\s*(.*)$/i);
     if (!match) return;
 
     const dayNumber = Number(match[1]);

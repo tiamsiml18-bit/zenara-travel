@@ -243,7 +243,7 @@ export async function addClientNote(
   await supabase.from('client_activities').insert({
     client_id: clientId,
     activity_type: 'note_added',
-    description: note.length > 140 ? `${note.slice(0, 140)}\u2026` : note,
+    description: note.length > 140 ? `${note.slice(0, 140)}…` : note,
     user_id: actingUserId,
   });
 }

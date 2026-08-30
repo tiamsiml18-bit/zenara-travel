@@ -199,7 +199,7 @@ export function ImportWizard({
 
       {step === 'validating' && (
         <div className="rounded-lg border border-sand-200 bg-white p-10 text-center">
-          <p className="mb-3 text-sm font-medium text-ink-900">Validating rows\u2026 {validationProgress}%</p>
+          <p className="mb-3 text-sm font-medium text-ink-900">Validating rows… {validationProgress}%</p>
           <div className="mx-auto h-1.5 w-64 overflow-hidden rounded-full bg-sand-100">
             <div className="h-full bg-harbor-600 transition-all" style={{ width: `${validationProgress}%` }} />
           </div>
@@ -228,7 +228,7 @@ export function ImportWizard({
               onClick={handleCommit}
               className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-40"
             >
-              {isPending ? 'Importing\u2026' : `Import ${buckets.valid.length.toLocaleString()} clients`}
+              {isPending ? 'Importing…' : `Import ${buckets.valid.length.toLocaleString()} clients`}
             </button>
           </div>
         </div>

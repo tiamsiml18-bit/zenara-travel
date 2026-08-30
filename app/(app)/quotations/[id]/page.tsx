@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, Eye } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quotations/quotation-actions';
@@ -11,11 +11,11 @@ import { getBookingForQuotation } from '@/lib/services/bookings';
 import { requireUser } from '@/lib/auth/session';
 
 function formatDate(d?: string | null) {
-  if (!d) return '\u2014';
+  if (!d) return '—';
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 function formatMoney(n?: number | null) {
-  if (n === null || n === undefined) return '\u2014';
+  if (n === null || n === undefined) return '—';
   return `PHP ${Number(n).toLocaleString('en-PH')}`;
 }
 
@@ -48,7 +48,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             </div>
             <p className="mt-1 text-sm text-ink-500">
               {quotation.client?.full_name} &middot; {currentVersion.destination} &middot; agent:{' '}
-              {quotation.agent?.full_name ?? '\u2014'}
+              {quotation.agent?.full_name ?? '—'}
             </p>
           </div>
 
@@ -59,6 +59,14 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             >
               View client
             </Link>
+            <a
+              href={`/api/quotations/${id}/pdf?preview=1`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+            >
+              <Eye className="h-4 w-4" /> Preview
+            </a>
             <a
               href={`/api/quotations/${id}/pdf`}
               className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
@@ -106,7 +114,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                 <Row label="Destination" value={currentVersion.destination} />
                 <Row
                   label="Travel dates"
-                  value={`${formatDate(currentVersion.travel_start_date)} \u2013 ${formatDate(currentVersion.travel_end_date)}`}
+                  value={`${formatDate(currentVersion.travel_start_date)} – ${formatDate(currentVersion.travel_end_date)}`}
                 />
                 <Row label="Guests" value={`${currentVersion.num_adults} adults, ${currentVersion.num_children} children`} />
                 <Row
@@ -114,7 +122,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                   value={
                     currentVersion.hotel_name
                       ? `${currentVersion.hotel_name} (${currentVersion.num_bedrooms ?? 0} bedrooms)`
-                      : '\u2014'
+                      : '—'
                   }
                 />
               </dl>
@@ -128,7 +136,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                   <div key={day.id}>
                     <p className="font-ticket text-xs font-medium text-harbor-700">
                       Day {day.day_number}
-                      {day.day_date ? ` \u2014 ${formatDate(day.day_date)}` : ''}
+                      {day.day_date ? ` — ${formatDate(day.day_date)}` : ''}
                     </p>
                     <p className="font-medium text-ink-900">{day.title}</p>
                     {day.description && <p className="text-sm text-ink-700">{day.description}</p>}
@@ -178,7 +186,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             {pricing && (
               <section className="rounded-lg border border-coral-500/30 bg-coral-500/5 p-5">
                 <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-coral-600">
-                  Internal pricing \u2014 staff only
+                  Internal pricing — staff only
                 </h3>
                 <dl className="mt-3 space-y-1.5 text-sm">
                   <Row label="Supplier cost" value={formatMoney(pricing.supplier_cost)} />
