@@ -33,6 +33,11 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
               priceInfant: tour.price_infant,
               pricePwd: tour.price_pwd,
               groupCost: tour.group_cost,
+              ageRangeSenior: tour.age_range_senior ?? '',
+              ageRangeAdult: tour.age_range_adult ?? '',
+              ageRangeChild: tour.age_range_child ?? '',
+              ageRangeInfant: tour.age_range_infant ?? '',
+              ageRangePwd: tour.age_range_pwd ?? '',
             }}
           />
         ) : (

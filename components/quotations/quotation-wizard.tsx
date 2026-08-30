@@ -280,7 +280,11 @@ export function QuotationWizard({
     setGuestRates((prev) => {
       const next = { ...prev };
       const addPrice = (type: GuestType, tourPrice: number | null) => {
-        if (!tourPrice) return;
+        // PHP 0 is a valid, explicit "FREE" rate — only a genuinely
+        // unconfigured (null) rate means "this tour doesn't apply to this
+        // guest type." Treating 0 as falsy here would silently drop a real
+        // FREE rate, which is exactly the bug this guards against.
+        if (tourPrice === null || tourPrice === undefined) return;
         const current = next[type].price === '' ? 0 : Number(next[type].price);
         next[type] = { ...next[type], price: current + tourPrice };
       };
@@ -312,6 +316,35 @@ export function QuotationWizard({
     setItinerary(pkg.itinerary as ItineraryDayDraft[]);
     setInclusions(pkg.inclusions);
     setExclusions(pkg.exclusions);
+
+    // The package's itinerary days carry sourceTourId, but that's only ever
+    // used for traceability when SAVING a day — selecting the package
+    // itself never re-ran the "select this tour" pricing logic, so a
+    // package's tours' rates silently never made it into the quotation.
+    // Fixing that here: every unique tour referenced by the package's
+    // itinerary gets its pricing pulled in exactly once, matching "if the
+    // Package already contains a Tour, do not add the same Tour again
+    // automatically" — deduping by tour id, not by day.
+    // Switching packages must not leave the previous package's tours' rates
+    // sitting in the accumulator — without this reset, picking a second
+    // package would add its tours on top of the first package's, silently
+    // double-counting. guestRates only ever holds tour contributions (see
+    // handleTourSelected), so it's always safe to clear entirely here.
+    setGuestRates({
+      senior: { price: '', cost: '' },
+      adult: { price: '', cost: '' },
+      child: { price: '', cost: '' },
+      infant: { price: '', cost: '' },
+      pwd: { price: '', cost: '' },
+    });
+
+    const uniqueTourIds = Array.from(
+      new Set((pkg.itinerary as ItineraryDayDraft[]).map((d) => d.sourceTourId).filter((t): t is string => Boolean(t)))
+    );
+    for (const tourId of uniqueTourIds) {
+      const tour = tours.find((t) => t.id === tourId);
+      if (tour) handleTourSelected(tour);
+    }
   }
 
   /**

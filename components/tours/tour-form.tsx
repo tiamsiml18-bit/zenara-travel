@@ -19,6 +19,11 @@ export interface TourFormInitialData {
   priceInfant: number | null;
   pricePwd: number | null;
   groupCost: number | null;
+  ageRangeSenior: string;
+  ageRangeAdult: string;
+  ageRangeChild: string;
+  ageRangeInfant: string;
+  ageRangePwd: string;
 }
 
 export function TourForm({
@@ -46,6 +51,11 @@ export function TourForm({
   const [priceInfant, setPriceInfant] = useState<number | ''>(initialData?.priceInfant ?? '');
   const [pricePwd, setPricePwd] = useState<number | ''>(initialData?.pricePwd ?? '');
   const [groupCost, setGroupCost] = useState<number | ''>(initialData?.groupCost ?? '');
+  const [ageRangeSenior, setAgeRangeSenior] = useState(initialData?.ageRangeSenior ?? '');
+  const [ageRangeAdult, setAgeRangeAdult] = useState(initialData?.ageRangeAdult ?? '');
+  const [ageRangeChild, setAgeRangeChild] = useState(initialData?.ageRangeChild ?? '');
+  const [ageRangeInfant, setAgeRangeInfant] = useState(initialData?.ageRangeInfant ?? '');
+  const [ageRangePwd, setAgeRangePwd] = useState(initialData?.ageRangePwd ?? '');
 
   function handleSubmit() {
     setError(null);
@@ -62,6 +72,11 @@ export function TourForm({
       priceInfant: priceInfant === '' ? null : Number(priceInfant),
       pricePwd: pricePwd === '' ? null : Number(pricePwd),
       groupCost: groupCost === '' ? null : Number(groupCost),
+      ageRangeSenior,
+      ageRangeAdult,
+      ageRangeChild,
+      ageRangeInfant,
+      ageRangePwd,
     };
 
     startTransition(async () => {
@@ -117,14 +132,16 @@ export function TourForm({
         <p className="mb-1 text-sm font-medium text-ink-900">Default pricing</p>
         <p className="mb-3 text-xs text-ink-500">
           Copied into a quotation's rates when this tour is selected — the agent can still adjust it for that specific quotation
-          without changing this master rate.
+          without changing this master rate. Leave a rate blank if this tour genuinely doesn't apply to that guest type;
+          enter <strong>0</strong> if it's free for them — the two are treated differently, and a blank rate is never
+          copied from another guest type's rate.
         </p>
-        <div className="grid grid-cols-3 gap-3">
-          <PriceInput label="Senior citizen" value={priceSenior} onChange={setPriceSenior} />
-          <PriceInput label="Adult" value={priceAdult} onChange={setPriceAdult} />
-          <PriceInput label="Child" value={priceChild} onChange={setPriceChild} />
-          <PriceInput label="Infant / toddler" value={priceInfant} onChange={setPriceInfant} />
-          <PriceInput label="PWD" value={pricePwd} onChange={setPricePwd} />
+        <div className="space-y-3">
+          <PriceWithAgeRow label="Senior citizen" price={priceSenior} onPriceChange={setPriceSenior} ageRange={ageRangeSenior} onAgeRangeChange={setAgeRangeSenior} />
+          <PriceWithAgeRow label="Adult" price={priceAdult} onPriceChange={setPriceAdult} ageRange={ageRangeAdult} onAgeRangeChange={setAgeRangeAdult} />
+          <PriceWithAgeRow label="Child" price={priceChild} onPriceChange={setPriceChild} ageRange={ageRangeChild} onAgeRangeChange={setAgeRangeChild} />
+          <PriceWithAgeRow label="Infant / toddler" price={priceInfant} onPriceChange={setPriceInfant} ageRange={ageRangeInfant} onAgeRangeChange={setAgeRangeInfant} />
+          <PriceWithAgeRow label="PWD" price={pricePwd} onPriceChange={setPricePwd} ageRange={ageRangePwd} onAgeRangeChange={setAgeRangePwd} />
         </div>
         <div className="mt-4 border-t border-sand-200 pt-4">
           <PriceInput
@@ -169,6 +186,36 @@ function LabeledInput({
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
       />
+    </div>
+  );
+}
+
+function PriceWithAgeRow({
+  label,
+  price,
+  onPriceChange,
+  ageRange,
+  onAgeRangeChange,
+}: {
+  label: string;
+  price: number | '';
+  onPriceChange: (v: number | '') => void;
+  ageRange: string;
+  onAgeRangeChange: (v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
+      <PriceInput label={label} value={price} onChange={onPriceChange} />
+      <span className="pb-2 text-xs text-ink-500">age range</span>
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-ink-700">Age range (optional label)</label>
+        <input
+          value={ageRange}
+          onChange={(e) => onAgeRangeChange(e.target.value)}
+          placeholder="e.g. 3-11 years"
+          className="w-full rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
+        />
+      </div>
     </div>
   );
 }

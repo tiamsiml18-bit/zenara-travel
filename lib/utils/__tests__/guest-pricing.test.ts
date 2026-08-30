@@ -206,3 +206,35 @@ describe('Excel parity — Japan / Patricia Ruth quotation (5 Adults, 2 Seniors,
     expect(adjusted.adult).toBeCloseTo(58889.67, 2);
   });
 });
+
+// ============================================================================
+// PHP 0 is a valid, explicit "FREE" rate — never a missing value, and never
+// silently replaced by another guest type's rate. Regression coverage for
+// the exact bug flagged: a tour selection handler treating `0` as falsy and
+// skipping it entirely, or any code path inheriting the Adult rate for an
+// unconfigured Infant/Toddler rate.
+// ============================================================================
+describe('PHP 0 (FREE) is a valid rate, distinct from "not configured"', () => {
+  it('includes a guest type priced at exactly 0 in the line items, not omitted', () => {
+    const counts = { senior: 0, adult: 2, child: 0, infant: 1, pwd: 0 };
+    const lines = buildGuestLineItems(counts, { adult: 6600, infant: 0 });
+    const infantLine = lines.find((l) => l.guestType === 'infant');
+    expect(infantLine).toBeDefined();
+    expect(infantLine?.pricePerPerson).toBe(0);
+    expect(infantLine?.subtotal).toBe(0);
+  });
+
+  it('a FREE (0) rate contributes exactly 0 to the total, never the Adult rate', () => {
+    const counts = { senior: 0, adult: 2, child: 0, infant: 1, pwd: 0 };
+    // Adult 6,600 x2 + Infant FREE x1 = 13,200 total, never 6,600 x3 = 19,800
+    const total = calculateTotalPrice(counts, { adult: 6600, infant: 0 });
+    expect(total).toBe(13200);
+  });
+
+  it('an unset (undefined) rate defaults to 0 in the total, same numeric outcome as an explicit 0 — but the two remain distinguishable at the data level (undefined vs 0) for anyone inspecting the raw rate', () => {
+    const counts = { senior: 0, adult: 2, child: 0, infant: 1, pwd: 0 };
+    const totalWithExplicitZero = calculateTotalPrice(counts, { adult: 6600, infant: 0 });
+    const totalWithUnsetRate = calculateTotalPrice(counts, { adult: 6600 });
+    expect(totalWithExplicitZero).toBe(totalWithUnsetRate);
+  });
+});

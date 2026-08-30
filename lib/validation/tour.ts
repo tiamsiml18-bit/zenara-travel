@@ -7,12 +7,24 @@ export const tourSchema = z.object({
   activities: z.array(z.string().trim().min(1)).default([]),
   defaultInclusions: z.array(z.string().trim().min(1)).default([]),
   defaultExclusions: z.array(z.string().trim().min(1)).default([]),
-  priceSenior: z.coerce.number().min(0).optional().nullable(),
-  priceAdult: z.coerce.number().min(0).optional().nullable(),
-  priceChild: z.coerce.number().min(0).optional().nullable(),
-  priceInfant: z.coerce.number().min(0).optional().nullable(),
-  pricePwd: z.coerce.number().min(0).optional().nullable(),
-  groupCost: z.coerce.number().min(0).optional().nullable(),
+  // Nullable, not defaulted to 0 or coerced — a genuinely unconfigured rate
+  // (the admin never touched this field) must stay null ("not applicable"),
+  // distinct from an explicitly-entered 0 ("FREE"). z.coerce here would
+  // silently turn "" into 0, erasing that distinction.
+  priceSenior: z.number().min(0).optional().nullable(),
+  priceAdult: z.number().min(0).optional().nullable(),
+  priceChild: z.number().min(0).optional().nullable(),
+  priceInfant: z.number().min(0).optional().nullable(),
+  pricePwd: z.number().min(0).optional().nullable(),
+  groupCost: z.number().min(0).optional().nullable(),
+  // Purely descriptive labels (e.g. "3-11 years") — never used in any
+  // calculation, just shown next to the rate so it's clear what this tour
+  // means by "Child" or "Infant."
+  ageRangeSenior: z.string().trim().max(60).optional().or(z.literal('')),
+  ageRangeAdult: z.string().trim().max(60).optional().or(z.literal('')),
+  ageRangeChild: z.string().trim().max(60).optional().or(z.literal('')),
+  ageRangeInfant: z.string().trim().max(60).optional().or(z.literal('')),
+  ageRangePwd: z.string().trim().max(60).optional().or(z.literal('')),
 });
 
 export type TourFormInput = z.infer<typeof tourSchema>;

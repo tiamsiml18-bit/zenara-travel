@@ -14,6 +14,15 @@ export interface TourInput {
   priceInfant?: number | null;
   pricePwd?: number | null;
   groupCost?: number | null;
+  // Purely descriptive — e.g. "3-11 years" — shown next to the Child rate
+  // so admins/agents know what this specific tour means by "Child," never
+  // used to reclassify a traveler. Configurable per tour since suppliers
+  // vary (see tours.age_range_* migration note).
+  ageRangeSenior?: string;
+  ageRangeAdult?: string;
+  ageRangeChild?: string;
+  ageRangeInfant?: string;
+  ageRangePwd?: string;
 }
 
 function toDbRow(input: TourInput) {
@@ -30,6 +39,11 @@ function toDbRow(input: TourInput) {
     price_infant: input.priceInfant,
     price_pwd: input.pricePwd,
     group_cost: input.groupCost,
+    age_range_senior: input.ageRangeSenior || null,
+    age_range_adult: input.ageRangeAdult || null,
+    age_range_child: input.ageRangeChild || null,
+    age_range_infant: input.ageRangeInfant || null,
+    age_range_pwd: input.ageRangePwd || null,
   };
 }
 
@@ -71,7 +85,8 @@ export async function listToursForPicker(supabase: SupabaseClient) {
     .from('tours')
     .select(
       `id, name, destination, description, activities, default_inclusions, default_exclusions,
-       price_senior, price_adult, price_child, price_infant, price_pwd, group_cost`
+       price_senior, price_adult, price_child, price_infant, price_pwd, group_cost,
+       age_range_senior, age_range_adult, age_range_child, age_range_infant, age_range_pwd`
     )
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -135,6 +150,11 @@ export async function duplicateTour(supabase: SupabaseClient, tourId: string, ac
       price_infant: source.price_infant,
       price_pwd: source.price_pwd,
       group_cost: source.group_cost,
+      age_range_senior: source.age_range_senior,
+      age_range_adult: source.age_range_adult,
+      age_range_child: source.age_range_child,
+      age_range_infant: source.age_range_infant,
+      age_range_pwd: source.age_range_pwd,
       is_active: true,
       created_by: actingUserId,
     })

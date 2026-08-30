@@ -28,6 +28,11 @@ export interface TourPickerItem {
   price_infant: number | null;
   price_pwd: number | null;
   group_cost: number | null;
+  age_range_senior?: string | null;
+  age_range_adult?: string | null;
+  age_range_child?: string | null;
+  age_range_infant?: string | null;
+  age_range_pwd?: string | null;
 }
 
 export function ItineraryBuilder({
