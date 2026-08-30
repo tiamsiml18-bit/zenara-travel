@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Pagination } from '@/components/ui/pagination';
+import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { createClient } from '@/lib/supabase/server';
 import { listClients } from '@/lib/services/clients';
 import { listClientStatuses, listAgents } from '@/lib/services/lookups';
@@ -49,25 +50,18 @@ export default async function ClientsPage({
               placeholder="Search by name, phone, or email…"
               className="w-72 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
-            <select name="status" defaultValue={params.status} className="rounded-md border border-sand-200 px-3 py-2 text-sm">
-              <option value="">All statuses</option>
-              {statuses.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <select name="agent" defaultValue={params.agent} className="rounded-md border border-sand-200 px-3 py-2 text-sm">
-              <option value="">All agents</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.full_name}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="rounded-md border border-sand-200 px-3 py-2 text-sm hover:bg-sand-100">
-              Filter
-            </button>
+            <AutoSubmitSelect
+              name="status"
+              defaultValue={params.status}
+              placeholder="All statuses"
+              options={statuses.map((s) => ({ value: s.id, label: s.name }))}
+            />
+            <AutoSubmitSelect
+              name="agent"
+              defaultValue={params.agent}
+              placeholder="All agents"
+              options={agents.map((a) => ({ value: a.id, label: a.full_name }))}
+            />
           </form>
 
           <Link

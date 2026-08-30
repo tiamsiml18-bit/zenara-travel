@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Pagination } from '@/components/ui/pagination';
+import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
+import { AutoSubmitDateInput } from '@/components/ui/auto-submit-date-input';
 import { createClient } from '@/lib/supabase/server';
 import { listBookings } from '@/lib/services/bookings';
 import { requireUser } from '@/lib/auth/session';
@@ -45,31 +47,14 @@ export default async function BookingsPage({
       <Topbar title="Bookings" />
       <main className="flex-1 overflow-y-auto p-6">
         <form className="mb-4 flex flex-wrap gap-2" action="/bookings">
-          <select name="status" defaultValue={params.status} className="rounded-md border border-sand-200 px-3 py-2 text-sm">
-            <option value="">All statuses</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            name="from"
-            defaultValue={params.from}
-            title="Travel date from"
-            className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+          <AutoSubmitSelect
+            name="status"
+            defaultValue={params.status}
+            placeholder="All statuses"
+            options={STATUS_OPTIONS.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
           />
-          <input
-            type="date"
-            name="to"
-            defaultValue={params.to}
-            title="Travel date to"
-            className="rounded-md border border-sand-200 px-3 py-2 text-sm"
-          />
-          <button type="submit" className="rounded-md border border-sand-200 px-3 py-2 text-sm hover:bg-sand-100">
-            Filter
-          </button>
+          <AutoSubmitDateInput name="from" defaultValue={params.from} title="Travel date from" />
+          <AutoSubmitDateInput name="to" defaultValue={params.to} title="Travel date to" />
         </form>
 
         <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">

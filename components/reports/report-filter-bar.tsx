@@ -1,3 +1,5 @@
+'use client';
+
 const QUOTATION_STATUSES = [
   'draft',
   'sent',
@@ -29,16 +31,23 @@ export function ReportFilterBar({
     source?: string;
   };
 }) {
+  // Every dropdown and date field submits the form itself the instant it
+  // changes — no separate "Apply" button. The destination text field is the
+  // one thing that still needs a deliberate action (typing a partial word
+  // shouldn't re-run the report on every keystroke), so pressing Enter
+  // there still submits via the form's native behavior.
+  const autoSubmit = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => e.currentTarget.form?.requestSubmit();
+
   return (
     <form action="/reports" className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-sand-200 bg-white p-4">
       <Field label="From">
-        <input type="date" name="from" defaultValue={defaults.dateFrom} className={inputClass} />
+        <input type="date" name="from" defaultValue={defaults.dateFrom} onChange={autoSubmit} className={inputClass} />
       </Field>
       <Field label="To">
-        <input type="date" name="to" defaultValue={defaults.dateTo} className={inputClass} />
+        <input type="date" name="to" defaultValue={defaults.dateTo} onChange={autoSubmit} className={inputClass} />
       </Field>
       <Field label="Agent">
-        <select name="agent" defaultValue={defaults.agent ?? ''} className={inputClass}>
+        <select name="agent" defaultValue={defaults.agent ?? ''} onChange={autoSubmit} className={inputClass}>
           <option value="">All agents</option>
           {agents.map((a) => (
             <option key={a.id} value={a.id}>
@@ -56,7 +65,7 @@ export function ReportFilterBar({
         />
       </Field>
       <Field label="Status">
-        <select name="status" defaultValue={defaults.status ?? ''} className={inputClass}>
+        <select name="status" defaultValue={defaults.status ?? ''} onChange={autoSubmit} className={inputClass}>
           <option value="">Any status</option>
           {QUOTATION_STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -66,7 +75,7 @@ export function ReportFilterBar({
         </select>
       </Field>
       <Field label="Lead source">
-        <select name="source" defaultValue={defaults.source ?? ''} className={inputClass}>
+        <select name="source" defaultValue={defaults.source ?? ''} onChange={autoSubmit} className={inputClass}>
           <option value="">Any source</option>
           {sources.map((s) => (
             <option key={s.id} value={s.id}>
@@ -75,11 +84,8 @@ export function ReportFilterBar({
           ))}
         </select>
       </Field>
-      <button type="submit" className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600">
-        Apply
-      </button>
       <a href="/reports" className="text-sm font-medium text-ink-500 hover:text-ink-900">
-        Reset
+        Clear filters
       </a>
     </form>
   );

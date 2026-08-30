@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { Pagination } from '@/components/ui/pagination';
+import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
+import { AutoSubmitCheckbox } from '@/components/ui/auto-submit-checkbox';
 import { createClient } from '@/lib/supabase/server';
 import { listTours, listTourDestinations } from '@/lib/services/tours';
 import { requireUser } from '@/lib/auth/session';
@@ -56,25 +58,14 @@ export default async function ToursPage({
               placeholder="Search by name or destination…"
               className="w-64 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
-            <select
+            <AutoSubmitSelect
               name="destination"
-              defaultValue={params.destination ?? ''}
+              defaultValue={params.destination}
+              placeholder="All destinations"
+              options={destinations.map((d) => ({ value: d, label: d }))}
               className="rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
-            >
-              <option value="">All destinations</option>
-              {destinations.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <label className="flex items-center gap-1.5 text-sm text-ink-700">
-              <input type="checkbox" name="all" value="1" defaultChecked={params.all === '1'} />
-              Show archived
-            </label>
-            <button type="submit" className="rounded-md border border-sand-200 px-3 py-2 text-sm hover:bg-sand-100">
-              Filter
-            </button>
+            />
+            <AutoSubmitCheckbox name="all" defaultChecked={params.all === '1'} label="Show archived" />
           </form>
 
           {canManage && (

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { Pagination } from '@/components/ui/pagination';
+import { AutoSubmitCheckbox } from '@/components/ui/auto-submit-checkbox';
 import { createClient } from '@/lib/supabase/server';
 import { listPackages } from '@/lib/services/packages';
 import { requireUser } from '@/lib/auth/session';
@@ -36,13 +37,7 @@ export default async function PackagesPage({
               placeholder="Search by name or destination…"
               className="w-72 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
-            <label className="flex items-center gap-1.5 text-sm text-ink-700">
-              <input type="checkbox" name="all" value="1" defaultChecked={params.all === '1'} />
-              Show inactive
-            </label>
-            <button type="submit" className="rounded-md border border-sand-200 px-3 py-2 text-sm hover:bg-sand-100">
-              Filter
-            </button>
+            <AutoSubmitCheckbox name="all" defaultChecked={params.all === '1'} label="Show inactive" />
           </form>
 
           {canManage && (
