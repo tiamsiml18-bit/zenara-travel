@@ -6,8 +6,9 @@ import { AgentFilterSelect } from '@/components/followups/agent-filter-select';
 import { KanbanBoard, type PipelineCard } from '@/components/pipeline/kanban-board';
 import { unwrapToOne } from '@/lib/utils/unwrap-embed';
 import { createClient } from '@/lib/supabase/server';
-import { listFollowUps, getFollowUpCounts } from '@/lib/services/followups';
-import { listQuotationsForPipeline } from '@/lib/services/pipeline';
+import { listFollowUps, getFollowUpCounts, getQuotationSettings } from '@/lib/services/followups';
+import { listQuotationsForPipeline, getLatestFollowUpsForQuotations } from '@/lib/services/pipeline';
+import { computeCardStatus } from '@/lib/utils/pipeline-card-status';
 import { listAgents } from '@/lib/services/lookups';
 import { requireUser } from '@/lib/auth/session';
 
@@ -29,12 +30,19 @@ export default async function FollowUpsPage({
   const isPipelineView = params.view === 'pipeline';
 
   const supabase = await createClient();
-  const [followUps, counts, agents, pipelineRows] = await Promise.all([
+  const [followUps, counts, agents, pipelineRows, quotationSettings] = await Promise.all([
     isPipelineView ? Promise.resolve([]) : listFollowUps(supabase, { bucket, agentId: params.agent }),
     getFollowUpCounts(supabase, params.agent),
     user.role === 'admin' || user.role === 'manager' ? listAgents(supabase) : Promise.resolve([]),
     isPipelineView ? listQuotationsForPipeline(supabase, params.agent) : Promise.resolve([]),
+    isPipelineView ? getQuotationSettings(supabase) : Promise.resolve(null),
   ]);
+
+  const scheduleLength = quotationSettings?.followup_schedule_days?.length ?? 3;
+  const latestFollowUps = isPipelineView
+    ? await getLatestFollowUpsForQuotations(supabase, pipelineRows.map((r) => r.id))
+    : new Map();
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   const pipelineCards: PipelineCard[] = pipelineRows.map((r) => {
     const client = unwrapToOne(r.client) as { full_name: string } | null;
@@ -45,6 +53,7 @@ export default async function FollowUpsPage({
       destination: version?.destination ?? null,
       travelDate: version?.travel_start_date ?? null,
       stage: r.pipeline_stage,
+      status: computeCardStatus(r.pipeline_stage, latestFollowUps.get(r.id) ?? null, scheduleLength, todayIso),
     };
   });
 

@@ -121,6 +121,35 @@ export async function listQuotationsForPipeline(supabase: SupabaseClient, agentI
   return data ?? [];
 }
 
+/**
+ * Each pipeline card's status badge (Needs Attention / Upcoming / Active /
+ * Waiting) is derived entirely from this — the same follow_ups rows the
+ * notification bell and the Follow-ups list already read — so the two can
+ * never disagree about whether a lead needs attention. One quotation can
+ * have several follow_ups rows over time (completed, skipped, pending);
+ * only the most recent one matters for "what's the current status."
+ */
+export async function getLatestFollowUpsForQuotations(supabase: SupabaseClient, quotationIds: string[]) {
+  if (quotationIds.length === 0) return new Map<string, { due_date: string; status: string; sequence_number: number }>();
+
+  const { data, error } = await supabase
+    .from('follow_ups')
+    .select('quotation_id, due_date, status, sequence_number, created_at')
+    .in('quotation_id', quotationIds)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`Failed to load follow-ups for pipeline: ${error.message}`);
+
+  // First row seen per quotation_id is the most recent, since the query is
+  // already ordered newest-first.
+  const latest = new Map<string, { due_date: string; status: string; sequence_number: number }>();
+  for (const row of data ?? []) {
+    if (!latest.has(row.quotation_id)) {
+      latest.set(row.quotation_id, { due_date: row.due_date, status: row.status, sequence_number: row.sequence_number ?? 1 });
+    }
+  }
+  return latest;
+}
+
 /** The dashboard's pipeline-specific counts. Follow-ups due/overdue already exist elsewhere (getFollowUpCounts) — not duplicated here. */
 export async function getPipelineDashboardCounts(supabase: SupabaseClient) {
   const { data } = await supabase.from('quotations').select('pipeline_stage').is('deleted_at', null);
