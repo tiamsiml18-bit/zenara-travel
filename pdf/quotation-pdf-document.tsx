@@ -46,7 +46,16 @@ const styles = StyleSheet.create({
   // behind an uploaded PNG/JPEG would actually show as an ugly box, so this
   // stays small and round-cornered rather than trying to fake transparency
   // it may not have — most agency logos are square-ish anyway.
-  headerLogo: { width: 32, height: 32, borderRadius: 4 },
+  headerLogoWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: COLORS.sand50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 3,
+  },
+  headerLogo: { width: '100%', height: '100%', objectFit: 'contain' },
   agencyName: { fontSize: 15, fontWeight: 700 },
   agencyContact: { fontSize: 7, color: COLORS.harbor100, marginTop: 3, lineHeight: 1.4 },
   quoteMeta: { alignItems: 'flex-end' },
@@ -182,7 +191,11 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
 
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            {agency.logoUrl && <Image src={agency.logoUrl} style={styles.headerLogo} />}
+            {agency.logoUrl && (
+              <View style={styles.headerLogoWrap}>
+                <Image src={agency.logoUrl} style={styles.headerLogo} />
+              </View>
+            )}
             <View>
               <Text style={styles.agencyName}>{agency.name}</Text>
               <Text style={styles.agencyContact}>
@@ -307,8 +320,7 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
           )}
 
           <View style={styles.priceBlock}>
-            <Text style={styles.priceBlockTitle}>Package Rate</Text>
-            {pricing.guestLines.length === 0 && <Text style={styles.listItem}>—</Text>}
+            {pricing.guestLines.length > 0 && <Text style={styles.priceBlockTitle}>Package Rate</Text>}
             {pricing.guestLines.map((line) => (
               <View key={line.guestType} style={styles.guestPriceRow}>
                 <View>
@@ -320,7 +332,7 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
                 <Text style={styles.guestPriceSubtotal}>{formatMoney(line.subtotal, pricing.currency)}</Text>
               </View>
             ))}
-            <View style={styles.totalRow}>
+            <View style={pricing.guestLines.length > 0 ? styles.totalRow : undefined}>
               <Text style={styles.totalLabel}>Total Package</Text>
               <Text style={styles.priceValueTotal}>{formatMoney(pricing.totalPrice, pricing.currency)}</Text>
             </View>

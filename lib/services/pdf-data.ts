@@ -87,10 +87,14 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
   const rates: GuestRates = {};
   for (const g of guestPricing ?? []) rates[g.guest_type as keyof GuestRates] = Number(g.price_per_person);
 
-  // Every line item the PDF shows (one row per guest type actually present)
-  // — built from the exact same function used when the quotation was
-  // priced, so this can never disagree with total_price stored below.
-  const guestLines = buildGuestLineItems(counts, rates);
+  // Quotations created before the per-guest-type pricing feature existed
+  // have real guest counts but zero rows in quotation_guest_pricing — for
+  // those, showing "2 guests × PHP 0" would be actively wrong (the real
+  // total, still correctly stored in total_price below, just was never
+  // split out by category). Rather than guess at a per-category split for
+  // data that was never entered that way, the breakdown is simply omitted
+  // and only the correct total shows — never a fabricated zero.
+  const guestLines = (guestPricing ?? []).length > 0 ? buildGuestLineItems(counts, rates) : [];
 
   return {
     quotationNumber: quotation.quotation_number as string,
