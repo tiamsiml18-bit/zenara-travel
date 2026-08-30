@@ -8,6 +8,14 @@ import { listQuotations } from '@/lib/services/quotations';
 import { listConsultants } from '@/lib/services/lookups';
 import { requireUser } from '@/lib/auth/session';
 
+// Forces this page to be rendered fresh on every request rather than
+// potentially reused from a cached render keyed only by pathname — status,
+// consultant, and date filters all live in the query string, so a page
+// cached without regard to searchParams could otherwise show stale,
+// unfiltered results after selecting a filter.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function formatDate(d?: string | null) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -26,16 +34,14 @@ export default async function QuotationsPage({
   const params = await searchParams;
   const supabase = await createClient();
 
-  const [{ quotations, total, page, pageSize }, consultants] = await Promise.all([
-    listQuotations(supabase, {
-      status: params.status,
-      consultantId: params.consultant,
-      travelStartFrom: params.from,
-      travelStartTo: params.to,
-      page: params.page ? Number(params.page) : 1,
-    }),
-    listConsultants(supabase),
-  ]);
+  const consultants = await listConsultants(supabase);
+  const { quotations, total, page, pageSize } = await listQuotations(supabase, {
+    status: params.status || undefined,
+    consultantId: params.consultant || undefined,
+    travelStartFrom: params.from || undefined,
+    travelStartTo: params.to || undefined,
+    page: params.page ? Number(params.page) : 1,
+  });
 
   const STATUS_OPTIONS = [
     'draft', 'sent', 'viewed', 'follow_up', 'negotiating', 'confirmed', 'paid', 'cancelled', 'lost', 'expired',

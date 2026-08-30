@@ -81,7 +81,16 @@ export function CostBreakdownEditor({
                 <input
                   type="number"
                   min={0}
-                  value={item.amount}
+                  // Showing a real 0 here would force the agent to delete it
+                  // before typing an amount — a freshly-added row (or one
+                  // that's exactly 0) instead renders empty with a "0"
+                  // placeholder, which disappears the instant they start
+                  // typing, no backspace needed. This is safe specifically
+                  // for this optional fee/cost list: there's no real case
+                  // for deliberately adding a line item worth exactly PHP 0
+                  // — if a cost doesn't apply, the row simply isn't added.
+                  value={item.amount === 0 ? '' : item.amount}
+                  placeholder="0"
                   onChange={(e) => updateAmount(i, e.target.value === '' ? 0 : Number(e.target.value))}
                   className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
                 />

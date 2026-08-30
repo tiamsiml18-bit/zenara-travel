@@ -1161,6 +1161,7 @@ function PriceField({ label, value, onChange }: { label: string; value: number |
           type="number"
           min={0}
           value={value}
+          placeholder="0"
           onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
           className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
         />
