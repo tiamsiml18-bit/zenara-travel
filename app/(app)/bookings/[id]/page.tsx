@@ -36,7 +36,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <Topbar title={booking.booking_number} />
+      <Topbar title={booking.booking_number} showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="mb-6 flex items-start justify-between">
           <div>

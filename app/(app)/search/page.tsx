@@ -19,7 +19,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <Topbar title="Search" />
+      <Topbar title="Search" showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <form action="/search" className="mb-6 max-w-xl">
           <input

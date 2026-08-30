@@ -14,7 +14,7 @@ export default async function PackageDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <Topbar title={pkg.name} />
+      <Topbar title={pkg.name} showBack />
       <main className="flex-1 overflow-y-auto p-6">
         {canManage ? (
           <PackageForm

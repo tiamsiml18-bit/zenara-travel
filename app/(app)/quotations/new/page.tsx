@@ -31,7 +31,7 @@ export default async function NewQuotationPage({
 
   return (
     <>
-      <Topbar title="New quotation" />
+      <Topbar title="New quotation" showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <QuotationWizard
           clients={clients ?? []}

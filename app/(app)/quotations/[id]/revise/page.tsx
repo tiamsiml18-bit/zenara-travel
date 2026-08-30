@@ -32,7 +32,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
 
   return (
     <>
-      <Topbar title={`Revise ${quotation.quotation_number}`} />
+      <Topbar title={`Revise ${quotation.quotation_number}`} showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <p className="mb-4 max-w-3xl text-sm text-ink-500">
           {currentVersion.version_label} has already been sent and can no longer be edited. Saving here creates a

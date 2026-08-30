@@ -22,7 +22,7 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <Topbar title={`Edit ${client.full_name}`} />
+      <Topbar title={`Edit ${client.full_name}`} showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <ClientForm
           action={boundAction}

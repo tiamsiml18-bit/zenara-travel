@@ -2,11 +2,11 @@ import { Search, LogOut } from 'lucide-react';
 import { signOut } from '@/lib/auth/actions';
 import { BackButton } from './back-button';
 
-export function Topbar({ title }: { title: string }) {
+export function Topbar({ title, showBack = false }: { title: string; showBack?: boolean }) {
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-sand-200 bg-white px-6">
       <div className="flex items-center gap-2">
-        <BackButton />
+        {showBack && <BackButton />}
         <h1 className="font-display text-lg font-semibold text-ink-900">{title}</h1>
       </div>
 

@@ -38,7 +38,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   return (
     <>
-      <Topbar title={quotation.quotation_number} />
+      <Topbar title={quotation.quotation_number} showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="mb-6 flex items-start justify-between">
           <div>

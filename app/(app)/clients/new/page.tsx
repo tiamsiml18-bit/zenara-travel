@@ -18,7 +18,7 @@ export default async function NewClientPage() {
 
   return (
     <>
-      <Topbar title="New client" />
+      <Topbar title="New client" showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <ClientForm
           action={createClientAction}

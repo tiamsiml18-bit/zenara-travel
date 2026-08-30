@@ -7,7 +7,7 @@ export default async function NewPackagePage() {
 
   return (
     <>
-      <Topbar title="New package" />
+      <Topbar title="New package" showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <PackageForm mode="create" />
       </main>

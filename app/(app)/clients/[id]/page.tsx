@@ -33,7 +33,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <Topbar title={client.full_name} />
+      <Topbar title={client.full_name} showBack />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="grid grid-cols-3 gap-6">
           {/* Left column: client info */}
