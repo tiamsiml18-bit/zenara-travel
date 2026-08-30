@@ -1,8 +1,30 @@
-import { Search, LogOut } from 'lucide-react';
-import { signOut } from '@/lib/auth/actions';
+import { Search } from 'lucide-react';
 import { BackButton } from './back-button';
+import { NotificationBell, type NotificationFollowUp } from './notification-bell';
+import { ProfileMenu } from './profile-menu';
+import { createClient } from '@/lib/supabase/server';
+import { requireUser } from '@/lib/auth/session';
+import { listAttentionNeededFollowUps } from '@/lib/services/followups';
 
-export function Topbar({ title, showBack = false }: { title: string; showBack?: boolean }) {
+export async function Topbar({ title, showBack = false }: { title: string; showBack?: boolean }) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  // Every page renders Topbar, so this fetch happens on every navigation —
+  // acceptable here since it's a single small, indexed query, and it's what
+  // keeps the badge count accurate without a separate polling mechanism.
+  const rawFollowUps = await listAttentionNeededFollowUps(supabase);
+  const today = new Date().toISOString().slice(0, 10);
+  const followUps: NotificationFollowUp[] = rawFollowUps.map((f: any) => ({
+    id: f.id,
+    due_date: f.due_date,
+    clientName: f.client?.full_name ?? 'Unknown client',
+    destination: f.quotation?.current_version?.destination ?? '—',
+    quotationId: f.quotation?.id ?? null,
+    sequenceNumber: f.sequence_number ?? 1,
+    isOverdue: f.due_date < today,
+  }));
+
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-sand-200 bg-white px-6">
       <div className="flex items-center gap-2">
@@ -10,7 +32,7 @@ export function Topbar({ title, showBack = false }: { title: string; showBack?: 
         <h1 className="font-display text-lg font-semibold text-ink-900">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <form action="/search" className="relative hidden sm:block">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-500"
@@ -24,16 +46,8 @@ export function Topbar({ title, showBack = false }: { title: string; showBack?: 
           />
         </form>
 
-        <form action={signOut}>
-          <button
-            type="submit"
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-ink-500 transition-colors hover:bg-sand-100 hover:text-ink-900"
-            title="Sign out"
-          >
-            <LogOut className="h-4 w-4" strokeWidth={1.75} />
-            <span className="hidden md:inline">Sign out</span>
-          </button>
-        </form>
+        <NotificationBell followUps={followUps} />
+        <ProfileMenu isAdmin={user.role === 'admin'} />
       </div>
     </header>
   );

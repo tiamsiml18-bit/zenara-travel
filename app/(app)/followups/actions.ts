@@ -77,6 +77,32 @@ export async function addFollowUpNoteAction(input: { followUpId: string; note: s
   }
 }
 
+/** "Skip" — this specific follow-up isn't happening, but the sequence continues; the next one gets scheduled automatically. */
+export async function skipFollowUpAction(followUpId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await followupsService.skipFollowUp(supabase, followUpId, user.id);
+    revalidatePath('/followups');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to skip follow-up.' };
+  }
+}
+
+/** "Stop" — halts the sequence entirely; no further follow-up gets scheduled for this quotation. */
+export async function stopFollowUpAction(followUpId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await followupsService.stopFollowUp(supabase, followUpId, user.id);
+    revalidatePath('/followups');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to stop follow-up.' };
+  }
+}
+
 /** Called when a card is dragged to a new column on the Kanban board. */
 export async function updatePipelineStageAction(quotationId: string, newStage: PipelineStage): Promise<ActionResult> {
   const user = await requireUser();

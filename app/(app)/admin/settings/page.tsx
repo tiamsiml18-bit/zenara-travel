@@ -1,7 +1,9 @@
 import { LogoUploader } from '@/components/admin/logo-uploader';
+import { FollowUpScheduleForm } from '@/components/admin/followup-schedule-form';
 import { Topbar } from '@/components/layout/topbar';
 import { createClient } from '@/lib/supabase/server';
 import { getAgencySettings } from '@/lib/services/lookups';
+import { getQuotationSettings } from '@/lib/services/followups';
 import { requireRole } from '@/lib/auth/session';
 import { updateAgencySettingsAction } from './actions';
 
@@ -11,7 +13,7 @@ const inputClass =
 export default async function AgencySettingsPage() {
   await requireRole('admin');
   const supabase = await createClient();
-  const settings = await getAgencySettings(supabase);
+  const [settings, quotationSettings] = await Promise.all([getAgencySettings(supabase), getQuotationSettings(supabase)]);
   const action = updateAgencySettingsAction.bind(null, settings.id);
 
   return (
@@ -71,6 +73,12 @@ export default async function AgencySettingsPage() {
             </button>
           </div>
         </form>
+
+        <div className="mt-6 max-w-2xl">
+          <Section title="Follow-up automation">
+            <FollowUpScheduleForm settingsId={quotationSettings.id} currentDays={quotationSettings.followup_schedule_days ?? [2, 3, 5]} />
+          </Section>
+        </div>
 
         <p className="mt-6 max-w-2xl text-xs text-ink-500">
           These values feed directly into the client-facing quotation PDF (agency header, footer, terms, payment

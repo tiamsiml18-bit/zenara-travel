@@ -10,9 +10,11 @@ export const PIPELINE_STAGES = [
   'quotation_sent',
   'follow_up',
   'interested',
+  'still_thinking',
   'requested_changes',
   'proceeding',
   'confirmed',
+  'not_interested',
   'lost',
   'no_response',
 ] as const;
@@ -22,22 +24,35 @@ export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   quotation_sent: 'Quotation Sent',
   follow_up: 'Follow-up',
   interested: 'Interested',
+  still_thinking: 'Still Thinking',
   requested_changes: 'Requested Changes',
   proceeding: 'Proceeding',
   confirmed: 'Confirmed',
+  not_interested: 'Not Interested',
   lost: 'Lost',
-  no_response: 'No Response',
+  no_response: 'No Response / Dormant',
 };
 
 /** The options offered after completing a follow-up — every stage except the two an agent wouldn't manually pick themselves. */
 export const FOLLOWUP_OUTCOME_STAGES: PipelineStage[] = [
   'interested',
+  'still_thinking',
   'requested_changes',
   'proceeding',
   'confirmed',
+  'not_interested',
   'lost',
   'no_response',
 ];
+
+/**
+ * A lead reaching any of these stages stops the automatic follow-up
+ * sequence for good — the lead and quotation stay in the system for
+ * historical tracking, but nothing further gets scheduled. Every other
+ * stage (Interested, Still Thinking, Requested Changes, Proceeding) keeps
+ * the cadence going automatically.
+ */
+export const CLOSED_PIPELINE_STAGES: PipelineStage[] = ['confirmed', 'not_interested', 'lost', 'no_response'];
 
 /**
  * The one function that ever writes `quotations.pipeline_stage` — every

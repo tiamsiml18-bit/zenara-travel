@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { QuotationDraftInput } from '@/lib/validation/quotation';
 import { writeAudit, diffFields } from './audit';
 import { setClientStatusByName } from './clients';
-import { generateFollowUpSchedule } from './followups';
+import { generateFirstFollowUp } from './followups';
 import { updateQuotationPipelineStage } from './pipeline';
 
 const VERSION_SELECT = `
@@ -649,7 +649,7 @@ export async function sendQuotation(supabase: SupabaseClient, quotationId: strin
     related_quotation_id: quotationId,
   });
 
-  await generateFollowUpSchedule(supabase, {
+  await generateFirstFollowUp(supabase, {
     quotationId,
     clientId: quotation.client_id,
     agentId: quotation.assigned_agent_id,

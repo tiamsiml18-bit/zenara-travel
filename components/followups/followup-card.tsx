@@ -12,12 +12,17 @@ import {
   MessageCircle,
   Mail,
   ExternalLink,
+  SkipForward,
+  XCircle,
 } from 'lucide-react';
 import {
   completeFollowUpAction,
   rescheduleFollowUpAction,
   addFollowUpNoteAction,
+  skipFollowUpAction,
+  stopFollowUpAction,
 } from '@/app/(app)/followups/actions';
+import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import { buildFollowUpMessage } from '@/lib/utils/followup-message';
 import { FOLLOWUP_OUTCOMES, FOLLOWUP_METHODS, OUTCOME_LABELS } from '@/lib/validation/followup';
 
@@ -52,6 +57,7 @@ export function FollowUpCard({ followUp }: { followUp: FollowUpCardData }) {
   const [openPanel, setOpenPanel] = useState<'complete' | 'reschedule' | 'note' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { confirm, dialog } = useConfirmDialog();
 
   const client = followUp.client;
   const quotation = followUp.quotation;
@@ -134,6 +140,41 @@ export function FollowUpCard({ followUp }: { followUp: FollowUpCardData }) {
             </button>
             <button className="action-chip" onClick={() => setOpenPanel(openPanel === 'reschedule' ? null : 'reschedule')}>
               <CalendarClock className="h-3.5 w-3.5" /> Reschedule
+            </button>
+            <button
+              className="action-chip"
+              disabled={isPending}
+              onClick={() =>
+                startTransition(async () => {
+                  setError(null);
+                  const result = await skipFollowUpAction(followUp.id);
+                  if (!result.ok) return setError(result.error);
+                  router.refresh();
+                })
+              }
+            >
+              <SkipForward className="h-3.5 w-3.5" /> Skip
+            </button>
+            <button
+              className="action-chip"
+              disabled={isPending}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: 'Stop follow-up reminders?',
+                  description: `This ends the automatic follow-up sequence for ${client?.full_name ?? 'this client'} — no further reminders will be scheduled unless the agent starts a new one manually.`,
+                  confirmLabel: 'Stop',
+                  tone: 'danger',
+                });
+                if (!ok) return;
+                startTransition(async () => {
+                  setError(null);
+                  const result = await stopFollowUpAction(followUp.id);
+                  if (!result.ok) return setError(result.error);
+                  router.refresh();
+                });
+              }}
+            >
+              <XCircle className="h-3.5 w-3.5" /> Stop
             </button>
           </>
         )}
@@ -223,6 +264,8 @@ export function FollowUpCard({ followUp }: { followUp: FollowUpCardData }) {
           }
         />
       )}
+
+      {dialog}
 
       <style jsx>{`
         :global(.action-chip) {

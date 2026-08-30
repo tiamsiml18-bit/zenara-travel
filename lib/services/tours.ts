@@ -49,6 +49,7 @@ function toDbRow(input: TourInput) {
 
 export interface TourListFilters {
   q?: string;
+  destination?: string;
   includeInactive?: boolean;
   page?: number;
   pageSize?: number;
@@ -64,15 +65,24 @@ export async function listTours(supabase: SupabaseClient, filters: TourListFilte
     .from('tours')
     .select('id, name, destination, is_active, price_senior, price_adult, price_child, price_infant, price_pwd', { count: 'exact' })
     .is('deleted_at', null)
+    .order('destination', { ascending: true, nullsFirst: false })
     .order('name')
     .range(from, to);
 
   if (!filters.includeInactive) query = query.eq('is_active', true);
+  if (filters.destination) query = query.eq('destination', filters.destination);
   if (filters.q) query = query.or(`name.ilike.%${filters.q}%,destination.ilike.%${filters.q}%`);
 
   const { data, error, count } = await query;
   if (error) throw new Error(`Failed to load tours: ${error.message}`);
   return { tours: data ?? [], total: count ?? 0, page, pageSize };
+}
+
+/** Every distinct destination currently in use — powers the destination filter/grouping on the Tours page and the destination-first tour picker in itineraries. */
+export async function listTourDestinations(supabase: SupabaseClient): Promise<string[]> {
+  const { data, error } = await supabase.from('tours').select('destination').is('deleted_at', null).not('destination', 'is', null);
+  if (error) throw new Error(`Failed to load tour destinations: ${error.message}`);
+  return Array.from(new Set((data ?? []).map((r) => r.destination as string))).sort();
 }
 
 /**

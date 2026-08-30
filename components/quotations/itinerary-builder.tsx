@@ -51,6 +51,12 @@ export function ItineraryBuilder({
   onTourSelected?: (tour: TourPickerItem) => void;
 }) {
   const [activityDraft, setActivityDraft] = useState<Record<number, string>>({});
+  // Destination-first filtering for the tour dropdown, per day — selecting
+  // a destination narrows the Tour dropdown to only that destination's
+  // tours, per spec ("first select the Destination... show only Boracay
+  // tours"). Free Time options are never destination-scoped.
+  const [destinationFilter, setDestinationFilter] = useState<Record<number, string>>({});
+  const destinations = Array.from(new Set(tours.map((t) => t.destination).filter((d): d is string => Boolean(d)))).sort();
 
   function renumber(list: ItineraryDayDraft[]) {
     return list.map((d, i) => ({ ...d, dayNumber: i + 1 }));
@@ -165,9 +171,26 @@ export function ItineraryBuilder({
               straight from the library, so the agent never retypes a tour's
               activities by hand. Picking here always fills this day fresh;
               it's the same action whether the day was blank (Add) or
-              already had a different tour (Replace). */}
+              already had a different tour (Replace). Destination first
+              narrows the tour list to just that destination — typing in
+              either dropdown also jumps to a matching option (native
+              browser type-ahead search). */}
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-harbor-500" />
+            {destinations.length > 0 && (
+              <select
+                value={destinationFilter[index] ?? ''}
+                onChange={(e) => setDestinationFilter((d) => ({ ...d, [index]: e.target.value }))}
+                className="w-36 shrink-0 rounded-md border border-sand-200 bg-sand-50 px-2 py-1.5 text-sm text-ink-700 outline-none ring-harbor-400 focus:ring-2"
+              >
+                <option value="">All destinations</option>
+                {destinations.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               value=""
               onChange={(e) => {
@@ -186,16 +209,23 @@ export function ItineraryBuilder({
                   </option>
                 ))}
               </optgroup>
-              {tours.length > 0 && (
-                <optgroup label="Tours Library">
-                  {tours.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                      {t.destination ? ` — ${t.destination}` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              {(() => {
+                const filtered = destinationFilter[index]
+                  ? tours.filter((t) => t.destination === destinationFilter[index])
+                  : tours;
+                return (
+                  filtered.length > 0 && (
+                    <optgroup label="Tours Library">
+                      {filtered.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                          {!destinationFilter[index] && t.destination ? ` — ${t.destination}` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )
+                );
+              })()}
             </select>
           </div>
 

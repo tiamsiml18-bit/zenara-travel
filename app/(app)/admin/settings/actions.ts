@@ -6,6 +6,7 @@ import { createClient as createSupabaseServerClient } from '@/lib/supabase/serve
 import { requireRole } from '@/lib/auth/session';
 import { updateAgencySettings } from '@/lib/services/lookups';
 import { uploadAgencyLogo, removeAgencyLogo } from '@/lib/services/branding';
+import { updateFollowUpSchedule } from '@/lib/services/followups';
 import { writeAudit } from '@/lib/services/audit';
 
 export async function updateAgencySettingsAction(id: string, formData: FormData) {
@@ -88,5 +89,32 @@ export async function removeLogoAction(agencySettingsId: string): Promise<{ ok: 
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to remove logo.' };
+  }
+}
+
+export async function updateFollowUpScheduleAction(
+  settingsId: string | null,
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireRole('admin');
+  const supabase = await createSupabaseServerClient();
+
+  const raw = (formData.get('followupScheduleDays') as string | null) ?? '';
+  const days = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(Number);
+
+  if (days.length === 0 || days.some((d) => !Number.isInteger(d) || d <= 0)) {
+    return { ok: false, error: 'Enter one or more positive whole numbers separated by commas, e.g. 2, 3, 5.' };
+  }
+
+  try {
+    await updateFollowUpSchedule(supabase, settingsId, days);
+    revalidatePath('/admin/settings');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to save the follow-up schedule.' };
   }
 }
