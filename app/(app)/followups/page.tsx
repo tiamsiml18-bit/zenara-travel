@@ -71,11 +71,11 @@ export default async function FollowUpsPage({
           <div className="flex items-center gap-3">
             {/* List vs Pipeline — the Kanban lives here, inside Follow-ups,
                 not as a separate nav item or a quotation-management view. */}
-            <div className="flex shrink-0 gap-1 rounded-md bg-sand-100 p-1">
+            <div className="flex shrink-0 gap-0.5 rounded-md border border-sand-200 bg-sand-50 p-0.5">
               <Link
                 href={viewLink('list')}
                 className={clsx(
-                  'rounded px-3 py-1.5 text-sm font-medium',
+                  'rounded px-2.5 py-1.5 text-xs font-medium transition-colors',
                   !isPipelineView ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-700'
                 )}
               >
@@ -84,7 +84,7 @@ export default async function FollowUpsPage({
               <Link
                 href={viewLink('pipeline')}
                 className={clsx(
-                  'rounded px-3 py-1.5 text-sm font-medium',
+                  'rounded px-2.5 py-1.5 text-xs font-medium transition-colors',
                   isPipelineView ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-700'
                 )}
               >
