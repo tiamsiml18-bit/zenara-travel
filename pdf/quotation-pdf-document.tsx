@@ -23,9 +23,13 @@ const COLORS = {
 // fit on one page for a 4+ day trip, and the spec explicitly expects that:
 // "if the itinerary is long, continue naturally onto additional pages."
 // So this is no longer a forced one-pager -- sizing favors readability over
-// squeezing onto a single sheet.
+// squeezing onto a single sheet. Font sizes below were bumped up a second
+// time after the first pass still read too small in practice — Helvetica
+// stays (it's the standard, clean choice for this kind of document), just
+// noticeably larger throughout, especially the itinerary/inclusions body
+// text people actually have to read start to finish.
 const styles = StyleSheet.create({
-  page: { fontFamily: 'Helvetica', fontSize: 9, color: COLORS.ink900, paddingBottom: 40 },
+  page: { fontFamily: 'Helvetica', fontSize: 10.5, color: COLORS.ink900, paddingBottom: 46 },
 
   watermark: {
     position: 'absolute',
@@ -40,15 +44,15 @@ const styles = StyleSheet.create({
   // a professional quotation's info panel, not a marketing banner.
   header: {
     paddingHorizontal: 32,
-    paddingTop: 24,
-    paddingBottom: 14,
+    paddingTop: 26,
+    paddingBottom: 16,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 18,
   },
   headerLogoWrap: {
-    width: 56,
-    height: 56,
+    width: 60,
+    height: 60,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.sand200,
@@ -59,23 +63,23 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   headerLogo: { width: '100%', height: '100%', objectFit: 'contain' },
-  agencyName: { fontSize: 13, fontWeight: 700, color: COLORS.harbor900, marginBottom: 8 },
+  agencyName: { fontSize: 16, fontWeight: 700, color: COLORS.harbor900, marginBottom: 10 },
 
   // The 8 required fields, 2 per row -- kept to exactly this set per spec
   // ("do not add unnecessary company or client information").
   infoGrid: { flex: 1 },
-  infoRow: { flexDirection: 'row', marginBottom: 4 },
+  infoRow: { flexDirection: 'row', marginBottom: 6 },
   infoCell: { flex: 1, flexDirection: 'row' },
-  infoLabel: { fontSize: 8, color: COLORS.ink500, width: 78 },
-  infoValue: { fontSize: 8, fontWeight: 700, color: COLORS.ink900, flex: 1 },
+  infoLabel: { fontSize: 10, color: COLORS.ink500, width: 88 },
+  infoValue: { fontSize: 10.5, fontWeight: 700, color: COLORS.ink900, flex: 1 },
 
   headerDivider: { borderBottomWidth: 1, borderBottomColor: COLORS.sand200, marginHorizontal: 32 },
 
   // Tour package title -- visually separated from the header info block,
   // not crammed into it.
-  packageTitleBlock: { paddingHorizontal: 32, paddingTop: 16, paddingBottom: 10 },
+  packageTitleBlock: { paddingHorizontal: 32, paddingTop: 18, paddingBottom: 12 },
   packageTitleText: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: 700,
     color: COLORS.harbor700,
     textTransform: 'uppercase',
@@ -85,10 +89,10 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 32, paddingTop: 4 },
 
   sectionTitle: {
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: 700,
     color: COLORS.harbor700,
-    marginBottom: 6,
+    marginBottom: 8,
     marginTop: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -99,61 +103,61 @@ const styles = StyleSheet.create({
   mainSplit: { flexDirection: 'row', marginTop: 4 },
   leftCol: { flex: 1.6, paddingRight: 16 },
   rightCol: { flex: 1, paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: COLORS.sand200 },
-  rightColSection: { marginBottom: 14 },
+  rightColSection: { marginBottom: 16 },
 
   // Two-level hierarchy: the day/tour title is its own line and is never a
   // bullet; every activity is its own bulleted, indented line beneath it.
-  dayBlock: { marginBottom: 10 },
+  dayBlock: { marginBottom: 13 },
   dayBadge: {
-    fontSize: 7,
+    fontSize: 9,
     fontFamily: 'Courier',
     fontWeight: 700,
     color: COLORS.harbor700,
     letterSpacing: 0.5,
-    marginBottom: 1,
+    marginBottom: 2,
   },
-  dayTitle: { fontSize: 10, fontWeight: 700, color: COLORS.ink900, marginBottom: 4 },
-  dayDescription: { fontSize: 8, color: COLORS.ink700, marginBottom: 3 },
-  activityRow: { flexDirection: 'row', marginBottom: 2, paddingLeft: 4 },
-  activityBullet: { fontSize: 8, color: COLORS.harbor700, width: 10 },
-  activityText: { fontSize: 8.5, color: COLORS.ink700, flex: 1, lineHeight: 1.35 },
+  dayTitle: { fontSize: 13, fontWeight: 700, color: COLORS.ink900, marginBottom: 5 },
+  dayDescription: { fontSize: 10.5, color: COLORS.ink700, marginBottom: 4 },
+  activityRow: { flexDirection: 'row', marginBottom: 3.5, paddingLeft: 4 },
+  activityBullet: { fontSize: 10, color: COLORS.harbor700, width: 12 },
+  activityText: { fontSize: 11, color: COLORS.ink700, flex: 1, lineHeight: 1.4 },
 
-  listItem: { fontSize: 8.5, color: COLORS.ink700, lineHeight: 1.6 },
+  listItem: { fontSize: 11, color: COLORS.ink700, lineHeight: 1.7 },
 
   // Full-width pricing section, placed after the two-column body -- no
   // longer a boxed-off card confined to one side of the page.
-  pricingSection: { marginTop: 16, paddingTop: 12, borderTopWidth: 1.5, borderTopColor: COLORS.harbor700 },
+  pricingSection: { marginTop: 18, paddingTop: 14, borderTopWidth: 1.5, borderTopColor: COLORS.harbor700 },
   pricingTitle: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: 700,
     color: COLORS.harbor700,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   guestPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  guestPriceLabel: { fontSize: 9.5, fontWeight: 700, color: COLORS.ink900 },
-  guestPriceDetail: { fontSize: 8, color: COLORS.ink500, marginTop: 1 },
-  guestPriceSubtotal: { fontSize: 10.5, fontWeight: 700, color: COLORS.ink700 },
+  guestPriceLabel: { fontSize: 12, fontWeight: 700, color: COLORS.ink900 },
+  guestPriceDetail: { fontSize: 10, color: COLORS.ink500, marginTop: 2 },
+  guestPriceSubtotal: { fontSize: 13, fontWeight: 700, color: COLORS.ink700 },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: COLORS.sand200,
-    marginTop: 6,
-    paddingTop: 8,
+    marginTop: 8,
+    paddingTop: 10,
   },
-  totalLabel: { fontSize: 10, fontWeight: 700, color: COLORS.ink900, textTransform: 'uppercase', letterSpacing: 0.3 },
-  priceValueTotal: { fontSize: 16, fontWeight: 700, color: COLORS.harbor700 },
+  totalLabel: { fontSize: 13, fontWeight: 700, color: COLORS.ink900, textTransform: 'uppercase', letterSpacing: 0.3 },
+  priceValueTotal: { fontSize: 19, fontWeight: 700, color: COLORS.harbor700 },
 
-  termsBlock: { marginTop: 14, fontSize: 7, color: COLORS.ink500, lineHeight: 1.45 },
-  termsTitle: { fontSize: 8.5, fontWeight: 700, color: COLORS.ink700, marginBottom: 3 },
+  termsBlock: { marginTop: 16, fontSize: 9.5, color: COLORS.ink500, lineHeight: 1.5 },
+  termsTitle: { fontSize: 11, fontWeight: 700, color: COLORS.ink700, marginBottom: 4 },
 
   footer: {
     position: 'absolute',
@@ -163,10 +167,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.harbor900,
     color: COLORS.sand50,
     paddingHorizontal: 32,
-    paddingVertical: 10,
+    paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    fontSize: 7.5,
+    fontSize: 9.5,
   },
 });
 
