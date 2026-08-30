@@ -7,7 +7,7 @@ import { updateQuotationPipelineStage } from './pipeline';
 
 const VERSION_SELECT = `
   id, version_number, version_label, status, client_name_snapshot, destination,
-  travel_start_date, travel_end_date, num_adults, num_children, hotel_name,
+  travel_start_date, travel_end_date, valid_until, num_adults, num_children, hotel_name,
   num_bedrooms, price_per_person, total_price, currency, notes, sent_at, created_at,
   consultant_id, consultant_name_snapshot,
   num_seniors, num_infants, num_pwd
@@ -16,7 +16,10 @@ const VERSION_SELECT = `
 export interface QuotationListFilters {
   status?: string;
   agentId?: string;
+  consultantId?: string;
   destination?: string;
+  travelStartFrom?: string;
+  travelStartTo?: string;
   page?: number;
   pageSize?: number;
   includeArchived?: boolean;
@@ -28,14 +31,24 @@ export async function listQuotations(supabase: SupabaseClient, filters: Quotatio
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
+  // Filtering by consultant or travel date means filtering PARENT
+  // (quotations) rows by a condition on the EMBEDDED quotation_versions
+  // row — PostgREST only applies an embedded filter to which parent rows
+  // come back at all when the embed is an inner join (`!inner`), not a
+  // left join (the default). Only switching to inner-join when one of
+  // these filters is actually active avoids ever silently hiding a
+  // quotation whose version embed would otherwise be a left join.
+  const needsInnerVersion = Boolean(filters.consultantId || filters.travelStartFrom || filters.travelStartTo);
+
   let query = supabase
     .from('quotations')
     .select(
       `id, quotation_number, status, created_at, updated_at,
        client:clients ( id, full_name ),
        agent:users!quotations_assigned_agent_id_fkey ( id, full_name ),
-       current_version:quotation_versions!quotations_current_version_id_fkey (
-         destination, travel_start_date, travel_end_date, num_adults, num_children, total_price
+       current_version:quotation_versions!quotations_current_version_id_fkey${needsInnerVersion ? '!inner' : ''} (
+         destination, travel_start_date, travel_end_date, num_adults, num_children, total_price,
+         consultant_id, consultant_name_snapshot
        )`,
       { count: 'exact' }
     )
@@ -50,6 +63,9 @@ export async function listQuotations(supabase: SupabaseClient, filters: Quotatio
 
   if (filters.status) query = query.eq('status', filters.status);
   if (filters.agentId) query = query.eq('assigned_agent_id', filters.agentId);
+  if (filters.consultantId) query = query.eq('current_version.consultant_id', filters.consultantId);
+  if (filters.travelStartFrom) query = query.gte('current_version.travel_start_date', filters.travelStartFrom);
+  if (filters.travelStartTo) query = query.lte('current_version.travel_start_date', filters.travelStartTo);
 
   const { data, error, count } = await query;
   if (error) throw new Error(`Failed to load quotations: ${error.message}`);
@@ -165,6 +181,13 @@ export async function getPricingForVersion(supabase: SupabaseClient, versionId: 
  * so renaming/deactivating a consultant later never retroactively changes an
  * already-issued quotation's PDF.
  */
+/** 14 days from today, as a YYYY-MM-DD string — the sensible starting point for a new quotation's validity date, fully editable before save. */
+function defaultValidUntil(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 14);
+  return d.toISOString().slice(0, 10);
+}
+
 async function resolveConsultantName(supabase: SupabaseClient, consultantId?: string | null): Promise<string | null> {
   if (!consultantId) return null;
   const { data } = await supabase.from('agency_consultants').select('full_name').eq('id', consultantId).single();
@@ -367,6 +390,7 @@ export async function createDraftQuotation(
         destination: input.destination,
         travel_start_date: input.travelStartDate,
         travel_end_date: input.travelEndDate,
+        valid_until: input.validUntil,
         num_adults: input.numAdults,
         num_children: input.numChildren,
         num_seniors: input.numSeniors,
@@ -522,6 +546,7 @@ export async function reviseQuotation(
       destination: input.destination,
       travel_start_date: input.travelStartDate,
       travel_end_date: input.travelEndDate,
+      valid_until: input.validUntil,
       num_adults: input.numAdults,
       num_children: input.numChildren,
       num_seniors: input.numSeniors,
@@ -730,6 +755,7 @@ export async function duplicateQuotation(
     destination: currentVersion.destination,
     travelStartDate: overrides?.travelStartDate ?? currentVersion.travel_start_date,
     travelEndDate: overrides?.travelEndDate ?? currentVersion.travel_end_date,
+    validUntil: currentVersion.valid_until ?? defaultValidUntil(),
     numAdults: currentVersion.num_adults,
     numChildren: currentVersion.num_children,
     numSeniors: currentVersion.num_seniors ?? 0,

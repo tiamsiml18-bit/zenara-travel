@@ -18,9 +18,12 @@ const COLORS = {
   coral500: '#e0693f',
 };
 
-// Deliberately tight throughout — the brief is a one-page brochure, not a
-// multi-page document, so every size/spacing choice below trades a little
-// breathing room for fitting a typical 3-6 day itinerary on a single page.
+// A long, fully-bulleted itinerary (one line per activity, per the spec --
+// no more joining activities into a single compact line) genuinely doesn't
+// fit on one page for a 4+ day trip, and the spec explicitly expects that:
+// "if the itinerary is long, continue naturally onto additional pages."
+// So this is no longer a forced one-pager -- sizing favors readability over
+// squeezing onto a single sheet.
 const styles = StyleSheet.create({
   page: { fontFamily: 'Helvetica', fontSize: 9, color: COLORS.ink900, paddingBottom: 40 },
 
@@ -32,127 +35,125 @@ const styles = StyleSheet.create({
     opacity: 0.06,
   },
 
+  // Header: light, information-style block (logo + structured fields),
+  // not a dark brand bar -- the spec is explicit that this should read like
+  // a professional quotation's info panel, not a marketing banner.
   header: {
-    backgroundColor: COLORS.harbor900,
-    color: COLORS.sand50,
     paddingHorizontal: 32,
-    paddingVertical: 16,
+    paddingTop: 24,
+    paddingBottom: 14,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 18,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  // A logo on a dark header bar is the one place a plain white background
-  // behind an uploaded PNG/JPEG would actually show as an ugly box, so this
-  // stays small and round-cornered rather than trying to fake transparency
-  // it may not have — most agency logos are square-ish anyway.
   headerLogoWrap: {
-    width: 44,
-    height: 44,
+    width: 56,
+    height: 56,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.sand200,
     backgroundColor: COLORS.sand50,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 3,
+    padding: 4,
+    flexShrink: 0,
   },
   headerLogo: { width: '100%', height: '100%', objectFit: 'contain' },
-  agencyName: { fontSize: 15, fontWeight: 700 },
-  agencyContact: { fontSize: 7, color: COLORS.harbor100, marginTop: 3, lineHeight: 1.4 },
-  quoteMeta: { alignItems: 'flex-end' },
-  quoteNumber: { fontSize: 11, fontFamily: 'Courier', letterSpacing: 0.5 },
-  quoteVersion: { fontSize: 7, color: COLORS.harbor100, marginTop: 2 },
+  agencyName: { fontSize: 13, fontWeight: 700, color: COLORS.harbor900, marginBottom: 8 },
 
-  body: { paddingHorizontal: 32, paddingTop: 12 },
+  // The 8 required fields, 2 per row -- kept to exactly this set per spec
+  // ("do not add unnecessary company or client information").
+  infoGrid: { flex: 1 },
+  infoRow: { flexDirection: 'row', marginBottom: 4 },
+  infoCell: { flex: 1, flexDirection: 'row' },
+  infoLabel: { fontSize: 8, color: COLORS.ink500, width: 78 },
+  infoValue: { fontSize: 8, fontWeight: 700, color: COLORS.ink900, flex: 1 },
 
-  customerBlock: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.sand200,
-    paddingBottom: 9,
-    marginBottom: 10,
+  headerDivider: { borderBottomWidth: 1, borderBottomColor: COLORS.sand200, marginHorizontal: 32 },
+
+  // Tour package title -- visually separated from the header info block,
+  // not crammed into it.
+  packageTitleBlock: { paddingHorizontal: 32, paddingTop: 16, paddingBottom: 10 },
+  packageTitleText: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: COLORS.harbor700,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
-  customerLabel: { fontSize: 6.5, textTransform: 'uppercase', color: COLORS.ink500, letterSpacing: 0.5 },
-  customerValue: { fontSize: 9.5, marginTop: 1, fontWeight: 700 },
+
+  body: { paddingHorizontal: 32, paddingTop: 4 },
 
   sectionTitle: {
     fontSize: 9.5,
     fontWeight: 700,
     color: COLORS.harbor700,
-    marginBottom: 5,
+    marginBottom: 6,
     marginTop: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
 
-  // Main content split: itinerary on the left (wider, since it's usually
-  // the longest section), a vertical divider, then Inclusions stacked above
-  // Exclusions on the right — replacing the previous full-width-itinerary +
-  // side-by-side-inclusions/exclusions layout.
-  mainSplit: { flexDirection: 'row', marginTop: 2 },
-  leftCol: { flex: 1.5, paddingRight: 14 },
-  rightCol: { flex: 1, paddingLeft: 14, borderLeftWidth: 1, borderLeftColor: COLORS.sand200 },
-  rightColSection: { marginBottom: 12 },
+  // Itinerary (left, wider) | Inclusions above Exclusions (right), split by
+  // a visible vertical divider.
+  mainSplit: { flexDirection: 'row', marginTop: 4 },
+  leftCol: { flex: 1.6, paddingRight: 16 },
+  rightCol: { flex: 1, paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: COLORS.sand200 },
+  rightColSection: { marginBottom: 14 },
 
-  dayBlock: { marginBottom: 6 },
-  dayHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  // Two-level hierarchy: the day/tour title is its own line and is never a
+  // bullet; every activity is its own bulleted, indented line beneath it.
+  dayBlock: { marginBottom: 10 },
   dayBadge: {
     fontSize: 7,
     fontFamily: 'Courier',
-    color: COLORS.harbor700,
-    backgroundColor: COLORS.harbor100,
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  dayTitle: { fontSize: 9.5, fontWeight: 700 },
-  dayDescription: { fontSize: 8, color: COLORS.ink700, marginTop: 1, marginBottom: 1.5 },
-  dayActivities: { fontSize: 8, color: COLORS.ink700, lineHeight: 1.45 },
-
-  listItem: { fontSize: 8, color: COLORS.ink700, lineHeight: 1.5 },
-
-  priceBlock: {
-    marginTop: 10,
-    backgroundColor: COLORS.sand50,
-    borderWidth: 1,
-    borderColor: COLORS.sand200,
-    borderRadius: 5,
-    padding: 10,
-  },
-  priceBlockTitle: {
-    fontSize: 8,
     fontWeight: 700,
+    color: COLORS.harbor700,
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  dayTitle: { fontSize: 10, fontWeight: 700, color: COLORS.ink900, marginBottom: 4 },
+  dayDescription: { fontSize: 8, color: COLORS.ink700, marginBottom: 3 },
+  activityRow: { flexDirection: 'row', marginBottom: 2, paddingLeft: 4 },
+  activityBullet: { fontSize: 8, color: COLORS.harbor700, width: 10 },
+  activityText: { fontSize: 8.5, color: COLORS.ink700, flex: 1, lineHeight: 1.35 },
+
+  listItem: { fontSize: 8.5, color: COLORS.ink700, lineHeight: 1.6 },
+
+  // Full-width pricing section, placed after the two-column body -- no
+  // longer a boxed-off card confined to one side of the page.
+  pricingSection: { marginTop: 16, paddingTop: 12, borderTopWidth: 1.5, borderTopColor: COLORS.harbor700 },
+  pricingTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: COLORS.harbor700,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    color: COLORS.ink500,
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  // One row per guest type — "2 guests × PHP 45,000" never combined with
-  // any other category's rate, matching the spec's example format exactly.
   guestPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  guestPriceLabel: { fontSize: 9, fontWeight: 700, color: COLORS.ink900 },
-  guestPriceDetail: { fontSize: 7.5, color: COLORS.ink500, marginTop: 1 },
-  guestPriceSubtotal: { fontSize: 10, fontWeight: 700, color: COLORS.ink700 },
+  guestPriceLabel: { fontSize: 9.5, fontWeight: 700, color: COLORS.ink900 },
+  guestPriceDetail: { fontSize: 8, color: COLORS.ink500, marginTop: 1 },
+  guestPriceSubtotal: { fontSize: 10.5, fontWeight: 700, color: COLORS.ink700 },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: COLORS.sand200,
-    marginTop: 4,
-    paddingTop: 6,
+    marginTop: 6,
+    paddingTop: 8,
   },
-  totalLabel: { fontSize: 9.5, fontWeight: 700, color: COLORS.ink900, textTransform: 'uppercase', letterSpacing: 0.3 },
-  priceValueTotal: { fontSize: 15, fontWeight: 700, color: COLORS.harbor700 },
+  totalLabel: { fontSize: 10, fontWeight: 700, color: COLORS.ink900, textTransform: 'uppercase', letterSpacing: 0.3 },
+  priceValueTotal: { fontSize: 16, fontWeight: 700, color: COLORS.harbor700 },
 
-  termsBlock: { marginTop: 9, fontSize: 6.5, color: COLORS.ink500, lineHeight: 1.4 },
-  termsTitle: { fontSize: 7.5, fontWeight: 700, color: COLORS.ink700, marginBottom: 2 },
+  termsBlock: { marginTop: 14, fontSize: 7, color: COLORS.ink500, lineHeight: 1.45 },
+  termsTitle: { fontSize: 8.5, fontWeight: 700, color: COLORS.ink700, marginBottom: 3 },
 
   footer: {
     position: 'absolute',
@@ -177,93 +178,79 @@ function formatMoney(n: number | null, currency: string) {
   return `${currency} ${Number(n).toLocaleString('en-PH')}`;
 }
 
+function InfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoCell}>
+      <Text style={styles.infoLabel}>{label}:</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
 export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
-  const { agency, client, trip, itinerary, inclusions, exclusions, fees, pricing, quotationNumber, versionLabel, agent } =
+  const { agency, client, trip, itinerary, inclusions, exclusions, fees, pricing, quotationNumber, agent, packageTitle, validUntil } =
     data;
+
+  const guestSummary = [
+    trip.numSeniors > 0 ? `${trip.numSeniors} Senior${trip.numSeniors !== 1 ? 's' : ''}` : null,
+    `${trip.numAdults} Adult${trip.numAdults !== 1 ? 's' : ''}`,
+    trip.numChildren > 0 ? `${trip.numChildren} Child${trip.numChildren !== 1 ? 'ren' : ''}` : null,
+    trip.numInfants > 0 ? `${trip.numInfants} Infant${trip.numInfants !== 1 ? 's' : ''}` : null,
+    trip.numPwd > 0 ? `${trip.numPwd} PWD` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <Document title={`${quotationNumber} — ${trip.destination}`}>
       <Page size="A4" style={styles.page}>
         {/* Uses the agency's uploaded logo for the watermark once one exists;
             falls back to the built-in default Zenara mark otherwise, so a
-            fresh install still looks finished before anyone uploads a logo. */}
+            fresh install still looks finished before anyone uploads a logo.
+            Fixed so it repeats on every page of a multi-page itinerary. */}
         <Image src={agency.logoUrl ?? ZENARA_LOGO_DATA_URI} style={styles.watermark} fixed />
 
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {agency.logoUrl && (
-              <View style={styles.headerLogoWrap}>
-                <Image src={agency.logoUrl} style={styles.headerLogo} />
-              </View>
-            )}
-            <View>
-              <Text style={styles.agencyName}>{agency.name}</Text>
-              <Text style={styles.agencyContact}>
-                {[agency.phone, agency.email, agency.website].filter(Boolean).join('   ·   ')}
-              </Text>
-              {(agency.facebook || agency.instagram || agency.whatsapp) && (
-                <Text style={styles.agencyContact}>
-                  {[
-                    agency.facebook && `FB: ${agency.facebook}`,
-                    agency.instagram && `IG: ${agency.instagram}`,
-                    agency.whatsapp && `WhatsApp: ${agency.whatsapp}`,
-                  ]
-                    .filter(Boolean)
-                    .join('   ·   ')}
-                </Text>
-              )}
+        {/* HEADER -- information-style: logo + exactly the 8 fields the spec
+            calls for, nothing else. Fixed so it repeats on continuation
+            pages of a long itinerary, per "maintaining the same layout and
+            branding." */}
+        <View style={styles.header} fixed>
+          {agency.logoUrl && (
+            <View style={styles.headerLogoWrap}>
+              <Image src={agency.logoUrl} style={styles.headerLogo} />
+            </View>
+          )}
+          <View style={styles.infoGrid}>
+            <Text style={styles.agencyName}>{agency.name.toUpperCase()}</Text>
+            <View style={styles.infoRow}>
+              <InfoField label="Prepared For" value={client.name} />
+              <InfoField label="Consultant" value={agent?.full_name ?? '—'} />
+            </View>
+            <View style={styles.infoRow}>
+              <InfoField label="Tour Package" value={packageTitle} />
+              <InfoField label="Quotation No" value={quotationNumber} />
+            </View>
+            <View style={styles.infoRow}>
+              <InfoField label="Validity" value={validUntil ? formatDate(validUntil) : '—'} />
+              <InfoField label="Travel Dates" value={`${formatDate(trip.travelStartDate)} - ${formatDate(trip.travelEndDate)}`} />
+            </View>
+            <View style={styles.infoRow}>
+              <InfoField label="Destination" value={trip.destination} />
+              <InfoField label="Guests" value={guestSummary} />
             </View>
           </View>
-          <View style={styles.quoteMeta}>
-            <Text style={styles.quoteNumber}>{quotationNumber}</Text>
-            <Text style={styles.quoteVersion}>{versionLabel}</Text>
-          </View>
+        </View>
+        <View style={styles.headerDivider} fixed />
+
+        {/* TOUR PACKAGE TITLE -- prominent, clearly separated from the header */}
+        <View style={styles.packageTitleBlock}>
+          <Text style={styles.packageTitleText}>{packageTitle}</Text>
         </View>
 
         <View style={styles.body}>
-          <View style={styles.customerBlock}>
-            <View>
-              <Text style={styles.customerLabel}>Prepared for</Text>
-              <Text style={styles.customerValue}>{client.name}</Text>
-            </View>
-            <View>
-              <Text style={styles.customerLabel}>Destination</Text>
-              <Text style={styles.customerValue}>{trip.destination}</Text>
-            </View>
-            <View>
-              <Text style={styles.customerLabel}>Travel dates</Text>
-              <Text style={styles.customerValue}>
-                {formatDate(trip.travelStartDate)} – {formatDate(trip.travelEndDate)}
-              </Text>
-            </View>
-            <View>
-              <Text style={styles.customerLabel}>Guests</Text>
-              <Text style={styles.customerValue}>
-                {[
-                  trip.numSeniors > 0 ? `${trip.numSeniors} senior${trip.numSeniors !== 1 ? 's' : ''}` : null,
-                  `${trip.numAdults} adult${trip.numAdults !== 1 ? 's' : ''}`,
-                  trip.numChildren > 0 ? `${trip.numChildren} child${trip.numChildren !== 1 ? 'ren' : ''}` : null,
-                  trip.numInfants > 0 ? `${trip.numInfants} infant${trip.numInfants !== 1 ? 's' : ''}` : null,
-                  trip.numPwd > 0 ? `${trip.numPwd} PWD` : null,
-                ]
-                  .filter(Boolean)
-                  .join(', ')}
-              </Text>
-            </View>
-            {trip.hotelName && (
-              <View>
-                <Text style={styles.customerLabel}>Hotel</Text>
-                <Text style={styles.customerValue}>
-                  {trip.hotelName}
-                  {trip.numBedrooms ? ` · ${trip.numBedrooms}BR` : ''}
-                </Text>
-              </View>
-            )}
-          </View>
-
           {/* Itinerary (left) | Inclusions above Exclusions (right), split
-              by a vertical divider — replaces the old full-width itinerary
-              followed by side-by-side inclusions/exclusions. */}
+              by a vertical divider. Itinerary gets more width (flex: 1.6
+              vs 1) since it's reliably the longer section. */}
           <View style={styles.mainSplit}>
             <View style={styles.leftCol}>
               {itinerary.length > 0 && (
@@ -271,14 +258,15 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
                   <Text style={styles.sectionTitle}>Itinerary</Text>
                   {itinerary.map((day) => (
                     <View key={day.dayNumber} style={styles.dayBlock} wrap={false}>
-                      <View style={styles.dayHeader}>
-                        <Text style={styles.dayBadge}>Day {day.dayNumber}</Text>
-                        <Text style={styles.dayTitle}>{day.title}</Text>
-                      </View>
+                      <Text style={styles.dayBadge}>DAY {day.dayNumber}</Text>
+                      <Text style={styles.dayTitle}>{day.title}</Text>
                       {day.description && <Text style={styles.dayDescription}>{day.description}</Text>}
-                      {day.activities.length > 0 && (
-                        <Text style={styles.dayActivities}>{day.activities.join('  ·  ')}</Text>
-                      )}
+                      {day.activities.map((activity, i) => (
+                        <View key={i} style={styles.activityRow}>
+                          <Text style={styles.activityBullet}>•</Text>
+                          <Text style={styles.activityText}>{activity}</Text>
+                        </View>
+                      ))}
                     </View>
                   ))}
                 </View>
@@ -308,10 +296,10 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
           </View>
 
           {fees.length > 0 && (
-            <View style={{ marginTop: 6 }}>
+            <View style={{ marginTop: 10 }}>
               <Text style={styles.sectionTitle}>Additional Fees</Text>
               {fees.map((fee, i) => (
-                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1.5 }}>
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
                   <Text style={styles.listItem}>{fee.label}</Text>
                   <Text style={styles.listItem}>{formatMoney(fee.amount, pricing.currency)}</Text>
                 </View>
@@ -319,31 +307,34 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
             </View>
           )}
 
-          <View style={styles.priceBlock}>
-            {pricing.guestLines.length > 0 && <Text style={styles.priceBlockTitle}>Package Rate</Text>}
+          {/* PACKAGE PRICING -- full width, after the two-column body. One
+              row per guest type actually present, never combined with
+              another category's rate. */}
+          <View style={styles.pricingSection} wrap={false}>
+            <Text style={styles.pricingTitle}>Package Pricing</Text>
             {pricing.guestLines.map((line) => (
               <View key={line.guestType} style={styles.guestPriceRow}>
                 <View>
                   <Text style={styles.guestPriceLabel}>{GUEST_TYPE_LABELS[line.guestType]}</Text>
                   <Text style={styles.guestPriceDetail}>
-                    {line.quantity} guest{line.quantity !== 1 ? 's' : ''} × {formatMoney(line.pricePerPerson, pricing.currency)}
+                    {line.quantity} guest{line.quantity !== 1 ? 's' : ''} × {formatMoney(line.pricePerPerson, pricing.currency)} per person
                   </Text>
                 </View>
                 <Text style={styles.guestPriceSubtotal}>{formatMoney(line.subtotal, pricing.currency)}</Text>
               </View>
             ))}
-            <View style={pricing.guestLines.length > 0 ? styles.totalRow : undefined}>
+            <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Package</Text>
               <Text style={styles.priceValueTotal}>{formatMoney(pricing.totalPrice, pricing.currency)}</Text>
             </View>
           </View>
 
           <View style={styles.termsBlock}>
-            <Text style={styles.termsTitle}>Terms and conditions</Text>
+            <Text style={styles.termsTitle}>Terms and Conditions</Text>
             <Text>{agency.termsAndConditions}</Text>
             {agency.paymentInstructions && (
               <>
-                <Text style={[styles.termsTitle, { marginTop: 5 }]}>Payment instructions</Text>
+                <Text style={[styles.termsTitle, { marginTop: 8 }]}>Payment Instructions</Text>
                 <Text>{agency.paymentInstructions}</Text>
               </>
             )}

@@ -6,6 +6,8 @@ import { unwrapToOne } from '@/lib/utils/unwrap-embed';
 export interface BookingListFilters {
   status?: string;
   agentId?: string;
+  travelStartFrom?: string;
+  travelStartTo?: string;
   page?: number;
   pageSize?: number;
 }
@@ -49,6 +51,8 @@ export async function listBookings(supabase: SupabaseClient, filters: BookingLis
 
   if (filters.status) query = query.eq('status', filters.status);
   if (filters.agentId) query = query.eq('assigned_agent_id', filters.agentId);
+  if (filters.travelStartFrom) query = query.gte('travel_start_date', filters.travelStartFrom);
+  if (filters.travelStartTo) query = query.lte('travel_start_date', filters.travelStartTo);
 
   const { data, error, count } = await query;
   if (error) throw new Error(`Failed to load bookings: ${error.message}`);

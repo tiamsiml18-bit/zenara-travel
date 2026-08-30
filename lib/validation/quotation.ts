@@ -32,6 +32,8 @@ export const quotationDraftSchema = z
     destination: z.string().trim().min(1, 'Destination is required.').max(200),
     travelStartDate: z.string().min(1, 'Start date is required.'),
     travelEndDate: z.string().min(1, 'End date is required.'),
+    // Real, stored, editable — never computed on the fly at PDF-render time.
+    validUntil: z.string().min(1, 'Validity date is required.'),
     numAdults: z.coerce.number().int().min(1, 'At least one adult is required.'),
     numChildren: z.coerce.number().int().min(0).default(0),
     numSeniors: z.coerce.number().int().min(0).default(0),

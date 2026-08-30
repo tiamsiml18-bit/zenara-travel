@@ -37,6 +37,7 @@ export interface QuotationWizardInitialData {
   destination: string;
   travelStartDate: string;
   travelEndDate: string;
+  validUntil?: string;
   numAdults: number;
   numChildren: number;
   numSeniors?: number;
@@ -101,6 +102,7 @@ export function QuotationWizard({
     destination: initialData?.destination ?? '',
     travelStartDate: initialData?.travelStartDate ?? '',
     travelEndDate: initialData?.travelEndDate ?? '',
+    validUntil: initialData?.validUntil ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     numAdults: initialData?.numAdults ?? 2,
     numChildren: initialData?.numChildren ?? 0,
     numSeniors: initialData?.numSeniors ?? 0,
@@ -252,6 +254,7 @@ export function QuotationWizard({
       destination: trip.destination,
       travelStartDate: trip.travelStartDate,
       travelEndDate: trip.travelEndDate,
+      validUntil: trip.validUntil,
       numAdults: trip.numAdults,
       numChildren: trip.numChildren,
       numSeniors: trip.numSeniors,
@@ -538,6 +541,12 @@ export function QuotationWizard({
                 onChange={(v) => setTrip((t) => ({ ...t, travelEndDate: v }))}
               />
             </div>
+            <LabeledInput
+              label="Quotation valid until"
+              type="date"
+              value={trip.validUntil}
+              onChange={(v) => setTrip((t) => ({ ...t, validUntil: v }))}
+            />
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Guests</label>
               <div className="grid grid-cols-5 gap-3">

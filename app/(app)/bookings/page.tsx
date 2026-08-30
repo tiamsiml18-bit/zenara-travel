@@ -25,7 +25,7 @@ const PAYMENT_STATUS_STYLE: Record<string, string> = {
 export default async function BookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; from?: string; to?: string; page?: string }>;
 }) {
   await requireUser();
   const params = await searchParams;
@@ -33,13 +33,45 @@ export default async function BookingsPage({
 
   const { bookings, total, page, pageSize } = await listBookings(supabase, {
     status: params.status,
+    travelStartFrom: params.from,
+    travelStartTo: params.to,
     page: params.page ? Number(params.page) : 1,
   });
+
+  const STATUS_OPTIONS = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 
   return (
     <>
       <Topbar title="Bookings" />
       <main className="flex-1 overflow-y-auto p-6">
+        <form className="mb-4 flex flex-wrap gap-2" action="/bookings">
+          <select name="status" defaultValue={params.status} className="rounded-md border border-sand-200 px-3 py-2 text-sm">
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            name="from"
+            defaultValue={params.from}
+            title="Travel date from"
+            className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+          />
+          <input
+            type="date"
+            name="to"
+            defaultValue={params.to}
+            title="Travel date to"
+            className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+          />
+          <button type="submit" className="rounded-md border border-sand-200 px-3 py-2 text-sm hover:bg-sand-100">
+            Filter
+          </button>
+        </form>
+
         <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">
           <table className="w-full text-sm">
             <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
@@ -89,7 +121,13 @@ export default async function BookingsPage({
           </table>
         </div>
 
-        <Pagination total={total} page={page} pageSize={pageSize} basePath="/bookings" searchParams={{ status: params.status }} />
+        <Pagination
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          basePath="/bookings"
+          searchParams={{ status: params.status, from: params.from, to: params.to }}
+        />
       </main>
     </>
   );

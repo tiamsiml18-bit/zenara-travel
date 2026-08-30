@@ -2,6 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { unwrapToOne } from '@/lib/utils/unwrap-embed';
 import { buildGuestLineItems, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
 
+/** e.g. "BORACAY 4D3N PACKAGE" from real start/end dates — the conventional way travel agencies name a trip, computed rather than invented. */
+function buildPackageTitle(destination: string, startDate: string, endDate: string): string {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+  const nights = Math.max(0, days - 1);
+  return `${destination.toUpperCase()} ${days}D${nights}N PACKAGE`;
+}
+
 /**
  * Client-safe quotation data for PDF rendering.
  *
@@ -17,7 +26,8 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     .select(
       `id, quotation_number, status, current_version_id,
        client:clients ( full_name ),
-       agent:users!quotations_assigned_agent_id_fkey ( full_name, email, phone )`
+       agent:users!quotations_assigned_agent_id_fkey ( full_name, email, phone ),
+       package:packages ( name )`
     )
     .eq('id', quotationId)
     .single();
@@ -26,7 +36,7 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
   const { data: version, error: vError } = await supabase
     .from('quotation_versions')
     .select(
-      `id, version_label, client_name_snapshot, destination, travel_start_date, travel_end_date,
+      `id, version_label, client_name_snapshot, destination, travel_start_date, travel_end_date, valid_until,
        num_adults, num_children, hotel_name, num_bedrooms, price_per_person, total_price, currency,
        consultant_name_snapshot, num_seniors, num_infants, num_pwd`
     )
@@ -96,11 +106,22 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
   // and only the correct total shows — never a fabricated zero.
   const guestLines = (guestPricing ?? []).length > 0 ? buildGuestLineItems(counts, rates) : [];
 
+  // "Tour Package" title — a saved package's real name when this quotation
+  // was built from one; otherwise derived from the trip's own actual dates
+  // and destination (e.g. "BORACAY 4D3N PACKAGE"), never a placeholder.
+  // This is a straightforward computation from real data, not an invented
+  // value — the same convention travel agencies already use when naming
+  // custom packages by hand.
+  const linkedPackage = unwrapToOne(quotation.package) as { name: string } | null;
+  const packageTitle = linkedPackage?.name ?? buildPackageTitle(version.destination as string, version.travel_start_date as string, version.travel_end_date as string);
+
   return {
     quotationNumber: quotation.quotation_number as string,
     versionLabel: version.version_label as string,
     client: { name: version.client_name_snapshot as string },
     agent: displayAgent,
+    packageTitle,
+    validUntil: (version.valid_until as string) ?? null,
     trip: {
       destination: version.destination as string,
       travelStartDate: version.travel_start_date as string,

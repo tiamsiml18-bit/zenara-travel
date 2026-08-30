@@ -7,6 +7,7 @@ const validDraft = {
   destination: 'Hanoi, Vietnam',
   travelStartDate: '2026-09-01',
   travelEndDate: '2026-09-05',
+  validUntil: '2026-09-01',
   numAdults: 2,
   numChildren: 0,
   numSeniors: 0,

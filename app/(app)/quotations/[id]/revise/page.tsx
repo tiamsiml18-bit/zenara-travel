@@ -52,6 +52,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
             destination: currentVersion.destination,
             travelStartDate: currentVersion.travel_start_date,
             travelEndDate: currentVersion.travel_end_date,
+            validUntil: currentVersion.valid_until ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
             numAdults: currentVersion.num_adults,
             numChildren: currentVersion.num_children,
             numSeniors: currentVersion.num_seniors ?? 0,
