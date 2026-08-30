@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { clsx } from 'clsx';
+import { List, Kanban } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { FollowUpCard } from '@/components/followups/followup-card';
 import { AgentFilterSelect } from '@/components/followups/agent-filter-select';
@@ -70,24 +71,30 @@ export default async function FollowUpsPage({
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             {/* List vs Pipeline — the Kanban lives here, inside Follow-ups,
-                not as a separate nav item or a quotation-management view. */}
-            <div className="flex shrink-0 gap-0.5 rounded-md border border-sand-200 bg-sand-50 p-0.5">
+                not as a separate nav item or a quotation-management view.
+                One thin border around the whole control (not two separate
+                pill buttons) — a single divider between the two options is
+                what makes this read as one compact switch rather than a
+                pair of buttons. */}
+            <div className="flex shrink-0 overflow-hidden rounded-md border border-sand-200 text-xs">
               <Link
                 href={viewLink('list')}
                 className={clsx(
-                  'rounded px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  !isPipelineView ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-700'
+                  'flex items-center gap-1 border-r border-sand-200 px-2 py-1 font-medium transition-colors',
+                  !isPipelineView ? 'bg-sand-100 text-ink-900' : 'bg-white text-ink-500 hover:text-ink-700'
                 )}
               >
+                <List className="h-3 w-3" strokeWidth={2} />
                 List
               </Link>
               <Link
                 href={viewLink('pipeline')}
                 className={clsx(
-                  'rounded px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  isPipelineView ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-700'
+                  'flex items-center gap-1 px-2 py-1 font-medium transition-colors',
+                  isPipelineView ? 'bg-sand-100 text-ink-900' : 'bg-white text-ink-500 hover:text-ink-700'
                 )}
               >
+                <Kanban className="h-3 w-3" strokeWidth={2} />
                 Pipeline
               </Link>
             </div>
