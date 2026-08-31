@@ -44,7 +44,7 @@ describe('generateQuotationEmail', () => {
 });
 
 describe('generateFollowUpEmail', () => {
-  it('follow-up #1 with no stage signal is a friendly generic check-in', () => {
+  it('follow-up #1 with no stage signal invites questions or revisions', () => {
     const draft = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Hanoi',
@@ -53,9 +53,10 @@ describe('generateFollowUpEmail', () => {
       pipelineStage: 'follow_up',
     });
     expect(draft.body).toContain('chance to look over the Hanoi package');
+    expect(draft.body).toMatch(/questions|adjust/i);
   });
 
-  it('follow-up #2 with no stage signal offers to help with changes', () => {
+  it('follow-up #2 with no stage signal creates gentle urgency', () => {
     const draft = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Boracay',
@@ -63,10 +64,10 @@ describe('generateFollowUpEmail', () => {
       followUpNumber: 2,
       pipelineStage: 'follow_up',
     });
-    expect(draft.body).toContain('change the hotel, activities, or dates');
+    expect(draft.body).toMatch(/rates and availability|lock it in/i);
   });
 
-  it('follow-up #3+ is a final, non-pushy check-in', () => {
+  it('follow-up #3+ is a short, low-pressure "breakup" email with an easy next step', () => {
     const draft = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Hanoi',
@@ -74,7 +75,25 @@ describe('generateFollowUpEmail', () => {
       followUpNumber: 3,
       pipelineStage: 'follow_up',
     });
-    expect(draft.body).toContain('No pressure');
+    expect(draft.body).toContain('set this aside');
+    expect(draft.body).toMatch(/quick call/i);
+    expect(draft.body).toContain('no pressure');
+  });
+
+  it('none of the three follow-up numbers share the same opening line', () => {
+    const bodies = [1, 2, 3].map(
+      (n) =>
+        generateFollowUpEmail({
+          clientFirstName: 'Maria',
+          destination: 'Boracay',
+          consultantFirstName: 'Leo',
+          followUpNumber: n,
+          pipelineStage: 'follow_up',
+        }).body
+    );
+    const openingLines = bodies.map((b) => b.split('\n\n')[1]); // the line right after "Hi Maria,"
+    expect(new Set(openingLines).size).toBe(3); // all three genuinely different
+    expect(openingLines.every((line) => !/^hope (you're|all is)/i.test(line!))).toBe(true);
   });
 
   it('"still thinking" stage overrides the follow-up number, regardless of which number it is', () => {
@@ -92,7 +111,7 @@ describe('generateFollowUpEmail', () => {
       followUpNumber: 3,
       pipelineStage: 'still_thinking',
     });
-    expect(draftAt1.body).toContain("chance to decide on the package");
+    expect(draftAt1.body).toContain('a bit of thought');
     expect(draftAt3.body).toBe(draftAt1.body); // stage signal wins over follow-up number either way
   });
 
@@ -104,7 +123,7 @@ describe('generateFollowUpEmail', () => {
       followUpNumber: 2,
       pipelineStage: 'requested_changes',
     });
-    expect(draft.body).toContain('some changes to the itinerary');
+    expect(draft.body).toContain('a few changes to the itinerary');
     // Never invents specifics about WHAT changed, since the CRM doesn't have that detail
     expect(draft.body).not.toMatch(/\bhotel\b|\bprice\b|\bdate\b|\bflight\b/i);
   });
