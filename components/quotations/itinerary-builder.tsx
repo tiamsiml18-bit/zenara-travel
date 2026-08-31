@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, ChevronUp, ChevronDown, X, Sparkles } from 'lucide-react';
 import { FREE_TIME_OPTIONS } from '@/lib/utils/free-time-options';
+import { computeDayDate } from '@/lib/utils/itinerary-dates';
 
 export interface ItineraryDayDraft {
   dayNumber: number;
@@ -11,6 +12,11 @@ export interface ItineraryDayDraft {
   description: string;
   activities: string[];
   sourceTourId?: string | null;
+  // True once the agent has manually typed a date for this day — from then
+  // on, a change to the quotation's Travel Start Date must never silently
+  // overwrite it. Undefined/false means this day's date is still "auto
+  // following" the trip's start date.
+  dateManuallyEdited?: boolean;
 }
 
 /** Matches lib/services/tours.ts's listToursForPicker() return shape. */
@@ -40,6 +46,7 @@ export function ItineraryBuilder({
   onChange,
   tours = [],
   onTourSelected,
+  travelStartDate,
 }: {
   days: ItineraryDayDraft[];
   onChange: (days: ItineraryDayDraft[]) => void;
@@ -49,6 +56,12 @@ export function ItineraryBuilder({
   // pre-fills inclusions/exclusions/pricing.
   tours?: TourPickerItem[];
   onTourSelected?: (tour: TourPickerItem) => void;
+  // Optional — only the quotation wizard has a trip-level Travel Start
+  // Date to carry forward into each day; the Package form has no such
+  // concept (a package is a reusable template, not date-specific), so
+  // passing nothing here leaves day dates exactly as manually entered,
+  // matching the existing Package behavior untouched.
+  travelStartDate?: string;
 }) {
   const [activityDraft, setActivityDraft] = useState<Record<number, string>>({});
   // Destination-first filtering for the tour dropdown, per day — selecting
@@ -58,15 +71,41 @@ export function ItineraryBuilder({
   const [destinationFilter, setDestinationFilter] = useState<Record<number, string>>({});
   const destinations = Array.from(new Set(tours.map((t) => t.destination).filter((d): d is string => Boolean(d)))).sort();
 
+  /** Day N's date = Travel Start Date + (N-1) days, computed in UTC so it can't drift by a day depending on server timezone. */
+
+  // Keeps every day that hasn't been manually edited following the trip's
+  // Travel Start Date — so changing the start date shifts the whole
+  // itinerary forward or back automatically, per spec, while any day the
+  // agent has deliberately overridden is left exactly as they set it.
+  useEffect(() => {
+    if (!travelStartDate) return;
+    const next = days.map((d) =>
+      d.dateManuallyEdited ? d : { ...d, dayDate: computeDayDate(travelStartDate, d.dayNumber) }
+    );
+    // Only push an update if something actually changed, to avoid an
+    // infinite render loop from onChange triggering this effect again.
+    const changed = next.some((d, i) => d.dayDate !== days[i]?.dayDate);
+    if (changed) onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travelStartDate, days.length]);
+
   function renumber(list: ItineraryDayDraft[]) {
     return list.map((d, i) => ({ ...d, dayNumber: i + 1 }));
   }
 
   function addDay() {
+    const dayNumber = days.length + 1;
     onChange(
       renumber([
         ...days,
-        { dayNumber: days.length + 1, dayDate: '', title: '', description: '', activities: [], sourceTourId: null },
+        {
+          dayNumber,
+          dayDate: travelStartDate ? computeDayDate(travelStartDate, dayNumber) : '',
+          title: '',
+          description: '',
+          activities: [],
+          sourceTourId: null,
+        },
       ])
     );
   }
@@ -148,12 +187,25 @@ export function ItineraryBuilder({
               placeholder="Day title, e.g. Arrival | Free Time"
               className="flex-1 rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
-            <input
-              type="date"
-              value={day.dayDate}
-              onChange={(e) => updateDay(index, { dayDate: e.target.value })}
-              className="w-40 rounded-md border border-sand-200 px-2 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
-            />
+            <div className="flex shrink-0 flex-col items-end gap-0.5">
+              <input
+                type="date"
+                value={day.dayDate}
+                onChange={(e) => updateDay(index, { dayDate: e.target.value, dateManuallyEdited: true })}
+                className="w-40 rounded-md border border-sand-200 px-2 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
+              />
+              {travelStartDate && day.dateManuallyEdited && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateDay(index, { dayDate: computeDayDate(travelStartDate, day.dayNumber), dateManuallyEdited: false })
+                  }
+                  className="text-[11px] text-harbor-600 hover:underline"
+                >
+                  Reset to Day {day.dayNumber} default
+                </button>
+              )}
+            </div>
             <div className="flex shrink-0 gap-0.5">
               <IconButton onClick={() => moveDay(index, -1)} disabled={index === 0} label="Move up">
                 <ChevronUp className="h-4 w-4" />

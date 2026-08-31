@@ -257,7 +257,14 @@ export function QuotationWizard({
   const [showPricing, setShowPricing] = useState(false);
 
   // Steps 4-5
-  const [itinerary, setItinerary] = useState<ItineraryDayDraft[]>(initialData?.itinerary ?? []);
+  const [itinerary, setItinerary] = useState<ItineraryDayDraft[]>(
+    // Existing days loaded from a saved quotation (edit/revise) already
+    // have a real date an agent may have deliberately set — treating them
+    // as "manually edited" from the start means opening an existing
+    // quotation can never silently rewrite its dates. Only brand-new days
+    // (added fresh in this session) start in auto-following mode.
+    (initialData?.itinerary ?? []).map((d) => ({ ...d, dateManuallyEdited: d.dateManuallyEdited ?? Boolean(d.dayDate) }))
+  );
   const [inclusions, setInclusions] = useState<string[]>(initialData?.inclusions ?? []);
   const [exclusions, setExclusions] = useState<string[]>(initialData?.exclusions ?? []);
 
@@ -1013,7 +1020,13 @@ export function QuotationWizard({
         )}
 
         {step === 3 && (
-          <ItineraryBuilder days={itinerary} onChange={setItinerary} tours={tours} onTourSelected={handleTourSelected} />
+          <ItineraryBuilder
+            days={itinerary}
+            onChange={setItinerary}
+            tours={tours}
+            onTourSelected={handleTourSelected}
+            travelStartDate={trip.travelStartDate}
+          />
         )}
 
         {step === 4 && (
