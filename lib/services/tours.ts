@@ -24,8 +24,10 @@ export interface TourInput {
   ageRangeInfant?: string;
   ageRangePwd?: string;
   // Purely a categorization label for filtering the Tours library — never
-  // read by pricing, Package integration, or Quotation integration.
-  tourType?: 'all_in' | 'land_arrangement' | null;
+  // read by pricing, Package integration, or Quotation integration. An
+  // array so one tour can be both All-In and Land Arrangement without
+  // needing a duplicate record.
+  tourTypes?: ('all_in' | 'land_arrangement')[] | null;
 }
 
 function toDbRow(input: TourInput) {
@@ -47,7 +49,7 @@ function toDbRow(input: TourInput) {
     age_range_child: input.ageRangeChild || null,
     age_range_infant: input.ageRangeInfant || null,
     age_range_pwd: input.ageRangePwd || null,
-    tour_type: input.tourType || null,
+    tour_type: input.tourTypes && input.tourTypes.length > 0 ? input.tourTypes : null,
   };
 }
 
@@ -78,7 +80,10 @@ export async function listTours(supabase: SupabaseClient, filters: TourListFilte
 
   if (!filters.includeInactive) query = query.eq('is_active', true);
   if (filters.destination) query = query.eq('destination', filters.destination);
-  if (filters.tourType) query = query.eq('tour_type', filters.tourType);
+  // Array-contains, not exact match — a tour typed as both All-In and Land
+  // Arrangement must show up under either filter, matching one real Tour
+  // record rather than needing a duplicate per type.
+  if (filters.tourType) query = query.contains('tour_type', [filters.tourType]);
   // Price filter is based on the tour's default Adult rate, per spec —
   // display-only categorization, never touches the actual stored rate.
   if (filters.priceMin !== undefined) query = query.gte('price_adult', filters.priceMin);

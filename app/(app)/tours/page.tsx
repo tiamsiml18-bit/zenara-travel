@@ -148,7 +148,9 @@ export default async function ToursPage({
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-xs text-ink-500">
-                        {t.tour_type ? TOUR_TYPE_OPTIONS.find((o) => o.value === t.tour_type)?.label ?? t.tour_type : '—'}
+                        {t.tour_type && t.tour_type.length > 0
+                          ? t.tour_type.map((tt: string) => TOUR_TYPE_OPTIONS.find((o) => o.value === tt)?.label ?? tt).join(' + ')
+                          : '—'}
                       </td>
                       <td className="font-ticket px-4 py-3 text-ink-700">{formatMoney(t.price_adult)}</td>
                       <td className="px-4 py-3">

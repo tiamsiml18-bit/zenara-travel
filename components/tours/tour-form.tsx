@@ -24,7 +24,7 @@ export interface TourFormInitialData {
   ageRangeChild: string;
   ageRangeInfant: string;
   ageRangePwd: string;
-  tourType: 'all_in' | 'land_arrangement' | null;
+  tourTypes: ('all_in' | 'land_arrangement')[];
 }
 
 export function TourForm({
@@ -42,7 +42,7 @@ export function TourForm({
 
   const [name, setName] = useState(initialData?.name ?? '');
   const [destination, setDestination] = useState(initialData?.destination ?? '');
-  const [tourType, setTourType] = useState<'' | 'all_in' | 'land_arrangement'>(initialData?.tourType ?? '');
+  const [tourTypes, setTourTypes] = useState<Set<'all_in' | 'land_arrangement'>>(new Set(initialData?.tourTypes ?? []));
   const [description, setDescription] = useState(initialData?.description ?? '');
   const [activities, setActivities] = useState<string[]>(initialData?.activities ?? []);
   const [defaultInclusions, setDefaultInclusions] = useState<string[]>(initialData?.defaultInclusions ?? []);
@@ -79,7 +79,7 @@ export function TourForm({
       ageRangeChild,
       ageRangeInfant,
       ageRangePwd,
-      tourType: tourType || null,
+      tourTypes: Array.from(tourTypes),
     };
 
     startTransition(async () => {
@@ -104,15 +104,41 @@ export function TourForm({
             <LabeledInput label="Destination" value={destination} onChange={setDestination} />
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Tour type</label>
-              <select
-                value={tourType}
-                onChange={(e) => setTourType(e.target.value as typeof tourType)}
-                className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
-              >
-                <option value="">Not set</option>
-                <option value="all_in">All-In</option>
-                <option value="land_arrangement">Land Arrangement</option>
-              </select>
+              <div className="flex h-[38px] items-center gap-4 rounded-md border border-sand-200 px-3">
+                <label className="flex items-center gap-1.5 text-sm text-ink-700">
+                  <input
+                    type="checkbox"
+                    checked={tourTypes.has('all_in')}
+                    onChange={(e) =>
+                      setTourTypes((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add('all_in');
+                        else next.delete('all_in');
+                        return next;
+                      })
+                    }
+                  />
+                  All-In
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-ink-700">
+                  <input
+                    type="checkbox"
+                    checked={tourTypes.has('land_arrangement')}
+                    onChange={(e) =>
+                      setTourTypes((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add('land_arrangement');
+                        else next.delete('land_arrangement');
+                        return next;
+                      })
+                    }
+                  />
+                  Land Arrangement
+                </label>
+              </div>
+              {/* Both boxes can be checked at once — the same tour then
+                  shows up under either filter on the Tours page, no
+                  duplicate record needed. */}
             </div>
           </div>
           <div>

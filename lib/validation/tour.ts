@@ -26,8 +26,9 @@ export const tourSchema = z.object({
   ageRangeInfant: z.string().trim().max(60).optional().or(z.literal('')),
   ageRangePwd: z.string().trim().max(60).optional().or(z.literal('')),
   // Purely a categorization label for filtering the Tours library — never
-  // used in pricing, Package integration, or Quotation integration.
-  tourType: z.enum(['all_in', 'land_arrangement']).optional().nullable(),
+  // used in pricing, Package integration, or Quotation integration. An
+  // array so a tour can be tagged as both types at once.
+  tourTypes: z.array(z.enum(['all_in', 'land_arrangement'])).optional(),
 });
 
 export type TourFormInput = z.infer<typeof tourSchema>;
