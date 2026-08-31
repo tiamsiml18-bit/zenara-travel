@@ -129,7 +129,10 @@ function textToHtml(text: string): string {
     .filter(Boolean)
     .map((p) => `<p style="margin:0 0 16px 0;">${escape(p).replace(/\n/g, '<br>')}</p>`)
     .join('\n');
-  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">
+  // Arial/Helvetica — the standard, universally-supported professional
+  // email font, rendering identically and reliably across every mail
+  // client rather than depending on each recipient's own OS system font.
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">
 ${paragraphs}
 </div>`;
 }

@@ -48,6 +48,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
     clientFirstName,
     destination: currentVersion.destination,
     consultantFirstName,
+    isRevision: currentVersion.version_number > 1,
   });
 
   return (

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateQuotationEmail, generateFollowUpEmail } from '@/lib/utils/email-templates';
+import type { PipelineStage } from '@/lib/services/pipeline';
 
 describe('generateQuotationEmail', () => {
   it('matches the spec example structure for a first-send quotation email', () => {
@@ -13,6 +14,32 @@ describe('generateQuotationEmail', () => {
   it('never restates pricing or itinerary specifics — the PDF already has that', () => {
     const draft = generateQuotationEmail({ clientFirstName: 'Maria', destination: 'Boracay', consultantFirstName: 'Leo' });
     expect(draft.body).not.toMatch(/PHP|\$|adult|child|itinerary/i);
+  });
+
+  it('a revised quotation gets different, revision-aware wording, not the generic first-send text', () => {
+    const original = generateQuotationEmail({ clientFirstName: 'Maria', destination: 'Boracay', consultantFirstName: 'Leo' });
+    const revised = generateQuotationEmail({
+      clientFirstName: 'Maria',
+      destination: 'Boracay',
+      consultantFirstName: 'Leo',
+      isRevision: true,
+    });
+    expect(revised.subject).toBe('Updated Boracay Travel Quotation');
+    expect(revised.body).toContain('updated the quotation');
+    expect(revised.body).toContain('changes you requested');
+    expect(revised.body).not.toBe(original.body);
+  });
+
+  it('never uses an em dash anywhere in the generated text', () => {
+    const original = generateQuotationEmail({ clientFirstName: 'Maria', destination: 'Boracay', consultantFirstName: 'Leo' });
+    const revised = generateQuotationEmail({
+      clientFirstName: 'Maria',
+      destination: 'Boracay',
+      consultantFirstName: 'Leo',
+      isRevision: true,
+    });
+    expect(original.subject + original.body).not.toContain('—');
+    expect(revised.subject + revised.body).not.toContain('—');
   });
 });
 
@@ -91,5 +118,21 @@ describe('generateFollowUpEmail', () => {
       pipelineStage: null,
     });
     expect(draft.body).not.toMatch(/PHP|adult|child|infant|senior/i);
+  });
+
+  it('never uses an em dash in any follow-up variant', () => {
+    const stages: (PipelineStage | null)[] = ['still_thinking', 'requested_changes', 'interested', 'follow_up', null];
+    for (const stage of stages) {
+      for (let n = 1; n <= 3; n++) {
+        const draft = generateFollowUpEmail({
+          clientFirstName: 'Maria',
+          destination: 'Boracay',
+          consultantFirstName: 'Leo',
+          followUpNumber: n,
+          pipelineStage: stage,
+        });
+        expect(draft.subject + draft.body).not.toContain('—');
+      }
+    }
   });
 });

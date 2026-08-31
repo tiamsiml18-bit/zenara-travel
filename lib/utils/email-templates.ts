@@ -8,23 +8,43 @@ export interface EmailDraft {
 const SIGN_OFF = (consultantFirstName: string) => `Best,\n${consultantFirstName}`;
 
 /**
- * The initial quotation email — sent once, right when the quote goes out.
- * Deliberately doesn't restate pricing or itinerary details: the PDF
- * attachment already has all of that, and repeating it here would make the
- * email read like a form letter instead of a short personal note.
+ * The quotation email — sent once for the original quote, and again
+ * (with different, revision-aware wording) whenever a revised version
+ * goes out after the client asked for changes. Deliberately doesn't
+ * restate pricing or itinerary details either way: the PDF attachment
+ * already has all of that, and repeating it here would make the email
+ * read like a form letter instead of a short personal note.
  */
 export function generateQuotationEmail(params: {
   clientFirstName: string;
   destination: string;
   consultantFirstName: string;
+  isRevision?: boolean;
 }): EmailDraft {
+  const dest = titleCase(params.destination);
+
+  if (params.isRevision) {
+    return {
+      subject: `Updated ${dest} Travel Quotation`,
+      body: `Hi ${params.clientFirstName},
+
+Hope you're doing well.
+
+I've updated the quotation for your ${dest} trip based on the changes you requested. I've attached the revised package details and pricing for your reference.
+
+Please let me know what you think, and if you'd like any further adjustments, I'll be happy to help.
+
+${SIGN_OFF(params.consultantFirstName)}`,
+    };
+  }
+
   return {
-    subject: `Your ${titleCase(params.destination)} Travel Quotation`,
+    subject: `Your ${dest} Travel Quotation`,
     body: `Hi ${params.clientFirstName},
 
 Hope you're doing well.
 
-I'm sending over the quotation for your ${titleCase(params.destination)} trip. I've attached the full package details and pricing for your reference.
+I'm sending over the quotation for your ${dest} trip. I've attached the full package details and pricing for your reference.
 
 Please let me know what you think, and if you'd like us to adjust anything, I'll be happy to help.
 
@@ -140,7 +160,7 @@ ${SIGN_OFF(params.consultantFirstName)}`,
 
 Hope you're doing well.
 
-Just wanted to reach out one more time about the ${dest} trip in case it's still something you're considering. No pressure at all — I'm happy to help whenever the timing works for you.
+Just wanted to reach out one more time about the ${dest} trip in case it's still something you're considering. No pressure at all, I'm happy to help whenever the timing works for you.
 
 ${SIGN_OFF(params.consultantFirstName)}`,
   };
