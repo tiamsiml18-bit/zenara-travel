@@ -15,7 +15,7 @@ import {
 } from '@/app/(app)/quotations/actions';
 import { quickCreateClientAction } from '@/app/(app)/clients/actions';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
-import type { QuotationDraftInput, CostItemInput } from '@/lib/validation/quotation';
+import type { QuotationDraftInput, CostItemInput, OtherSupplierCostItemInput } from '@/lib/validation/quotation';
 import {
   GUEST_TYPES,
   GUEST_TYPE_LABELS,
@@ -94,7 +94,7 @@ export interface QuotationWizardInitialData {
   inclusions: string[];
   exclusions: string[];
   supplierCost: number; // legacy fallback (pre-itemization); costItems is the source of truth going forward
-  costItems?: CostItemInput[];
+  costItems?: OtherSupplierCostItemInput[];
   feeItems?: CostItemInput[];
   consultantId?: string;
   markup: number;
@@ -220,11 +220,23 @@ export function QuotationWizard({
       ratePwd: t.ratePwd ?? '',
     }))
   );
-  const [costItems, setCostItems] = useState<CostItemInput[]>(
-    initialData?.costItems ??
-      // Fall back to a single legacy row if this quotation was created before
-      // the itemized breakdown existed, so its cost isn't silently dropped.
-      (initialData?.supplierCost ? [{ label: 'Supplier cost', amount: initialData.supplierCost }] : [])
+  interface OtherCostRow {
+    label: string;
+    rateSenior: number | '';
+    rateAdult: number | '';
+    rateChild: number | '';
+    rateInfant: number | '';
+    ratePwd: number | '';
+  }
+  const [costItems, setCostItems] = useState<OtherCostRow[]>(
+    (initialData?.costItems ?? []).map((c) => ({
+      label: c.label,
+      rateSenior: c.rateSenior ?? '',
+      rateAdult: c.rateAdult ?? '',
+      rateChild: c.rateChild ?? '',
+      rateInfant: c.rateInfant ?? '',
+      ratePwd: c.ratePwd ?? '',
+    }))
   );
   const [feeItems, setFeeItems] = useState<CostItemInput[]>(initialData?.feeItems ?? []);
 
@@ -282,17 +294,29 @@ export function QuotationWizard({
     },
     trip.hotelMarkupPct
   );
-  const computedTransferRates = calculateMarkedUpRates(
-    {
-      senior: numVal(trip.transferSeniorRate),
-      adult: numVal(trip.transferAdultRate),
-      child: numVal(trip.transferChildRate),
-      infant: numVal(trip.transferInfantRate),
-      pwd: numVal(trip.transferPwdRate),
+  const otherCostRateMap = GUEST_TYPES.reduce(
+    (acc, t) => {
+      const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof OtherCostRow;
+      acc[t] = costItems.reduce((sum, row) => sum + (row[key] === '' ? 0 : Number(row[key])), 0);
+      return acc;
     },
-    trip.transferMarkupPct
+    {} as Record<GuestType, number>
   );
-  const computedPackagePerPax = calculatePackagePerPax(computedAirfareRates, computedHotelRates, computedTransferRates, tourClientRateMap);
+  // Transfer has NO markup, per spec — used exactly as entered.
+  const computedTransferRates = {
+    senior: numVal(trip.transferSeniorRate),
+    adult: numVal(trip.transferAdultRate),
+    child: numVal(trip.transferChildRate),
+    infant: numVal(trip.transferInfantRate),
+    pwd: numVal(trip.transferPwdRate),
+  };
+  const computedPackagePerPax = calculatePackagePerPax(
+    computedAirfareRates,
+    computedHotelRates,
+    computedTransferRates,
+    tourClientRateMap,
+    otherCostRateMap
+  );
   const feePct = trip.paymentMethod === 'credit_card' ? feePercentages.creditCard : trip.paymentMethod === 'paypal' ? feePercentages.paypal : 0;
   const computedBankFee = calculateBankFee(computedPackagePerPax, feePct);
   const computedAdjustedPackage = calculateAdjustedPackage(computedPackagePerPax, computedBankFee);
@@ -307,17 +331,15 @@ export function QuotationWizard({
   const computedGuestSupplierCost = calculateGuestSupplierCost(guestCounts, supplierCostMap);
   // Internal-only total supplier cost, purely for the agent's own margin
   // visibility — sums every guest type's entered Airfare/Hotel/Transfer
-  // rate (times headcount) plus itemized Other Supplier Costs plus Tours.
+  // rate (times headcount) plus Other Supplier Costs plus Tours.
   const computedTotalSupplierCost =
     calculateTotalPrice(guestCounts, {
-      senior: numVal(trip.airfareSeniorRate) + numVal(trip.hotelSeniorRate) + numVal(trip.transferSeniorRate),
-      adult: numVal(trip.airfareAdultRate) + numVal(trip.hotelAdultRate) + numVal(trip.transferAdultRate),
-      child: numVal(trip.airfareChildRate) + numVal(trip.hotelChildRate) + numVal(trip.transferChildRate),
-      infant: numVal(trip.airfareInfantRate) + numVal(trip.hotelInfantRate) + numVal(trip.transferInfantRate),
-      pwd: numVal(trip.airfarePwdRate) + numVal(trip.hotelPwdRate) + numVal(trip.transferPwdRate),
-    }) +
-    costItems.reduce((sum, i) => sum + (i.amount || 0), 0) +
-    computedGuestSupplierCost;
+      senior: numVal(trip.airfareSeniorRate) + numVal(trip.hotelSeniorRate) + numVal(trip.transferSeniorRate) + otherCostRateMap.senior,
+      adult: numVal(trip.airfareAdultRate) + numVal(trip.hotelAdultRate) + numVal(trip.transferAdultRate) + otherCostRateMap.adult,
+      child: numVal(trip.airfareChildRate) + numVal(trip.hotelChildRate) + numVal(trip.transferChildRate) + otherCostRateMap.child,
+      infant: numVal(trip.airfareInfantRate) + numVal(trip.hotelInfantRate) + numVal(trip.transferInfantRate) + otherCostRateMap.infant,
+      pwd: numVal(trip.airfarePwdRate) + numVal(trip.hotelPwdRate) + numVal(trip.transferPwdRate) + otherCostRateMap.pwd,
+    }) + computedGuestSupplierCost;
   const computedProfit = computedTotalPrice - computedTotalSupplierCost;
   const computedMarginPct = computedTotalPrice > 0 ? (computedProfit / computedTotalPrice) * 100 : 0;
 
@@ -390,9 +412,12 @@ export function QuotationWizard({
       ];
     });
 
-    if (tour.group_cost) {
-      setCostItems((prev) => [...prev, { label: tour.name, amount: tour.group_cost as number }]);
-    }
+    // Note: a Tour's flat group_cost (e.g. a boat rental that doesn't scale
+    // per person) has no clean representation in the fully per-person
+    // pricing model — Other Supplier Costs is now per-guest-type like
+    // everything else, so there's no "flat, not-per-person" cost item
+    // anymore. If a tour has one, it's no longer auto-added; the agent can
+    // still account for it manually if needed.
   }
 
   function updateTourPricing(sourceTourId: string, patch: Partial<TourPricingRow>) {
@@ -401,6 +426,18 @@ export function QuotationWizard({
 
   function removeTourPricing(sourceTourId: string) {
     setTourPricing((prev) => prev.filter((t) => t.sourceTourId !== sourceTourId));
+  }
+
+  function addOtherCostItem() {
+    setCostItems((prev) => [...prev, { label: '', rateSenior: '', rateAdult: '', rateChild: '', rateInfant: '', ratePwd: '' }]);
+  }
+
+  function updateOtherCostItem(index: number, patch: Partial<OtherCostRow>) {
+    setCostItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  }
+
+  function removeOtherCostItem(index: number) {
+    setCostItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   const steps = mode === 'revise' ? STEPS.slice(2) : STEPS;
@@ -545,7 +582,14 @@ export function QuotationWizard({
       inclusions,
       exclusions,
       itinerary,
-      costItems,
+      costItems: costItems.map((c) => ({
+        label: c.label,
+        rateSenior: c.rateSenior === '' ? null : Number(c.rateSenior),
+        rateAdult: c.rateAdult === '' ? null : Number(c.rateAdult),
+        rateChild: c.rateChild === '' ? null : Number(c.rateChild),
+        rateInfant: c.rateInfant === '' ? null : Number(c.rateInfant),
+        ratePwd: c.ratePwd === '' ? null : Number(c.ratePwd),
+      })),
       feeItems,
       markup: trip.markup === '' ? 0 : Number(trip.markup),
     };
@@ -938,12 +982,9 @@ export function QuotationWizard({
                   <AdjustedRateRow rates={computedHotelRates} counts={guestCounts} />
                 </div>
 
-                {/* TRANSFER */}
+                {/* TRANSFER — no markup at all, per spec; the entered rate is used exactly as-is. */}
                 <div className="rounded-md border border-sand-200 bg-white p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">Transfer — Rate Per Person</p>
-                    <MarkupInput value={trip.transferMarkupPct} onChange={(v) => setTrip((t) => ({ ...t, transferMarkupPct: v }))} />
-                  </div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Transfer — Rate Per Person</p>
                   <p className="mb-2 text-xs text-ink-500">
                     Include any tour-specific transfer here too — e.g. a Disneyland ticket plus its roundtrip hotel
                     transfer combine into one per-person Transfer rate for that guest type.
@@ -1061,38 +1102,102 @@ export function QuotationWizard({
                   )}
                 </div>
 
-                {/* OTHER SUPPLIER COSTS */}
+                {/* OTHER SUPPLIER COSTS — reserved for costs genuinely
+                    outside Airfare, Hotel, Transfer, and Tours (a visa fee,
+                    a permit, a one-off request). Same per-guest-type card
+                    structure as Tours; never a place to re-enter a cost
+                    that already has its own dedicated section above. */}
                 <div className="rounded-md border border-sand-200 bg-white p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Other Supplier Costs</p>
-                  <p className="mb-2 text-xs text-ink-500">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Other Supplier Costs — Rate Per Person</p>
+                  <p className="mb-3 text-xs text-ink-500">
                     Only for costs genuinely outside Airfare, Hotel, Transfer, and Tours — a visa fee, a permit, a
-                    one-off request.
+                    one-off request. Enter each guest type's rate per person; the system calculates the subtotal
+                    using the actual guest count.
                   </p>
-                  <CostBreakdownEditor items={costItems} onChange={setCostItems} />
+                  {costItems.length === 0 ? (
+                    <p className="mb-3 text-xs text-ink-500">No additional cost items yet.</p>
+                  ) : (
+                    <div className="mb-3 space-y-4">
+                      {costItems.map((item, index) => (
+                        <div key={index} className="rounded border border-sand-100 bg-sand-50/50 p-3">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <input
+                              value={item.label}
+                              onChange={(e) => updateOtherCostItem(index, { label: e.target.value })}
+                              placeholder="e.g. Visa Fee"
+                              className="flex-1 rounded-md border border-sand-200 px-2 py-1 text-sm font-medium outline-none ring-harbor-400 focus:ring-2"
+                            />
+                            <button type="button" onClick={() => removeOtherCostItem(index)} className="shrink-0 text-xs text-coral-600 hover:underline">
+                              Remove
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-5 gap-2">
+                            <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateOtherCostItem(index, { rateAdult: v })} />
+                            <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateOtherCostItem(index, { rateSenior: v })} />
+                            <PriceField label="Child" value={item.rateChild} onChange={(v) => updateOtherCostItem(index, { rateChild: v })} />
+                            <PriceField
+                              label="Infant/Toddler"
+                              value={item.rateInfant}
+                              onChange={(v) => updateOtherCostItem(index, { rateInfant: v })}
+                            />
+                            <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateOtherCostItem(index, { ratePwd: v })} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={addOtherCostItem}
+                    className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100"
+                  >
+                    + Add cost item
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 border-t border-coral-500/20 pt-4">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-ink-700">Payment Method</label>
-                    <select
-                      value={trip.paymentMethod}
-                      onChange={(e) => setTrip((t) => ({ ...t, paymentMethod: e.target.value as typeof trip.paymentMethod }))}
-                      className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
-                    >
-                      <option value="credit_card">Credit Card ({(feePercentages.creditCard * 100).toFixed(1)}%)</option>
-                      <option value="paypal">PayPal ({(feePercentages.paypal * 100).toFixed(1)}%)</option>
-                      <option value="none">No Fee</option>
-                    </select>
-                    {/* The calculated bank fee amount per person, same treatment as Hotel/Transfer's "Adjusted Rate" preview below their inputs. */}
-                    <p className="mt-2 text-xs text-ink-500">Bank fee per person</p>
-                    <AdjustedRateRow rates={computedBankFee} counts={guestCounts} />
-                  </div>
-                  <PriceField
-                    label="Zenara Markup (flat, per person)"
-                    value={trip.markup}
-                    onChange={(v) => setTrip((t) => ({ ...t, markup: v }))}
-                  />
+                {/* PACKAGE PER PAX — the subtotal before Bank Fee, styled as
+                    a clear labeled bar matching the agency's own Excel
+                    template, so it's obvious at a glance where each number
+                    in the chain comes from. */}
+                <SummaryBar label="Package Per PAX" rates={computedPackagePerPax} counts={guestCounts} tone="subtotal" />
+
+                {/* BANK FEE — its own card, same visual structure as
+                    Airfare/Hotel/Transfer above: a title, a short
+                    explanation, the payment method + fee %, and the
+                    calculated per-person amount below. */}
+                <div className="rounded-md border border-sand-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Bank Fee</p>
+                  <p className="mb-2 text-xs text-ink-500">
+                    The fee percentage is set by the payment method — Credit Card {(feePercentages.creditCard * 100).toFixed(1)}%,
+                    PayPal {(feePercentages.paypal * 100).toFixed(1)}%, or No Fee. Calculated on Package Per PAX, before the
+                    Zenara Markup is added.
+                  </p>
+                  <label className="mb-1.5 block text-xs font-medium text-ink-700">Payment Method</label>
+                  <select
+                    value={trip.paymentMethod}
+                    onChange={(e) => setTrip((t) => ({ ...t, paymentMethod: e.target.value as typeof trip.paymentMethod }))}
+                    className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+                  >
+                    <option value="credit_card">Credit Card ({(feePercentages.creditCard * 100).toFixed(1)}%)</option>
+                    <option value="paypal">PayPal ({(feePercentages.paypal * 100).toFixed(1)}%)</option>
+                    <option value="none">No Fee (0%)</option>
+                  </select>
+                  <p className="mb-1 mt-3 text-xs text-ink-500">Bank fee per person</p>
+                  <AdjustedRateRow rates={computedBankFee} counts={guestCounts} />
                 </div>
+
+                <SummaryBar label="Adjusted Package Per PAX" rates={computedAdjustedPackage} counts={guestCounts} tone="subtotal" />
+
+                {/* ZENARA MARKUP — one shared flat amount, applied identically to every guest type. */}
+                <div className="rounded-md border border-sand-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Zenara Markup</p>
+                  <p className="mb-2 text-xs text-ink-500">
+                    One shared amount, entered once — applied identically to every guest type&apos;s Adjusted Package rate.
+                  </p>
+                  <PriceField label="Markup Per Person" value={trip.markup} onChange={(v) => setTrip((t) => ({ ...t, markup: v }))} />
+                </div>
+
+                <SummaryBar label="Final Client Rate Per PAX" rates={clientRateMap} counts={guestCounts} tone="final" />
 
                 <div className="grid grid-cols-3 gap-3 border-t border-coral-500/20 pt-4 text-center">
                   <div>
@@ -1371,6 +1476,43 @@ function AdjustedRateRow({ rates, counts }: { rates: GuestRates; counts: GuestCo
           <div key={t} />
         )
       )}
+    </div>
+  );
+}
+
+/**
+ * A labeled subtotal bar for the pricing chain (Package per PAX / Adjusted
+ * Package / Final Client Rate) — styled as a clear dark banner spanning
+ * every active guest type, matching the agency's own Excel template's
+ * "green bar" rows, so a manager reviewing the quotation can see exactly
+ * where each number in the chain comes from without re-deriving it by hand.
+ */
+function SummaryBar({
+  label,
+  rates,
+  counts,
+  tone,
+}: {
+  label: string;
+  rates: GuestRates;
+  counts: GuestCounts;
+  tone: 'subtotal' | 'final';
+}) {
+  const types = activeGuestTypes(counts);
+  const bg = tone === 'final' ? 'bg-ink-900' : 'bg-harbor-800';
+  return (
+    <div className={`overflow-hidden rounded-md ${bg}`}>
+      <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-sand-50/90">{label}</p>
+      <div className="grid gap-2 border-t border-white/10 px-3 py-2" style={{ gridTemplateColumns: `repeat(${types.length}, minmax(0, 1fr))` }}>
+        {types.map((t) => (
+          <div key={t} className="text-center">
+            <p className="text-[10px] uppercase tracking-wide text-sand-50/70">{GUEST_TYPE_LABELS[t]}</p>
+            <p className="font-ticket text-sm font-semibold text-sand-50">
+              PHP {(rates[t] || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

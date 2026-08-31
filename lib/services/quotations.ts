@@ -137,7 +137,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .order('sort_order'),
     supabase
       .from('quotation_items')
-      .select('id, label, unit_price')
+      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
     supabase
@@ -180,7 +180,14 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     itinerary: itinerary ?? [],
     inclusions: inclusions ?? [],
     exclusions: exclusions ?? [],
-    costItems: (costItems ?? []).map((c) => ({ label: c.label, amount: Number(c.unit_price) })),
+    costItems: (costItems ?? []).map((c) => ({
+      label: c.label,
+      rateSenior: c.rate_senior === null ? null : Number(c.rate_senior),
+      rateAdult: c.rate_adult === null ? null : Number(c.rate_adult),
+      rateChild: c.rate_child === null ? null : Number(c.rate_child),
+      rateInfant: c.rate_infant === null ? null : Number(c.rate_infant),
+      ratePwd: c.rate_pwd === null ? null : Number(c.rate_pwd),
+    })),
     feeItems: (feeItems ?? []).map((f) => ({ label: f.label, amount: Number(f.amount) })),
     guestRates,
     tourPricing,
@@ -264,6 +271,19 @@ function sumTourRates(tourPricing: QuotationDraftInput['tourPricing']): GuestRat
   return result;
 }
 
+/** Sums every "Other Supplier Cost" item's per-guest-type rate into one combined contribution — each item is entered once, counted once, and genuinely flows into the client-facing Package per PAX (previously this was tracked only as an internal cost total, never actually charged per person). */
+function sumOtherCostRates(costItems: QuotationDraftInput['costItems']): GuestRates {
+  const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+  for (const item of costItems) {
+    result.senior = (result.senior || 0) + (item.rateSenior ?? 0);
+    result.adult = (result.adult || 0) + (item.rateAdult ?? 0);
+    result.child = (result.child || 0) + (item.rateChild ?? 0);
+    result.infant = (result.infant || 0) + (item.rateInfant ?? 0);
+    result.pwd = (result.pwd || 0) + (item.ratePwd ?? 0);
+  }
+  return result;
+}
+
 /**
  * The one function that computes a quotation's actual pricing. Every
  * supplier rate is entered PER PERSON directly by the agent (Airfare,
@@ -278,6 +298,7 @@ function sumTourRates(tourPricing: QuotationDraftInput['tourPricing']): GuestRat
 async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraftInput) {
   const counts = guestCountsOf(input);
   const tourRates = sumTourRates(input.tourPricing);
+  const otherCostRates = sumOtherCostRates(input.costItems);
 
   const airfareRates = calculateMarkedUpRates(
     {
@@ -293,17 +314,17 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     { senior: input.hotelSeniorRate, adult: input.hotelAdultRate, child: input.hotelChildRate, infant: input.hotelInfantRate, pwd: input.hotelPwdRate },
     input.hotelMarkupPct
   );
-  const transferRates = calculateMarkedUpRates(
-    {
-      senior: input.transferSeniorRate,
-      adult: input.transferAdultRate,
-      child: input.transferChildRate,
-      infant: input.transferInfantRate,
-      pwd: input.transferPwdRate,
-    },
-    input.transferMarkupPct
-  );
-  const packagePerPax = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates);
+  // Transfer has NO markup at all, per spec — the entered per-person rate
+  // is used exactly as-is, unlike Airfare/Hotel which each apply their own
+  // editable percentage.
+  const transferRates = {
+    senior: input.transferSeniorRate,
+    adult: input.transferAdultRate,
+    child: input.transferChildRate,
+    infant: input.transferInfantRate,
+    pwd: input.transferPwdRate,
+  };
+  const packagePerPax = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates, otherCostRates);
 
   const { data: agencySettings } = await supabase
     .from('agency_settings')
@@ -316,17 +337,21 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
       : input.paymentMethod === 'paypal'
         ? (agencySettings?.paypal_fee_pct ?? 0.039)
         : 0;
+  // Bank Fee is calculated on Package per PAX BEFORE the Zenara Markup is
+  // added — never on top of the markup. Adjusted Package = Package + Bank
+  // Fee; Final Client Rate = Adjusted Package + Zenara Markup, in that order.
   const bankFee = calculateBankFee(packagePerPax, feePct);
   const adjustedPackage = calculateAdjustedPackage(packagePerPax, bankFee);
   const clientRates = calculateFinalRatePerPax(adjustedPackage, input.markup);
 
   const totalPrice = calculateTotalPrice(counts, clientRates);
-  const otherCostsTotal = input.costItems.reduce((sum, item) => sum + item.amount, 0);
-  // Internal supplier-cost tracking (profit/margin columns) — Tours have no
-  // separate "cost vs selling price" split in the new per-person model
-  // (the entered rate IS the cost basis, same as Airfare's Senior/Child/
-  // Infant/PWD rates), so the tour contribution counts once here too.
+  // Internal supplier-cost tracking (profit/margin columns) — Tours and
+  // Other Supplier Costs have no separate "cost vs selling price" split in
+  // the per-person model (the entered rate IS the cost basis, same as
+  // Airfare's Senior/Child/Infant/PWD rates), so each contribution counts
+  // once here too.
   const tourSupplierCostTotal = calculateGuestSupplierCost(counts, tourRates);
+  const otherCostsSupplierTotal = calculateGuestSupplierCost(counts, otherCostRates);
   const airfareSupplierTotal = calculateGuestSupplierCost(counts, {
     senior: input.airfareSeniorRate,
     adult: input.airfareAdultRate,
@@ -341,14 +366,8 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     infant: input.hotelInfantRate,
     pwd: input.hotelPwdRate,
   });
-  const transferSupplierTotal = calculateGuestSupplierCost(counts, {
-    senior: input.transferSeniorRate,
-    adult: input.transferAdultRate,
-    child: input.transferChildRate,
-    infant: input.transferInfantRate,
-    pwd: input.transferPwdRate,
-  });
-  const supplierCost = airfareSupplierTotal + hotelSupplierTotal + transferSupplierTotal + otherCostsTotal + tourSupplierCostTotal;
+  const transferSupplierTotal = calculateGuestSupplierCost(counts, transferRates);
+  const supplierCost = airfareSupplierTotal + hotelSupplierTotal + transferSupplierTotal + otherCostsSupplierTotal + tourSupplierCostTotal;
 
   return { counts, clientRates, tourSupplierRates: tourRates, totalPrice, supplierCost };
 }
@@ -421,17 +440,22 @@ async function insertVersionChildren(
     if (error) throw new Error(`Failed to save additional fees: ${error.message}`);
   }
 
-  // Internal cost breakdown (airfare, hotel, transfers, custom client
-  // requests like a sleeper bus) — stored per-item so it's editable later,
-  // never surfaced client-side. quotation_items has no RLS path that feeds
-  // the PDF or any client-facing query (see quotation_pricing_internal's
-  // isolation note below for the same guarantee on the summed total).
+  // "Other Supplier Costs" — reserved for genuinely additional costs
+  // outside Airfare/Hotel/Transfer/Tours, stored per-item with its own
+  // per-person rate by guest type (same shape as Tours), never surfaced
+  // client-side. quotation_items has no RLS path that feeds the PDF or any
+  // client-facing query (see quotation_pricing_internal's isolation note
+  // below for the same guarantee on the summed total).
   if (input.costItems.length > 0) {
     const { error } = await supabase.from('quotation_items').insert(
       input.costItems.map((item, i) => ({
         quotation_version_id: versionId,
         label: item.label,
-        unit_price: item.amount,
+        rate_senior: item.rateSenior ?? null,
+        rate_adult: item.rateAdult ?? null,
+        rate_child: item.rateChild ?? null,
+        rate_infant: item.rateInfant ?? null,
+        rate_pwd: item.ratePwd ?? null,
         quantity: 1,
         sort_order: i,
       }))

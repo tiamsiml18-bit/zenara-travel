@@ -86,15 +86,17 @@ export function calculateMarkedUpRates(rates: GuestRates, markupPct: number): Gu
 }
 
 /** Package per PAX = Airfare + Hotel + Transfer + every selected Tour's rate, per guest type. Unchanged formula — only what feeds into it changed. */
+/** Package per PAX = Airfare + Hotel + Transfer + Tours + Other Supplier Costs, per guest type. Unchanged formula shape — only what feeds into it changed as new categories were added. */
 export function calculatePackagePerPax(
   airfareRates: GuestRates,
   hotelRates: GuestRates,
   transferRates: GuestRates,
-  tourRates: GuestRates
+  tourRates: GuestRates,
+  otherCostRates: GuestRates = {}
 ): GuestRates {
   const result: GuestRates = {};
   for (const t of GUEST_TYPES) {
-    result[t] = (airfareRates[t] || 0) + (hotelRates[t] || 0) + (transferRates[t] || 0) + (tourRates[t] || 0);
+    result[t] = (airfareRates[t] || 0) + (hotelRates[t] || 0) + (transferRates[t] || 0) + (tourRates[t] || 0) + (otherCostRates[t] || 0);
   }
   return result;
 }

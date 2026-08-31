@@ -18,6 +18,16 @@ export const costItemSchema = z.object({
   amount: z.coerce.number().min(0, 'Cost cannot be negative.'),
 });
 
+/** One "Other Supplier Cost" item — its own per-person rates by guest type, same structure as Tours. Reserved for costs genuinely outside Airfare/Hotel/Transfer/Tours (a visa fee, a permit, a one-off request) — never a duplicate of those dedicated sections. */
+export const otherSupplierCostItemSchema = z.object({
+  label: z.string().trim().min(1, 'Cost item name is required.'),
+  rateSenior: z.coerce.number().min(0).optional().nullable(),
+  rateAdult: z.coerce.number().min(0).optional().nullable(),
+  rateChild: z.coerce.number().min(0).optional().nullable(),
+  rateInfant: z.coerce.number().min(0).optional().nullable(),
+  ratePwd: z.coerce.number().min(0).optional().nullable(),
+});
+
 // One rate per guest type — never a single combined "price per person."
 // supplierCostPerPerson is carried in the same input object for convenience
 // (the wizard's one form has both), but the service layer writes it to the
@@ -120,7 +130,7 @@ export const quotationDraftSchema = z
     // Never a place to re-enter a cost that already has its own structured
     // field above — duplicating a cost between here and Airfare/Hotel/
     // Transfer/Tours is exactly what this restructuring exists to prevent.
-    costItems: z.array(costItemSchema).default([]),
+    costItems: z.array(otherSupplierCostItemSchema).default([]),
     // The flat Zenara markup — one agent-entered amount, applied identically
     // to every guest type (Excel: E27=F27=G27=H27, always the same number).
     markup: z.coerce.number().default(0),
@@ -131,5 +141,6 @@ export const quotationDraftSchema = z
   });
 
 export type CostItemInput = z.infer<typeof costItemSchema>;
+export type OtherSupplierCostItemInput = z.infer<typeof otherSupplierCostItemSchema>;
 export type GuestRateInput = z.infer<typeof guestRateSchema>;
 export type QuotationDraftInput = z.infer<typeof quotationDraftSchema>;

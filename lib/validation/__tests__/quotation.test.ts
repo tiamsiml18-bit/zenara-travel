@@ -74,10 +74,10 @@ describe('quotationDraftSchema — guest-type pricing and required fields', () =
     expect(result.success).toBe(true);
   });
 
-  it('rejects a negative cost item amount', () => {
+  it('rejects a negative cost item rate', () => {
     const result = quotationDraftSchema.safeParse({
       ...validDraft,
-      costItems: [{ label: 'Airfare', amount: -500 }],
+      costItems: [{ label: 'Visa Fee', rateAdult: -500 }],
     });
     expect(result.success).toBe(false);
   });

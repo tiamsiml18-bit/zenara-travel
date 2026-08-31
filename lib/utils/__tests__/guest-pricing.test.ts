@@ -171,6 +171,18 @@ describe('calculateMarkedUpRates — Hotel/Transfer, each guest type independent
 // didn't silently alter anything downstream of the input stage.
 // ============================================================================
 describe('Downstream pricing chain — unchanged since the input-stage rewrite', () => {
+  it('Package per PAX includes Other Supplier Costs as a genuine per-guest-type contribution, not just an internal cost total', () => {
+    const airfareRates = calculateMarkedUpRates({ adult: 1000 }, 0);
+    const hotelRates = calculateMarkedUpRates({ adult: 500 }, 0);
+    const transferRates = calculateMarkedUpRates({ adult: 200 }, 0);
+    const tourRates = { adult: 300 };
+    const otherCostRates = { adult: 1000 }; // e.g. a Visa Fee
+    const withOtherCosts = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates, otherCostRates);
+    const withoutOtherCosts = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates);
+    expect(withOtherCosts.adult).toBe(3000); // 1000 + 500 + 200 + 300 + 1000
+    expect(withoutOtherCosts.adult).toBe(2000); // confirms it's additive, not silently ignored when provided
+  });
+
   it('Package per PAX = Airfare + Hotel + Transfer + Tours, per guest type', () => {
     const airfareRates = calculateMarkedUpRates({ senior: 19000, adult: 23280, child: 15000, infant: 0, pwd: 0 }, 0);
     const hotelRates = calculateMarkedUpRates({ adult: 12650, senior: 12650, child: 12650, infant: 12650, pwd: 12650 }, 0);
