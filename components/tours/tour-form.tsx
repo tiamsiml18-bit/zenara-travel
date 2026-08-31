@@ -24,6 +24,7 @@ export interface TourFormInitialData {
   ageRangeChild: string;
   ageRangeInfant: string;
   ageRangePwd: string;
+  tourType: 'all_in' | 'land_arrangement' | null;
 }
 
 export function TourForm({
@@ -41,6 +42,7 @@ export function TourForm({
 
   const [name, setName] = useState(initialData?.name ?? '');
   const [destination, setDestination] = useState(initialData?.destination ?? '');
+  const [tourType, setTourType] = useState<'' | 'all_in' | 'land_arrangement'>(initialData?.tourType ?? '');
   const [description, setDescription] = useState(initialData?.description ?? '');
   const [activities, setActivities] = useState<string[]>(initialData?.activities ?? []);
   const [defaultInclusions, setDefaultInclusions] = useState<string[]>(initialData?.defaultInclusions ?? []);
@@ -77,6 +79,7 @@ export function TourForm({
       ageRangeChild,
       ageRangeInfant,
       ageRangePwd,
+      tourType: tourType || null,
     };
 
     startTransition(async () => {
@@ -97,7 +100,21 @@ export function TourForm({
         <p className="mb-3 text-sm font-medium text-ink-900">Tour details</p>
         <div className="space-y-3">
           <LabeledInput label="Tour name" value={name} onChange={setName} required />
-          <LabeledInput label="Destination" value={destination} onChange={setDestination} />
+          <div className="grid grid-cols-2 gap-3">
+            <LabeledInput label="Destination" value={destination} onChange={setDestination} />
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink-700">Tour type</label>
+              <select
+                value={tourType}
+                onChange={(e) => setTourType(e.target.value as typeof tourType)}
+                className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              >
+                <option value="">Not set</option>
+                <option value="all_in">All-In</option>
+                <option value="land_arrangement">Land Arrangement</option>
+              </select>
+            </div>
+          </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Description</label>
             <textarea

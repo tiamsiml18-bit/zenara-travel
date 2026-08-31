@@ -23,6 +23,9 @@ export interface TourInput {
   ageRangeChild?: string;
   ageRangeInfant?: string;
   ageRangePwd?: string;
+  // Purely a categorization label for filtering the Tours library — never
+  // read by pricing, Package integration, or Quotation integration.
+  tourType?: 'all_in' | 'land_arrangement' | null;
 }
 
 function toDbRow(input: TourInput) {
@@ -44,6 +47,7 @@ function toDbRow(input: TourInput) {
     age_range_child: input.ageRangeChild || null,
     age_range_infant: input.ageRangeInfant || null,
     age_range_pwd: input.ageRangePwd || null,
+    tour_type: input.tourType || null,
   };
 }
 
@@ -51,6 +55,9 @@ export interface TourListFilters {
   q?: string;
   destination?: string;
   includeInactive?: boolean;
+  tourType?: 'all_in' | 'land_arrangement';
+  priceMin?: number;
+  priceMax?: number;
   page?: number;
   pageSize?: number;
 }
@@ -63,7 +70,7 @@ export async function listTours(supabase: SupabaseClient, filters: TourListFilte
 
   let query = supabase
     .from('tours')
-    .select('id, name, destination, is_active, price_senior, price_adult, price_child, price_infant, price_pwd', { count: 'exact' })
+    .select('id, name, destination, is_active, tour_type, price_senior, price_adult, price_child, price_infant, price_pwd', { count: 'exact' })
     .is('deleted_at', null)
     .order('destination', { ascending: true, nullsFirst: false })
     .order('name')
@@ -71,6 +78,11 @@ export async function listTours(supabase: SupabaseClient, filters: TourListFilte
 
   if (!filters.includeInactive) query = query.eq('is_active', true);
   if (filters.destination) query = query.eq('destination', filters.destination);
+  if (filters.tourType) query = query.eq('tour_type', filters.tourType);
+  // Price filter is based on the tour's default Adult rate, per spec —
+  // display-only categorization, never touches the actual stored rate.
+  if (filters.priceMin !== undefined) query = query.gte('price_adult', filters.priceMin);
+  if (filters.priceMax !== undefined) query = query.lte('price_adult', filters.priceMax);
   if (filters.q) query = query.or(`name.ilike.%${filters.q}%,destination.ilike.%${filters.q}%`);
 
   const { data, error, count } = await query;
@@ -165,6 +177,7 @@ export async function duplicateTour(supabase: SupabaseClient, tourId: string, ac
       age_range_child: source.age_range_child,
       age_range_infant: source.age_range_infant,
       age_range_pwd: source.age_range_pwd,
+      tour_type: source.tour_type,
       is_active: true,
       created_by: actingUserId,
     })
