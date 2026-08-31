@@ -2,7 +2,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? '';
-const REDIRECT_URI = `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/gmail/callback`;
+// Deliberately NOT NEXT_PUBLIC_SITE_URL — Next.js statically inlines
+// NEXT_PUBLIC_* variables at BUILD time, even inside server-only files like
+// this one, so a value changed in Vercel after the last build wouldn't
+// take effect until a fresh build happens to re-embed it. A plain
+// (non-public) variable is read from the real environment at runtime,
+// every time, with a hardcoded fallback to the known production URL so
+// this works even if the variable was never set at all.
+const REDIRECT_URI = `${process.env.APP_URL ?? 'https://zenara-travel.vercel.app'}/api/auth/gmail/callback`;
 
 // Only the one scope actually needed to send mail — never broader access
 // (not gmail.readonly, not gmail.modify), per the explicit requirement to
