@@ -11,10 +11,12 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? '';
 // this works even if the variable was never set at all.
 const REDIRECT_URI = `${process.env.APP_URL ?? 'https://zenara-travel.vercel.app'}/api/auth/gmail/callback`;
 
-// Only the one scope actually needed to send mail — never broader access
-// (not gmail.readonly, not gmail.modify), per the explicit requirement to
-// request the minimum permission necessary.
-const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+// gmail.send is the actual permission being granted (matches the explicit
+// "only what's needed to send" requirement); userinfo.email is a separate,
+// much narrower scope that only reveals which account was connected (for
+// display in Settings) — it grants no visibility into mail content at all,
+// so adding it doesn't broaden what this app can actually do with Gmail.
+const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email';
 
 export function buildGoogleAuthUrl(state: string): string {
   const params = new URLSearchParams({
