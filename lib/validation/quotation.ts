@@ -29,6 +29,17 @@ export const guestRateSchema = z.object({
   supplierCostPerPerson: z.coerce.number().min(0, 'Cost cannot be negative.').default(0),
 });
 
+/** One selected Tour's own editable per-person rates for THIS quotation only — never read from or written back to the Tours library. */
+export const tourPricingItemSchema = z.object({
+  sourceTourId: z.string().uuid().optional().or(z.literal('')),
+  tourName: z.string().trim().min(1),
+  rateSenior: z.coerce.number().min(0).optional().nullable(),
+  rateAdult: z.coerce.number().min(0).optional().nullable(),
+  rateChild: z.coerce.number().min(0).optional().nullable(),
+  rateInfant: z.coerce.number().min(0).optional().nullable(),
+  ratePwd: z.coerce.number().min(0).optional().nullable(),
+});
+
 export const quotationDraftSchema = z
   .object({
     clientId: z.string().uuid('Select a client.'),
@@ -46,32 +57,48 @@ export const quotationDraftSchema = z
     hotelName: z.string().trim().max(200).optional().or(z.literal('')),
     numBedrooms: z.coerce.number().int().min(0).optional().nullable(),
 
-    // Structured supplier-cost inputs, replicating the agency's Excel
-    // quotation template exactly (formula-by-formula confirmed before
-    // implementation). The Adult airfare rate is never entered directly —
-    // it's the remainder of the marked-up group total once every other
-    // guest type's manually-entered supplier rate is subtracted out, split
-    // across the actual adult count. See lib/utils/guest-pricing.ts for the
-    // literal formulas this feeds.
-    airfareActualRate: z.coerce.number().min(0).default(0),
+    // Structured supplier-cost inputs — every rate is entered PER PERSON
+    // directly by the agent, never a group total the system has to divide
+    // across headcount. Each of Airfare/Hotel/Transfer applies its own
+    // (editable) markup percentage directly to the entered rate. See
+    // lib/utils/guest-pricing.ts for the calculation these feed.
+    airfareAdultRate: z.coerce.number().min(0).default(0),
     airfareSeniorRate: z.coerce.number().min(0).default(0),
     airfareChildRate: z.coerce.number().min(0).default(0),
     airfareInfantRate: z.coerce.number().min(0).default(0),
     airfarePwdRate: z.coerce.number().min(0).default(0),
-    hotelActualRate: z.coerce.number().min(0).default(0),
-    transferActualRate: z.coerce.number().min(0).default(0),
+    airfareMarkupPct: z.coerce.number().min(0).max(1).default(0.1),
+
+    hotelSeniorRate: z.coerce.number().min(0).default(0),
+    hotelAdultRate: z.coerce.number().min(0).default(0),
+    hotelChildRate: z.coerce.number().min(0).default(0),
+    hotelInfantRate: z.coerce.number().min(0).default(0),
+    hotelPwdRate: z.coerce.number().min(0).default(0),
+    hotelMarkupPct: z.coerce.number().min(0).max(1).default(0.1),
+
+    transferSeniorRate: z.coerce.number().min(0).default(0),
+    transferAdultRate: z.coerce.number().min(0).default(0),
+    transferChildRate: z.coerce.number().min(0).default(0),
+    transferInfantRate: z.coerce.number().min(0).default(0),
+    transferPwdRate: z.coerce.number().min(0).default(0),
+    transferMarkupPct: z.coerce.number().min(0).max(1).default(0.2),
 
     // Determines which admin-configurable fee % (agency_settings) applies —
     // never a hardcoded percentage in application code.
     paymentMethod: z.enum(['credit_card', 'paypal', 'none']).default('credit_card'),
 
-    // Tour contribution only — both the client rate and the supplier cost
-    // accumulated as tours are picked in the itinerary step (see
-    // handleTourSelected in the wizard). Combined server-side with the
-    // Airfare/Hotel/Transfer inputs above into the final per-guest-type
-    // numbers; never entered directly by the agent, and never the same
-    // amount counted twice.
+    // Tour contribution only — client rate and supplier cost accumulated
+    // as tours are picked in the itinerary step (see handleTourSelected in
+    // the wizard). Combined server-side with the Airfare/Hotel/Transfer
+    // inputs above into the final per-guest-type numbers; never entered
+    // directly by the agent, and never the same amount counted twice.
     guestRates: z.array(guestRateSchema).default([]),
+    // Each selected Tour's own editable per-person rates for this
+    // quotation — one entry per unique Tour, defaulting from the Tours
+    // library when first selected but freely editable afterward without
+    // ever writing back to the library. This is the source guestRates'
+    // tour contribution above is summed from.
+    tourPricing: z.array(tourPricingItemSchema).default([]),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
     // Which named consultant prepared this quote — see agency_consultants;

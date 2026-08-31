@@ -110,49 +110,70 @@ export async function getQuotationById(supabase: SupabaseClient, quotationId: st
 }
 
 export async function getVersionDetail(supabase: SupabaseClient, versionId: string) {
-  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: costItems }, { data: feeItems }, { data: guestPricing }, { data: guestPricingInternal }] =
-    await Promise.all([
-      supabase
-        .from('quotation_itinerary_days')
-        .select('id, day_number, day_date, title, description, activities, source_tour_id')
-        .eq('quotation_version_id', versionId)
-        .order('day_number'),
-      supabase
-        .from('quotation_inclusions')
-        .select('id, item')
-        .eq('quotation_version_id', versionId)
-        .order('sort_order'),
-      supabase
-        .from('quotation_exclusions')
-        .select('id, item')
-        .eq('quotation_version_id', versionId)
-        .order('sort_order'),
-      supabase
-        .from('quotation_items')
-        .select('id, label, unit_price')
-        .eq('quotation_version_id', versionId)
-        .order('sort_order'),
-      supabase
-        .from('quotation_fees')
-        .select('id, label, amount')
-        .eq('quotation_version_id', versionId)
-        .order('sort_order'),
-      supabase.from('quotation_guest_pricing').select('guest_type, price_per_person').eq('quotation_version_id', versionId),
-      // Internal supplier cost per guest type — RLS on this table already
-      // restricts it to admin/manager/owning-agent, same as
-      // quotation_pricing_internal; a plain agent viewing someone else's
-      // quotation simply gets an empty result here, not an error.
-      supabase
-        .from('quotation_guest_pricing_internal')
-        .select('guest_type, supplier_cost_per_person')
-        .eq('quotation_version_id', versionId),
-    ]);
+  const [
+    { data: itinerary },
+    { data: inclusions },
+    { data: exclusions },
+    { data: costItems },
+    { data: feeItems },
+    { data: guestPricing },
+    { data: guestPricingInternal },
+    { data: tourPricingRows },
+  ] = await Promise.all([
+    supabase
+      .from('quotation_itinerary_days')
+      .select('id, day_number, day_date, title, description, activities, source_tour_id')
+      .eq('quotation_version_id', versionId)
+      .order('day_number'),
+    supabase
+      .from('quotation_inclusions')
+      .select('id, item')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
+    supabase
+      .from('quotation_exclusions')
+      .select('id, item')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
+    supabase
+      .from('quotation_items')
+      .select('id, label, unit_price')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
+    supabase
+      .from('quotation_fees')
+      .select('id, label, amount')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
+    supabase.from('quotation_guest_pricing').select('guest_type, price_per_person').eq('quotation_version_id', versionId),
+    // Internal supplier cost per guest type — RLS on this table already
+    // restricts it to admin/manager/owning-agent, same as
+    // quotation_pricing_internal; a plain agent viewing someone else's
+    // quotation simply gets an empty result here, not an error.
+    supabase
+      .from('quotation_guest_pricing_internal')
+      .select('guest_type, supplier_cost_per_person')
+      .eq('quotation_version_id', versionId),
+    supabase
+      .from('quotation_tour_pricing')
+      .select('source_tour_id, tour_name, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd')
+      .eq('quotation_version_id', versionId),
+  ]);
 
   const supplierCostByType = new Map((guestPricingInternal ?? []).map((g) => [g.guest_type, Number(g.supplier_cost_per_person)]));
   const guestRates = (guestPricing ?? []).map((g) => ({
     guestType: g.guest_type as 'senior' | 'adult' | 'child' | 'infant' | 'pwd',
     pricePerPerson: Number(g.price_per_person),
     supplierCostPerPerson: supplierCostByType.get(g.guest_type) ?? 0,
+  }));
+  const tourPricing = (tourPricingRows ?? []).map((t) => ({
+    sourceTourId: t.source_tour_id ?? '',
+    tourName: t.tour_name,
+    rateSenior: t.rate_senior === null ? null : Number(t.rate_senior),
+    rateAdult: t.rate_adult === null ? null : Number(t.rate_adult),
+    rateChild: t.rate_child === null ? null : Number(t.rate_child),
+    rateInfant: t.rate_infant === null ? null : Number(t.rate_infant),
+    ratePwd: t.rate_pwd === null ? null : Number(t.rate_pwd),
   }));
 
   return {
@@ -162,6 +183,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     costItems: (costItems ?? []).map((c) => ({ label: c.label, amount: Number(c.unit_price) })),
     feeItems: (feeItems ?? []).map((f) => ({ label: f.label, amount: Number(f.amount) })),
     guestRates,
+    tourPricing,
   };
 }
 
@@ -171,8 +193,10 @@ export async function getPricingForVersion(supabase: SupabaseClient, versionId: 
     .from('quotation_pricing_internal')
     .select(
       `supplier_cost, markup, selling_price, profit, profit_margin_pct,
-       airfare_actual_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate,
-       hotel_actual_rate, transfer_actual_rate, payment_method`
+       airfare_adult_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate, airfare_markup_pct,
+       hotel_senior_rate, hotel_adult_rate, hotel_child_rate, hotel_infant_rate, hotel_pwd_rate, hotel_markup_pct,
+       transfer_senior_rate, transfer_adult_rate, transfer_child_rate, transfer_infant_rate, transfer_pwd_rate, transfer_markup_pct,
+       payment_method`
     )
     .eq('quotation_version_id', versionId)
     .maybeSingle();
@@ -198,7 +222,23 @@ async function resolveConsultantName(supabase: SupabaseClient, consultantId?: st
   return data?.full_name ?? null;
 }
 
-import { calculateTotalPrice, calculateGuestSupplierCost, activeGuestTypes, GUEST_TYPES, GUEST_TYPE_LABELS, calculateAirfareRates, calculateHotelRatePerPerson, calculateTransferRatePerPerson, calculatePackagePerPax, calculateBankFee, calculateAdjustedPackage, calculateFinalRatePerPax, type GuestCounts, type GuestRates } from '@/lib/utils/guest-pricing';
+import {
+  calculateTotalPrice,
+  calculateGuestSupplierCost,
+  activeGuestTypes,
+  GUEST_TYPES,
+  GUEST_TYPE_LABELS,
+  calculateMarkedUpRates,
+  calculatePackagePerPax,
+  calculateBankFee,
+  calculateAdjustedPackage,
+  calculateFinalRatePerPax,
+  DEFAULT_AIRFARE_MARKUP_PCT,
+  DEFAULT_HOTEL_MARKUP_PCT,
+  DEFAULT_TRANSFER_MARKUP_PCT,
+  type GuestCounts,
+  type GuestRates,
+} from '@/lib/utils/guest-pricing';
 
 /** Pulls the 5 guest counts off a QuotationDraftInput into the shape guest-pricing.ts expects. */
 function guestCountsOf(input: QuotationDraftInput): GuestCounts {
@@ -211,37 +251,59 @@ function guestCountsOf(input: QuotationDraftInput): GuestCounts {
   };
 }
 
+/** Sums every selected Tour's per-guest-type rate into one combined contribution — each Tour is entered once, counted once, never re-pulled from the Tours library. */
+function sumTourRates(tourPricing: QuotationDraftInput['tourPricing']): GuestRates {
+  const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+  for (const tour of tourPricing) {
+    result.senior = (result.senior || 0) + (tour.rateSenior ?? 0);
+    result.adult = (result.adult || 0) + (tour.rateAdult ?? 0);
+    result.child = (result.child || 0) + (tour.rateChild ?? 0);
+    result.infant = (result.infant || 0) + (tour.rateInfant ?? 0);
+    result.pwd = (result.pwd || 0) + (tour.ratePwd ?? 0);
+  }
+  return result;
+}
+
 /**
- * The one function that computes a quotation's actual pricing — replicating
- * the agency's Excel formula chain exactly (Airfare → Hotel → Transfer →
- * Tours → Package per PAX → Bank Fee → Adjusted → Final Rate per PAX).
- * Called from every place a version's pricing needs to be known (the
- * version row's total_price, insertVersionChildren's guest_pricing rows) so
- * there is exactly one calculation path, never three drifting copies of it.
+ * The one function that computes a quotation's actual pricing. Every
+ * supplier rate is entered PER PERSON directly by the agent (Airfare,
+ * Hotel, Transfer, and each selected Tour) — never a group total the
+ * system divides across headcount. Airfare/Hotel/Transfer each apply their
+ * own editable markup percentage directly to the entered rate; Tours are
+ * used exactly as entered. Called from every place a version's pricing
+ * needs to be known (the version row's total_price, insertVersionChildren's
+ * guest_pricing rows) so there is exactly one calculation path, never three
+ * drifting copies of it.
  */
 async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraftInput) {
   const counts = guestCountsOf(input);
+  const tourRates = sumTourRates(input.tourPricing);
 
-  const tourClientRates: GuestRates = {};
-  const tourSupplierRates: GuestRates = {};
-  for (const rate of input.guestRates) {
-    tourClientRates[rate.guestType] = rate.pricePerPerson;
-    tourSupplierRates[rate.guestType] = rate.supplierCostPerPerson;
-  }
-
-  const airfareRates = calculateAirfareRates(
+  const airfareRates = calculateMarkedUpRates(
     {
-      actualRate: input.airfareActualRate,
-      seniorRate: input.airfareSeniorRate,
-      childRate: input.airfareChildRate,
-      infantRate: input.airfareInfantRate,
-      pwdRate: input.airfarePwdRate,
+      senior: input.airfareSeniorRate,
+      adult: input.airfareAdultRate,
+      child: input.airfareChildRate,
+      infant: input.airfareInfantRate,
+      pwd: input.airfarePwdRate,
     },
-    counts
+    input.airfareMarkupPct
   );
-  const hotelRatePerPerson = calculateHotelRatePerPerson(input.hotelActualRate, counts);
-  const transferRatePerPerson = calculateTransferRatePerPerson(input.transferActualRate, counts);
-  const packagePerPax = calculatePackagePerPax(airfareRates, hotelRatePerPerson, transferRatePerPerson, tourClientRates);
+  const hotelRates = calculateMarkedUpRates(
+    { senior: input.hotelSeniorRate, adult: input.hotelAdultRate, child: input.hotelChildRate, infant: input.hotelInfantRate, pwd: input.hotelPwdRate },
+    input.hotelMarkupPct
+  );
+  const transferRates = calculateMarkedUpRates(
+    {
+      senior: input.transferSeniorRate,
+      adult: input.transferAdultRate,
+      child: input.transferChildRate,
+      infant: input.transferInfantRate,
+      pwd: input.transferPwdRate,
+    },
+    input.transferMarkupPct
+  );
+  const packagePerPax = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates);
 
   const { data: agencySettings } = await supabase
     .from('agency_settings')
@@ -260,10 +322,35 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
 
   const totalPrice = calculateTotalPrice(counts, clientRates);
   const otherCostsTotal = input.costItems.reduce((sum, item) => sum + item.amount, 0);
-  const tourSupplierCostTotal = calculateGuestSupplierCost(counts, tourSupplierRates);
-  const supplierCost = input.airfareActualRate + input.hotelActualRate + input.transferActualRate + otherCostsTotal + tourSupplierCostTotal;
+  // Internal supplier-cost tracking (profit/margin columns) — Tours have no
+  // separate "cost vs selling price" split in the new per-person model
+  // (the entered rate IS the cost basis, same as Airfare's Senior/Child/
+  // Infant/PWD rates), so the tour contribution counts once here too.
+  const tourSupplierCostTotal = calculateGuestSupplierCost(counts, tourRates);
+  const airfareSupplierTotal = calculateGuestSupplierCost(counts, {
+    senior: input.airfareSeniorRate,
+    adult: input.airfareAdultRate,
+    child: input.airfareChildRate,
+    infant: input.airfareInfantRate,
+    pwd: input.airfarePwdRate,
+  });
+  const hotelSupplierTotal = calculateGuestSupplierCost(counts, {
+    senior: input.hotelSeniorRate,
+    adult: input.hotelAdultRate,
+    child: input.hotelChildRate,
+    infant: input.hotelInfantRate,
+    pwd: input.hotelPwdRate,
+  });
+  const transferSupplierTotal = calculateGuestSupplierCost(counts, {
+    senior: input.transferSeniorRate,
+    adult: input.transferAdultRate,
+    child: input.transferChildRate,
+    infant: input.transferInfantRate,
+    pwd: input.transferPwdRate,
+  });
+  const supplierCost = airfareSupplierTotal + hotelSupplierTotal + transferSupplierTotal + otherCostsTotal + tourSupplierCostTotal;
 
-  return { counts, clientRates, tourSupplierRates, totalPrice, supplierCost };
+  return { counts, clientRates, tourSupplierRates: tourRates, totalPrice, supplierCost };
 }
 
 async function insertVersionChildren(
@@ -284,6 +371,25 @@ async function insertVersionChildren(
       }))
     );
     if (error) throw new Error(`Failed to save itinerary: ${error.message}`);
+  }
+
+  // Each selected Tour's own editable per-person rates for this quotation
+  // — one row per unique Tour, never re-pulled from or written back to the
+  // Tours library (source_tour_id is for traceability only).
+  if (input.tourPricing.length > 0) {
+    const { error } = await supabase.from('quotation_tour_pricing').insert(
+      input.tourPricing.map((t) => ({
+        quotation_version_id: versionId,
+        source_tour_id: t.sourceTourId || null,
+        tour_name: t.tourName,
+        rate_senior: t.rateSenior ?? null,
+        rate_adult: t.rateAdult ?? null,
+        rate_child: t.rateChild ?? null,
+        rate_infant: t.rateInfant ?? null,
+        rate_pwd: t.ratePwd ?? null,
+      }))
+    );
+    if (error) throw new Error(`Failed to save tour pricing: ${error.message}`);
   }
 
   if (input.inclusions.length > 0) {
@@ -370,13 +476,24 @@ async function insertVersionChildren(
     supplier_cost: supplierCost,
     markup: input.markup,
     selling_price: totalPrice,
-    airfare_actual_rate: input.airfareActualRate,
+    airfare_adult_rate: input.airfareAdultRate,
     airfare_senior_rate: input.airfareSeniorRate,
     airfare_child_rate: input.airfareChildRate,
     airfare_infant_rate: input.airfareInfantRate,
     airfare_pwd_rate: input.airfarePwdRate,
-    hotel_actual_rate: input.hotelActualRate,
-    transfer_actual_rate: input.transferActualRate,
+    airfare_markup_pct: input.airfareMarkupPct,
+    hotel_senior_rate: input.hotelSeniorRate,
+    hotel_adult_rate: input.hotelAdultRate,
+    hotel_child_rate: input.hotelChildRate,
+    hotel_infant_rate: input.hotelInfantRate,
+    hotel_pwd_rate: input.hotelPwdRate,
+    hotel_markup_pct: input.hotelMarkupPct,
+    transfer_senior_rate: input.transferSeniorRate,
+    transfer_adult_rate: input.transferAdultRate,
+    transfer_child_rate: input.transferChildRate,
+    transfer_infant_rate: input.transferInfantRate,
+    transfer_pwd_rate: input.transferPwdRate,
+    transfer_markup_pct: input.transferMarkupPct,
     payment_method: input.paymentMethod,
   });
   if (pricingError) throw new Error(`Failed to save pricing: ${pricingError.message}`);
@@ -914,13 +1031,25 @@ export async function duplicateQuotation(
     hotelName: currentVersion.hotel_name ?? '',
     numBedrooms: currentVersion.num_bedrooms,
     guestRates,
-    airfareActualRate: pricing?.airfare_actual_rate ?? 0,
+    airfareAdultRate: pricing?.airfare_adult_rate ?? 0,
     airfareSeniorRate: pricing?.airfare_senior_rate ?? 0,
     airfareChildRate: pricing?.airfare_child_rate ?? 0,
     airfareInfantRate: pricing?.airfare_infant_rate ?? 0,
     airfarePwdRate: pricing?.airfare_pwd_rate ?? 0,
-    hotelActualRate: pricing?.hotel_actual_rate ?? 0,
-    transferActualRate: pricing?.transfer_actual_rate ?? 0,
+    airfareMarkupPct: pricing?.airfare_markup_pct ?? DEFAULT_AIRFARE_MARKUP_PCT,
+    hotelSeniorRate: pricing?.hotel_senior_rate ?? 0,
+    hotelAdultRate: pricing?.hotel_adult_rate ?? 0,
+    hotelChildRate: pricing?.hotel_child_rate ?? 0,
+    hotelInfantRate: pricing?.hotel_infant_rate ?? 0,
+    hotelPwdRate: pricing?.hotel_pwd_rate ?? 0,
+    hotelMarkupPct: pricing?.hotel_markup_pct ?? DEFAULT_HOTEL_MARKUP_PCT,
+    transferSeniorRate: pricing?.transfer_senior_rate ?? 0,
+    transferAdultRate: pricing?.transfer_adult_rate ?? 0,
+    transferChildRate: pricing?.transfer_child_rate ?? 0,
+    transferInfantRate: pricing?.transfer_infant_rate ?? 0,
+    transferPwdRate: pricing?.transfer_pwd_rate ?? 0,
+    transferMarkupPct: pricing?.transfer_markup_pct ?? DEFAULT_TRANSFER_MARKUP_PCT,
+    tourPricing: [],
     paymentMethod: (pricing?.payment_method as 'credit_card' | 'paypal' | 'none') ?? 'credit_card',
     notes: currentVersion.notes ?? '',
     inclusions: inclusions.map((i) => i.item),

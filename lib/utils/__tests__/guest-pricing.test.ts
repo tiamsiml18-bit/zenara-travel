@@ -4,9 +4,7 @@ import {
   calculateGuestSupplierCost,
   buildGuestLineItems,
   activeGuestTypes,
-  calculateAirfareRates,
-  calculateHotelRatePerPerson,
-  calculateTransferRatePerPerson,
+  calculateMarkedUpRates,
   calculatePackagePerPax,
   calculateBankFee,
   calculateAdjustedPackage,
@@ -123,60 +121,76 @@ describe('buildGuestLineItems — one row per active guest type, never combined'
 });
 
 // ============================================================================
-// Real-data regression tests — the Japan / Patricia Ruth quotation, taken
-// directly from the agency's actual Excel template (5 Adults, 2 Seniors,
-// 1 Child/Toddler, 0 Infant). Every expected value below is the literal
-// cached value read out of that spreadsheet's cells, not a hand-computed
-// guess — if these ever fail, the app has drifted from the Excel source of
-// truth, which is exactly what this test suite exists to catch.
+// Per-person pricing model — every supplier rate is entered directly per
+// person by the agent (never a group total the system divides). Airfare,
+// Hotel, and Transfer each apply their own markup directly to the entered
+// rate. The downstream chain (Package per PAX -> Bank Fee -> Adjusted
+// Package -> Final Rate per PAX) is UNCHANGED from the previous Excel-based
+// model — only what feeds into Package per PAX changed, so those tests
+// below reuse the same previously-verified numbers.
 // ============================================================================
-describe('Excel parity — Japan / Patricia Ruth quotation (5 Adults, 2 Seniors, 1 Child)', () => {
-  const counts: GuestCounts = { senior: 2, adult: 5, child: 1, infant: 0, pwd: 0 };
-
-  it('Airfare: Excel D9/E9 — (154,000 × 1.10) − (19,000×2 + 15,000) ÷ 5 adults = 23,280', () => {
-    const rates = calculateAirfareRates(
-      { actualRate: 154000, seniorRate: 19000, childRate: 15000, infantRate: 0, pwdRate: 0 },
-      counts
-    );
-    expect(rates.adult).toBe(23280);
-    expect(rates.senior).toBe(19000); // passed through unchanged, never derived
-    expect(rates.child).toBe(15000);
+describe('calculateMarkedUpRates — shared by Airfare (10%), Hotel (10%), and Transfer (admin-configurable) — each guest type independently entered, one shared markup applied uniformly', () => {
+  it('matches the spec Airfare example exactly: PHP 20,000 supplier + 10% = PHP 22,000', () => {
+    const rates = calculateMarkedUpRates({ adult: 20000 }, 0.1);
+    expect(rates.adult).toBe(22000);
   });
 
-  it('Hotel: Excel D10/E10 — (92,000 × 1.10) ÷ 8 total pax = 12,650, same for every guest type', () => {
-    const rate = calculateHotelRatePerPerson(92000, counts);
-    expect(rate).toBeCloseTo(12650, 6);
+  it('Senior/Child/Infant/PWD are each independently entered and get the SAME shared markup — never derived from Adult, never left unmarked-up', () => {
+    const rates = calculateMarkedUpRates({ adult: 23280, senior: 19000, child: 15000, infant: 0, pwd: 19000 }, 0.1);
+    expect(rates.senior).toBeCloseTo(20900, 6); // 19,000 * 1.1
+    expect(rates.child).toBeCloseTo(16500, 6); // 15,000 * 1.1
+    expect(rates.infant).toBe(0); // a real, valid FREE rate — 0 * 1.1 is still 0, never falls back to another type's rate
+    expect(rates.pwd).toBeCloseTo(20900, 6);
+  });
+});
+
+describe('calculateMarkedUpRates — Hotel/Transfer, each guest type independent', () => {
+  it('matches the spec Hotel example: PHP 10,000 + 10% = PHP 11,000', () => {
+    const rates = calculateMarkedUpRates({ adult: 10000 }, 0.1);
+    expect(rates.adult).toBe(11000);
   });
 
-  it('Transfer: Excel D11/E11 — (12,000 × 1.20) ÷ 8 total pax = 1,800', () => {
-    const rate = calculateTransferRatePerPerson(12000, counts);
-    expect(rate).toBe(1800);
+  it('matches the spec Transfer example: PHP 2,000 + 20% = PHP 2,400', () => {
+    const rates = calculateMarkedUpRates({ adult: 2000 }, 0.2);
+    expect(rates.adult).toBe(2400);
   });
 
-  it('Package per PAX: Excel E19/F19/G19 — Airfare + Hotel + Transfer + 3 Tours, per guest type', () => {
-    const airfareRates = calculateAirfareRates(
-      { actualRate: 154000, seniorRate: 19000, childRate: 15000, infantRate: 0, pwdRate: 0 },
-      counts
-    );
-    const hotelRate = calculateHotelRatePerPerson(92000, counts);
-    const transferRate = calculateTransferRatePerPerson(12000, counts);
-    // Mt. Fuji (5500/5000/1500) + Disneyland (9500/8500/2500) + Kamakura (4500/4000/0)
+  it('allows genuinely different per-guest-type rates (Option 2) — a child hotel rate can differ from the adult rate', () => {
+    const rates = calculateMarkedUpRates({ adult: 12650, senior: 12650, child: 10000, infant: 0, pwd: 10000 }, 0.1);
+    expect(rates.adult).toBeCloseTo(13915, 6);
+    expect(rates.child).toBeCloseTo(11000, 6);
+    expect(rates.infant).toBe(0); // FREE is valid and never inherits the adult rate
+    expect(rates.pwd).toBeCloseTo(11000, 6);
+  });
+});
+
+// ============================================================================
+// Downstream chain regression tests — Package per PAX through Final Rate
+// per PAX are UNCHANGED formulas from the previously Excel-verified model,
+// reusing the exact same previously-verified numbers to prove the rewrite
+// didn't silently alter anything downstream of the input stage.
+// ============================================================================
+describe('Downstream pricing chain — unchanged since the input-stage rewrite', () => {
+  it('Package per PAX = Airfare + Hotel + Transfer + Tours, per guest type', () => {
+    const airfareRates = calculateMarkedUpRates({ senior: 19000, adult: 23280, child: 15000, infant: 0, pwd: 0 }, 0);
+    const hotelRates = calculateMarkedUpRates({ adult: 12650, senior: 12650, child: 12650, infant: 12650, pwd: 12650 }, 0);
+    const transferRates = calculateMarkedUpRates({ adult: 1800, senior: 1800, child: 1800, infant: 1800, pwd: 1800 }, 0);
     const tourRates = { senior: 5000 + 8500 + 4000, adult: 5500 + 9500 + 4500, child: 1500 + 2500 + 0, infant: 0, pwd: 0 };
-    const packagePerPax = calculatePackagePerPax(airfareRates, hotelRate, transferRate, tourRates);
+    const packagePerPax = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates);
 
     expect(packagePerPax.adult).toBeCloseTo(57230, 6);
     expect(packagePerPax.senior).toBeCloseTo(50950, 6);
     expect(packagePerPax.child).toBeCloseTo(33450, 6);
   });
 
-  it('Bank Fee: Excel E21/F21/G21 — Package per PAX × 2.9%', () => {
+  it('Bank Fee: Package per PAX × 2.9%', () => {
     const bankFee = calculateBankFee({ adult: 57230, senior: 50950, child: 33450, infant: 0, pwd: 0 }, 0.029);
     expect(bankFee.adult).toBeCloseTo(1659.67, 2);
     expect(bankFee.senior).toBeCloseTo(1477.55, 2);
     expect(bankFee.child).toBeCloseTo(970.05, 2);
   });
 
-  it('Adjusted Package: Excel E25/F25/G25 — Package + Bank Fee, unrounded', () => {
+  it('Adjusted Package: Package + Bank Fee, unrounded', () => {
     const adjusted = calculateAdjustedPackage(
       { adult: 57230, senior: 50950, child: 33450, infant: 0, pwd: 0 },
       { adult: 1659.67, senior: 1477.55, child: 970.05, infant: 0, pwd: 0 }
@@ -186,7 +200,7 @@ describe('Excel parity — Japan / Patricia Ruth quotation (5 Adults, 2 Seniors,
     expect(adjusted.child).toBeCloseTo(34420.05, 2);
   });
 
-  it('Final Rate per PAX: Excel E29/F29/G29 — Adjusted Package + flat ₱5,000 Zenara Markup', () => {
+  it('Final Rate per PAX: Adjusted Package + flat ₱5,000 Zenara Markup', () => {
     const final = calculateFinalRatePerPax(
       { adult: 58889.67, senior: 52427.55, child: 34420.05, infant: 0, pwd: 0 },
       5000
@@ -197,9 +211,6 @@ describe('Excel parity — Japan / Patricia Ruth quotation (5 Adults, 2 Seniors,
   });
 
   it('never rounds mid-calculation — the full unrounded decimal survives every step', () => {
-    // The Excel displays 58,890 and 63,890 (rounded for display only); the
-    // real carried-forward values are 58,889.67 and 63,889.67. Confirming
-    // the app's chain preserves that same unrounded precision throughout.
     const bankFee = calculateBankFee({ adult: 57230, senior: 0, child: 0, infant: 0, pwd: 0 }, 0.029);
     const adjusted = calculateAdjustedPackage({ adult: 57230, senior: 0, child: 0, infant: 0, pwd: 0 }, bankFee);
     expect(adjusted.adult).not.toBe(58890); // not silently rounded to the display value

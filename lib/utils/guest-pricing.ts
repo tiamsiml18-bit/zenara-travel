@@ -17,6 +17,11 @@
 export const GUEST_TYPES = ['senior', 'adult', 'child', 'infant', 'pwd'] as const;
 export type GuestType = (typeof GUEST_TYPES)[number];
 
+/** Default markup percentages — editable per quotation, these are just the starting values a new quotation pre-fills with. */
+export const DEFAULT_AIRFARE_MARKUP_PCT = 0.1;
+export const DEFAULT_HOTEL_MARKUP_PCT = 0.1;
+export const DEFAULT_TRANSFER_MARKUP_PCT = 0.2;
+
 export const GUEST_TYPE_LABELS: Record<GuestType, string> = {
   senior: 'Senior Citizen',
   adult: 'Adult',
@@ -60,98 +65,55 @@ export function calculateGuestSupplierCost(counts: GuestCounts, supplierCosts: G
 }
 
 // ============================================================================
-// Structured supplier-cost formulas — replicating the agency's Excel
-// quotation template exactly (confirmed formula-by-formula against real
-// cell values before implementation). See lib/services/pricing.md-equivalent
-// commentary below each function for the literal Excel cell this mirrors.
+// Structured supplier-cost formulas. All supplier rates are entered PER
+// PERSON directly by the agent — never a group total the system has to
+// divide across headcount. Airfare/Hotel/Transfer each apply their own
+// (editable) markup percentage directly to the per-person rate; nothing
+// here derives one guest type's rate from another's.
 // ============================================================================
 
-export interface AirfareInputs {
-  /** Agent-entered group total from the airline (Excel C9). */
-  actualRate: number;
-  /** Manual supplier-provided per-person rates — never derived from the Adult rate. */
-  seniorRate: number;
-  /** Maps to the Excel's "Toddler (2-5 y/o)" column. */
-  childRate: number;
-  /** Maps to the Excel's "0-2 years old" column. */
-  infantRate: number;
-  pwdRate: number;
-}
-
 /**
- * Excel: D9 = (C9*1.1) - ((F9*2)+G9), E9 = D9/5 — generalized here to use the
- * quotation's real guest counts instead of the two hardcoded numbers that
- * specific Excel copy happened to have for its specific trip (2 seniors, 5
- * adults). Senior/Child/Infant/PWD rates pass through completely unchanged;
- * only the Adult rate is derived — as the remainder of the marked-up total
- * once every other guest type's manually-entered cost is subtracted out.
+ * Airfare, Hotel, and Transfer are all structurally identical: 5
+ * independently-entered per-person rates (never one derived from another),
+ * with ONE shared markup percentage applied uniformly to all 5 within that
+ * category. PHP 0 is a fully valid, deliberate entry (FREE) and is never
+ * treated as "not entered" or backfilled from another guest type's rate.
  */
-export function calculateAirfareRates(inputs: AirfareInputs, counts: GuestCounts): GuestRates {
-  const markedUpTotal = inputs.actualRate * 1.1;
-  const nonAdultCost =
-    inputs.seniorRate * counts.senior + inputs.childRate * counts.child + inputs.infantRate * counts.infant + inputs.pwdRate * counts.pwd;
-  const adultRate = counts.adult > 0 ? (markedUpTotal - nonAdultCost) / counts.adult : 0;
-
-  return {
-    senior: inputs.seniorRate,
-    adult: adultRate,
-    child: inputs.childRate,
-    infant: inputs.infantRate,
-    pwd: inputs.pwdRate,
-  };
+export function calculateMarkedUpRates(rates: GuestRates, markupPct: number): GuestRates {
+  const result: GuestRates = {};
+  for (const t of GUEST_TYPES) result[t] = (rates[t] || 0) * (1 + markupPct);
+  return result;
 }
 
-/**
- * Excel: D10 = C10*1.1, E10 = D10/H3, F10 = E10, G10 = F10 — Hotel is split
- * evenly across every guest type by design (kept exactly as the Excel does,
- * per explicit confirmation — no separate per-guest-type Hotel rates).
- */
-export function calculateHotelRatePerPerson(actualRate: number, counts: GuestCounts): number {
-  const totalPax = GUEST_TYPES.reduce((sum, t) => sum + (counts[t] || 0), 0);
-  const markedUpTotal = actualRate * 1.1;
-  return totalPax > 0 ? markedUpTotal / totalPax : 0;
-}
-
-/**
- * Excel: D11 = C11*1.2, E11 = D11/H3, F11 = E11, G11 = F11 — same shape as
- * Hotel (split evenly across every guest type), but a 20% adjustment
- * instead of Hotel's 10%.
- */
-export function calculateTransferRatePerPerson(actualRate: number, counts: GuestCounts): number {
-  const totalPax = GUEST_TYPES.reduce((sum, t) => sum + (counts[t] || 0), 0);
-  const markedUpTotal = actualRate * 1.2;
-  return totalPax > 0 ? markedUpTotal / totalPax : 0;
-}
-
-/** Excel: E19 = SUM(E9:E18) — Airfare + Hotel + Transfer + every selected Tour's rate, per guest type. */
+/** Package per PAX = Airfare + Hotel + Transfer + every selected Tour's rate, per guest type. Unchanged formula — only what feeds into it changed. */
 export function calculatePackagePerPax(
   airfareRates: GuestRates,
-  hotelRatePerPerson: number,
-  transferRatePerPerson: number,
+  hotelRates: GuestRates,
+  transferRates: GuestRates,
   tourRates: GuestRates
 ): GuestRates {
   const result: GuestRates = {};
   for (const t of GUEST_TYPES) {
-    result[t] = (airfareRates[t] || 0) + hotelRatePerPerson + transferRatePerPerson + (tourRates[t] || 0);
+    result[t] = (airfareRates[t] || 0) + (hotelRates[t] || 0) + (transferRates[t] || 0) + (tourRates[t] || 0);
   }
   return result;
 }
 
-/** Excel: E21 = E19*D21 — Package per PAX × the selected payment method's fee %. */
+/** Package per PAX × the selected payment method's fee %. */
 export function calculateBankFee(packagePerPax: GuestRates, feePct: number): GuestRates {
   const result: GuestRates = {};
   for (const t of GUEST_TYPES) result[t] = (packagePerPax[t] || 0) * feePct;
   return result;
 }
 
-/** Excel: E25 = E19+E21 — Package per PAX plus its Bank Fee, added directly (never multiplied). */
+/** Package per PAX plus its Bank Fee, added directly (never multiplied). */
 export function calculateAdjustedPackage(packagePerPax: GuestRates, bankFee: GuestRates): GuestRates {
   const result: GuestRates = {};
   for (const t of GUEST_TYPES) result[t] = (packagePerPax[t] || 0) + (bankFee[t] || 0);
   return result;
 }
 
-/** Excel: E29 = E25+E27 — Adjusted Package plus one flat Zenara Markup, identical across every guest type. */
+/** Adjusted Package plus one flat Zenara Markup, identical across every guest type. */
 export function calculateFinalRatePerPax(adjustedPackage: GuestRates, zenaraMarkup: number): GuestRates {
   const result: GuestRates = {};
   for (const t of GUEST_TYPES) result[t] = (adjustedPackage[t] || 0) + zenaraMarkup;
