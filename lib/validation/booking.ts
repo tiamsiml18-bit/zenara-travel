@@ -17,3 +17,12 @@ export const bookingStatusSchema = z.object({
   bookingId: z.string().uuid(),
   status: z.enum(BOOKING_STATUSES),
 });
+
+export const paymentDetailsSchema = z.object({
+  bookingId: z.string().uuid(),
+  paymentNotes: z.string().trim().max(2000).optional().or(z.literal('')),
+  paymentDueDate: z.string().optional().or(z.literal('')),
+  reminderStopped: z.boolean().optional(),
+});
+
+export type PaymentDetailsInput = z.infer<typeof paymentDetailsSchema>;

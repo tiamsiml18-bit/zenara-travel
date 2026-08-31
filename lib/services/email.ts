@@ -131,3 +131,57 @@ export async function getEmailHistory(supabase: SupabaseClient, quotationId: str
   if (error) throw new Error(`Failed to load email history: ${error.message}`);
   return data ?? [];
 }
+
+export interface SendPaymentReminderEmailInput {
+  bookingId: string;
+  clientId: string;
+  to: string;
+  subject: string;
+  body: string;
+  consultantFirstName: string;
+}
+
+/**
+ * No PDF attachment — a payment reminder is a short balance notice, not a
+ * resend of anything. Entirely separate email_type from quotation/followup
+ * so this never gets mixed into the sales follow-up history or counted
+ * against the follow-up sequence.
+ */
+export async function sendPaymentReminderEmail(
+  supabase: SupabaseClient,
+  input: SendPaymentReminderEmailInput,
+  actingUserId: string | null
+) {
+  let status: 'sent' | 'failed' = 'sent';
+  let errorMessage: string | null = null;
+  try {
+    await sendGmailMessage(supabase, {
+      to: input.to,
+      consultantFirstName: input.consultantFirstName,
+      subject: input.subject,
+      bodyText: input.body,
+    });
+  } catch (err) {
+    status = 'failed';
+    errorMessage = err instanceof Error ? err.message : 'Failed to send email.';
+  }
+
+  await supabase.from('email_log').insert({
+    client_id: input.clientId,
+    recipient_email: input.to,
+    subject: input.subject,
+    email_type: 'payment_reminder',
+    sent_by: actingUserId,
+    status,
+    error_message: errorMessage,
+  });
+
+  if (status === 'failed') throw new Error(errorMessage ?? 'Failed to send email.');
+
+  await supabase.from('client_activities').insert({
+    client_id: input.clientId,
+    activity_type: 'payment_reminder_sent',
+    description: `Payment reminder sent: "${input.subject}"`,
+    user_id: actingUserId,
+  });
+}

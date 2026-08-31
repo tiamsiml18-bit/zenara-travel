@@ -3,14 +3,25 @@ import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { BookingStatusSelect } from '@/components/bookings/booking-status-select';
 import { AddPaymentForm } from '@/components/bookings/add-payment-form';
+import { PaymentDetailsForm } from '@/components/bookings/payment-details-form';
 import { createClient } from '@/lib/supabase/server';
 import { getBookingById } from '@/lib/services/bookings';
-import { listPayments } from '@/lib/services/payments';
+import {
+  listPayments,
+  getEffectivePaymentDueDate,
+  getPaymentDisplayStatus,
+  getPaymentAuditHistory,
+  PAYMENT_DISPLAY_STATUS_LABELS,
+} from '@/lib/services/payments';
 import { requireUser } from '@/lib/auth/session';
 
 function formatDate(d?: string | null) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+function formatDateTime(d?: string | null) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 function formatMoney(n?: number | null) {
   if (n === null || n === undefined) return '—';
@@ -24,15 +35,33 @@ const PAYMENT_STATUS_STYLE: Record<string, string> = {
   refunded: 'bg-sand-100 text-ink-500',
 };
 
+const DISPLAY_STATUS_STYLE: Record<string, string> = {
+  deposit_pending: 'bg-sand-100 text-ink-700',
+  partially_paid: 'bg-amber-100 text-amber-700',
+  balance_due: 'bg-coral-500/10 text-coral-600',
+  paid_in_full: 'bg-harbor-100 text-harbor-700',
+};
+
 export default async function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireUser();
   const { id } = await params;
   const supabase = await createClient();
 
-  const [booking, payments] = await Promise.all([getBookingById(supabase, id), listPayments(supabase, id)]);
+  const [booking, payments, paymentHistory] = await Promise.all([
+    getBookingById(supabase, id),
+    listPayments(supabase, id),
+    getPaymentAuditHistory(supabase, id),
+  ]);
 
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const balance = Math.max(0, Number(booking.total_amount) - totalPaid);
+  const effectiveDueDate = getEffectivePaymentDueDate(booking);
+  const displayStatus = getPaymentDisplayStatus({
+    paymentStatus: booking.payment_status,
+    remainingBalance: balance,
+    effectiveDueDate,
+    todayIso: new Date().toISOString().slice(0, 10),
+  });
 
   return (
     <>
@@ -48,6 +77,11 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               >
                 {booking.payment_status}
               </span>
+              {booking.status === 'confirmed' && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${DISPLAY_STATUS_STYLE[displayStatus]}`}>
+                  {PAYMENT_DISPLAY_STATUS_LABELS[displayStatus]}
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm text-ink-500">
               {booking.client?.full_name} · {booking.destination} · agent: {booking.agent?.full_name ?? '—'}
@@ -107,6 +141,35 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 ))}
               </ul>
             </section>
+
+            {paymentHistory.length > 0 && (
+              <section className="rounded-lg border border-sand-200 bg-white p-5">
+                <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Payment change history</h3>
+                <ul className="space-y-3">
+                  {paymentHistory.map((entry) => (
+                    <li key={entry.id} className="text-sm">
+                      <p className="text-xs text-ink-500">
+                        {formatDateTime(entry.created_at)}
+                        {entry.user?.full_name ? ` · ${entry.user.full_name}` : ''}
+                      </p>
+                      {entry.action === 'payment.added' ? (
+                        <p className="text-ink-700">
+                          Payment of {formatMoney((entry.metadata as any)?.amount)} recorded via {(entry.metadata as any)?.method}.
+                        </p>
+                      ) : (
+                        <ul className="mt-0.5 space-y-0.5 text-ink-700">
+                          {((entry.metadata as any)?.changes ?? []).map((c: any, i: number) => (
+                            <li key={i}>
+                              {c.label} changed{c.from ? ` from "${c.from}"` : ''} to "{c.to ?? '—'}"
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
 
           <div className="col-span-1 space-y-6">
@@ -120,6 +183,17 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             </section>
 
             <AddPaymentForm bookingId={id} />
+
+            {booking.status === 'confirmed' && (
+              <PaymentDetailsForm
+                bookingId={id}
+                paymentNotes={booking.payment_notes}
+                paymentDueDate={booking.payment_due_date}
+                effectiveDueDate={effectiveDueDate}
+                usingDefaultDueDate={!booking.payment_due_date}
+                reminderStopped={booking.payment_reminder_stopped}
+              />
+            )}
 
             <p className="text-xs leading-relaxed text-ink-500">
               This is a lightweight tracker for reference only — detailed accounting stays in Zoho, per agency

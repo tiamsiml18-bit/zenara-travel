@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
-import { paymentSchema, bookingStatusSchema, type PaymentInput } from '@/lib/validation/booking';
+import { paymentSchema, bookingStatusSchema, paymentDetailsSchema, type PaymentInput, type PaymentDetailsInput } from '@/lib/validation/booking';
 import * as bookingsService from '@/lib/services/bookings';
 import * as paymentsService from '@/lib/services/payments';
 import * as quotationsService from '@/lib/services/quotations';
@@ -81,5 +81,31 @@ export async function updateQuotationStatusAction(input: { quotationId: string; 
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to update status.' };
+  }
+}
+
+export async function updatePaymentDetailsAction(input: PaymentDetailsInput): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = paymentDetailsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid payment details.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  try {
+    await paymentsService.updatePaymentDetails(
+      supabase,
+      parsed.data.bookingId,
+      {
+        paymentNotes: parsed.data.paymentNotes,
+        paymentDueDate: parsed.data.paymentDueDate,
+        reminderStopped: parsed.data.reminderStopped,
+      },
+      user.id
+    );
+    revalidatePath(`/bookings/${input.bookingId}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to update payment details.' };
   }
 }

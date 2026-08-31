@@ -53,6 +53,43 @@ function formatValidUntil(iso: string): string {
 }
 
 /**
+ * Payment reminders are their own category, entirely separate from the
+ * sales follow-up sequence above — different purpose (a confirmed booking
+ * collecting its balance, not a lead deciding whether to book), different
+ * trigger (24 hours before the actual payment due date, not a follow-up
+ * schedule), and it must never be confused with Follow-up #1/#2/#3 or any
+ * pipeline stage. Always uses the REAL remaining balance and due date from
+ * the booking record — never assumes the default 50/50 split, since the
+ * actual recorded payment arrangement always takes priority.
+ */
+export function generatePaymentReminderEmail(params: {
+  clientFirstName: string;
+  destination: string;
+  consultantFirstName: string;
+  remainingBalance: number;
+  dueDate: string;
+}): EmailDraft {
+  const dest = titleCase(params.destination);
+  const dueDateFormatted = formatValidUntil(params.dueDate);
+  const balanceFormatted = `PHP ${params.remainingBalance.toLocaleString('en-PH')}`;
+
+  return {
+    subject: `A quick reminder about your ${dest} trip`,
+    body: `Hi ${params.clientFirstName},
+
+Just a quick reminder regarding the remaining balance for your upcoming ${dest} trip, which is due on ${dueDateFormatted}.
+
+The remaining balance is ${balanceFormatted}.
+
+If you've already settled this, please disregard this message.
+
+If you need anything from us before your trip, feel free to let me know.
+
+${SIGN_OFF(params.consultantFirstName)}`,
+  };
+}
+
+/**
  * Follow-up emails vary by two things, and CRITICALLY, both dimensions
  * apply together, not one-or-the-other:
  *

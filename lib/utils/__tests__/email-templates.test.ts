@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateQuotationEmail, generateFollowUpEmail } from '@/lib/utils/email-templates';
+import { generateQuotationEmail, generateFollowUpEmail, generatePaymentReminderEmail } from '@/lib/utils/email-templates';
 import type { PipelineStage } from '@/lib/services/pipeline';
 
 describe('generateQuotationEmail', () => {
@@ -331,5 +331,43 @@ describe('generateFollowUpEmail', () => {
     );
     expect(new Set(subjects).size).toBe(3);
     for (const s of subjects) expect(s).toContain('Hong Kong');
+  });
+});
+
+describe('generatePaymentReminderEmail', () => {
+  it('uses the actual recorded remaining balance, matching the spec example exactly (PHP 40,000, not the default 50%)', () => {
+    const draft = generatePaymentReminderEmail({
+      clientFirstName: 'Maria',
+      destination: 'Boracay',
+      consultantFirstName: 'Leo',
+      remainingBalance: 40000,
+      dueDate: '2026-10-01',
+    });
+    expect(draft.body).toContain('remaining balance is PHP 40,000');
+    expect(draft.body).not.toContain('50,000'); // never the assumed 50/50 default
+  });
+
+  it('mentions the due date and a gentle "disregard if already paid" note, never a collection-notice tone', () => {
+    const draft = generatePaymentReminderEmail({
+      clientFirstName: 'Maria',
+      destination: 'Boracay',
+      consultantFirstName: 'Leo',
+      remainingBalance: 40000,
+      dueDate: '2026-10-01',
+    });
+    expect(draft.body).toContain('due on October 1, 2026');
+    expect(draft.body).toMatch(/already settled|disregard/i);
+    expect(draft.subject).not.toMatch(/overdue|urgent|collection/i);
+  });
+
+  it('never invents urgency language', () => {
+    const draft = generatePaymentReminderEmail({
+      clientFirstName: 'Maria',
+      destination: 'Boracay',
+      consultantFirstName: 'Leo',
+      remainingBalance: 40000,
+      dueDate: '2026-10-01',
+    });
+    expect(draft.body).not.toMatch(/final notice|act now|immediately|past due/i);
   });
 });
