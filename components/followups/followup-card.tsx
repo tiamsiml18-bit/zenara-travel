@@ -44,7 +44,15 @@ export interface FollowUpCardData {
     id: string;
     quotation_number: string;
     pipeline_stage: string | null;
-    current_version: { destination: string; travel_start_date: string; travel_end_date: string; total_price: number; consultant_name_snapshot: string | null } | null;
+    current_version: {
+      destination: string;
+      travel_start_date: string;
+      travel_end_date: string;
+      total_price: number;
+      consultant_name_snapshot: string | null;
+      hotel_name: string | null;
+      valid_until: string | null;
+    } | null;
   } | null;
   agent: { id: string; full_name: string } | null;
 }
@@ -333,6 +341,8 @@ function FollowUpEmailComposer({
     consultantFirstName,
     followUpNumber: followUp.sequence_number,
     pipelineStage: (followUp.quotation?.pipeline_stage as PipelineStage | null) ?? null,
+    hotelName: followUp.quotation?.current_version?.hotel_name ?? null,
+    validUntil: followUp.quotation?.current_version?.valid_until ?? null,
   });
 
   return (

@@ -8,7 +8,7 @@ export interface EmailDraft {
 const SIGN_OFF = (consultantFirstName: string) => `Best,\n${consultantFirstName}`;
 
 /**
- * The quotation email — sent once for the original quote, and again
+ * The quotation email -- sent once for the original quote, and again
  * (with different, revision-aware wording) whenever a revised version
  * goes out after the client asked for changes. Deliberately doesn't
  * restate pricing or itinerary details either way: the PDF attachment
@@ -48,6 +48,10 @@ ${SIGN_OFF(params.consultantFirstName)}`,
   };
 }
 
+function formatValidUntil(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 /**
  * Follow-up emails vary by two things, in this priority order:
  *
@@ -55,19 +59,23 @@ ${SIGN_OFF(params.consultantFirstName)}`,
  *    actual client signal (Still Thinking, Requested Changes, Interested)
  *    -- a real conversation already happened, so the email should
  *    acknowledge that specifically rather than sound like a form reminder.
- * 2. Otherwise, the follow-up NUMBER (1/2/3) -- no signal yet, so the tone
- *    deliberately escalates using the same sequence sales/marketing teams
- *    use for a cold quote: a friendly open-ended check-in first, a gentle
- *    urgency nudge second, and a short, low-pressure "breakup" email last
- *    that offers an easy next step (a quick call) rather than just
- *    repeating the ask. No two variants share an opening line -- a
- *    generic "Hope you're doing well" on every message is exactly the
- *    kind of form-letter tell this whole feature exists to avoid.
+ * 2. Otherwise, the follow-up NUMBER (1/2/3) -- no signal yet, so each of
+ *    the three has its own distinct purpose in one ongoing conversation:
  *
- * Every variant only ever references client name, destination, and
- * consultant name -- nothing about specific prices, activities, or
- * conversation content the CRM doesn't actually have, since inventing that
- * is explicitly disallowed.
+ *    #1 Review and offer help -- simple, friendly, just checking they saw it.
+ *    #2 Customization and decision support -- names the specific things
+ *       that can still be adjusted (hotel, tours, itinerary, dates, guest
+ *       arrangements), using the real hotel name on file when there is one.
+ *    #3 Timing and final check-in -- uses the quotation's actual validity
+ *       date when it's set, never an invented sense of urgency or scarcity.
+ *
+ * No two of the three share an opening line or structure -- a generic
+ * "Hope you're doing well" (or any other identical opener) on every
+ * message is exactly the kind of form-letter tell this feature exists to
+ * avoid. Every variant only ever references real CRM data (client name,
+ * destination, hotel, validity date, consultant name) -- nothing about
+ * prices, availability, or conversation content the CRM doesn't actually
+ * have, since inventing that is explicitly disallowed.
  */
 export function generateFollowUpEmail(params: {
   clientFirstName: string;
@@ -75,12 +83,14 @@ export function generateFollowUpEmail(params: {
   consultantFirstName: string;
   followUpNumber: number;
   pipelineStage: PipelineStage | null;
+  hotelName?: string | null;
+  validUntil?: string | null;
 }): EmailDraft {
   const dest = titleCase(params.destination);
 
   if (params.pipelineStage === 'still_thinking') {
     return {
-      subject: `Still deciding on ${dest}?`,
+      subject: `Still deciding on your ${dest} trip?`,
       body: `Hi ${params.clientFirstName},
 
 Just checking in on your ${dest} trip. I know these things take a bit of thought, so no rush at all, just wanted to see where things stand.
@@ -109,48 +119,54 @@ ${SIGN_OFF(params.consultantFirstName)}`,
       subject: `Ready to lock in your ${dest} trip?`,
       body: `Hi ${params.clientFirstName},
 
-Glad to hear you're interested in the ${dest} trip! Just wanted to check where things stand, let me know if you're ready to move forward, or if there's anything you'd like adjusted first.
+Glad to hear you're interested in the ${dest} trip. Just wanted to check where things stand, let me know if you're ready to move forward, or if there's anything you'd like adjusted first.
 
 ${SIGN_OFF(params.consultantFirstName)}`,
     };
   }
 
-  // No specific stage signal yet -- the standard three-touch sequence:
-  // open-ended check-in, then gentle urgency, then a short low-pressure
-  // final note with an easy next step (a call).
+  // No specific stage signal yet -- the three-part conversation: review,
+  // then customization/decision support, then a final timing-based
+  // check-in using real data when it's available.
   if (params.followUpNumber <= 1) {
     return {
-      subject: `Any questions on your ${dest} package?`,
+      subject: `Your ${dest} trip`,
       body: `Hi ${params.clientFirstName},
 
-Wanted to check if you had a chance to look over the ${dest} package I sent.
+I wanted to follow up on the ${dest} package we sent over and see if you had a chance to look through the details.
 
-Happy to answer any questions or make adjustments to the itinerary if there's anything you'd like changed, just let me know.
+If you'd like to change anything in the package, feel free to let me know and I'll be happy to check the options for you.
 
 ${SIGN_OFF(params.consultantFirstName)}`,
     };
   }
 
   if (params.followUpNumber === 2) {
+    const changeOptions = params.hotelName
+      ? `staying somewhere other than ${params.hotelName}, adjusting the tours or itinerary, or changing the travel dates`
+      : `the hotel, tours, itinerary, or travel dates`;
     return {
-      subject: `Don't miss out on your ${dest} trip`,
+      subject: `A few changes to your ${dest} package?`,
       body: `Hi ${params.clientFirstName},
 
-Circling back on your ${dest} trip, rates and availability for this package can shift, so if you're still considering it, now's a good time to lock it in.
+I wanted to check in regarding your ${dest} trip. If you're still considering the package, we can also look at ${changeOptions} if you'd like to make any changes.
 
-Happy to adjust the hotel, activities, or dates if that helps too. Just let me know how you'd like to proceed.
+Let me know what you'd prefer and I'll check the available options for you.
 
 ${SIGN_OFF(params.consultantFirstName)}`,
     };
   }
 
+  const timingLine = params.validUntil
+    ? `Just a quick note that this quotation is valid until ${formatValidUntil(params.validUntil)}, so let me know if you'd like to move forward before then.`
+    : `If you're still planning to travel, I'm happy to update the package or check the latest options for you.`;
   return {
-    subject: `Closing the loop on your ${dest} trip`,
+    subject: `Your ${dest} travel plans`,
     body: `Hi ${params.clientFirstName},
 
-Haven't heard back on the ${dest} trip, so I'll go ahead and set this aside for now.
+I wanted to touch base one more time regarding your ${dest} trip. ${timingLine}
 
-If you're still interested, happy to hop on a quick call or pick things back up anytime, no pressure at all.
+If you're not ready yet, no worries, you can always message us when you're ready to continue.
 
 ${SIGN_OFF(params.consultantFirstName)}`,
   };
