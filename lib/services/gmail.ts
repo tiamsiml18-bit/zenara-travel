@@ -113,6 +113,44 @@ function base64UrlEncode(input: string): string {
   return Buffer.from(input, 'utf-8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+/**
+ * Converts the agent's plain-text draft (as typed in the composer) into
+ * clean, simply-styled HTML — paragraph spacing and a readable system font
+ * instead of relying on each recipient's mail client's own plain-text
+ * rendering, which is inconsistent (as seen: fine in light mode, cramped
+ * in dark mode). This only changes how it's DISPLAYED, never the actual
+ * wording — the natural, human phrasing the agent wrote is untouched.
+ */
+function textToHtml(text: string): string {
+  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p style="margin:0 0 16px 0;">${escape(p).replace(/\n/g, '<br>')}</p>`)
+    .join('\n');
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">
+${paragraphs}
+</div>`;
+}
+
+/** The multipart/alternative block (plain text + HTML) shared by both the with-attachment and without-attachment cases below. */
+function buildAlternativePart(bodyText: string, boundary: string): string {
+  return [
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    '',
+    bodyText,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    '',
+    textToHtml(bodyText),
+    '',
+    `--${boundary}--`,
+  ].join('\r\n');
+}
+
 export interface SendEmailInput {
   to: string;
   fromName: string; // the consultant's display name, e.g. "Leo · Zenara Travel and Tours"
@@ -125,49 +163,54 @@ export interface SendEmailInput {
  * Builds a raw RFC 2822 MIME message and sends it via the Gmail API's
  * messages.send endpoint. Sent "as" the connected Gmail account (Gmail
  * doesn't allow an arbitrary From address without domain verification),
- * with the consultant's name in the From header's display name and a
- * plain-text signature — the client sees a personal name, not a generic
- * CRM address, even though the underlying mailbox is the one shared
- * account.
+ * with the consultant's name in the From header's display name — the
+ * client sees a personal name, not a generic CRM address, even though the
+ * underlying mailbox is the one shared account.
  */
 export async function sendGmailMessage(supabase: SupabaseClient, input: SendEmailInput): Promise<{ id: string }> {
   const connection = await getGmailConnection(supabase);
   if (!connection) throw new Error('No Gmail account is connected. Connect one in Admin → Settings first.');
 
   const accessToken = await getValidAccessToken(supabase, connection);
-  const boundary = `zenara_${Date.now()}`;
+  const mixedBoundary = `zenara_mixed_${Date.now()}`;
+  const altBoundary = `zenara_alt_${Date.now()}`;
 
   const headers = [
     `From: "${encodeHeaderWord(input.fromName)}" <${connection.connected_email}>`,
     `To: ${input.to}`,
     `Subject: ${encodeHeaderWord(input.subject)}`,
+    `Date: ${new Date().toUTCString()}`,
     'MIME-Version: 1.0',
   ];
 
   let raw: string;
   if (input.attachment) {
-    headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+    // multipart/mixed (attachment) containing a multipart/alternative
+    // (plain + HTML body) as its first part, then the attachment as the
+    // second — the standard nesting for "styled email with a file
+    // attached."
+    headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
     const attachmentBase64 = input.attachment.content.toString('base64');
     raw = [
       ...headers,
       '',
-      `--${boundary}`,
-      'Content-Type: text/plain; charset="UTF-8"',
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
       '',
-      input.bodyText,
+      buildAlternativePart(input.bodyText, altBoundary),
       '',
-      `--${boundary}`,
+      `--${mixedBoundary}`,
       `Content-Type: ${input.attachment.mimeType}; name="${input.attachment.filename}"`,
       'Content-Transfer-Encoding: base64',
       `Content-Disposition: attachment; filename="${input.attachment.filename}"`,
       '',
       attachmentBase64,
       '',
-      `--${boundary}--`,
+      `--${mixedBoundary}--`,
     ].join('\r\n');
   } else {
-    headers.push('Content-Type: text/plain; charset="UTF-8"');
-    raw = [...headers, '', input.bodyText].join('\r\n');
+    headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+    raw = [...headers, '', buildAlternativePart(input.bodyText, altBoundary)].join('\r\n');
   }
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
