@@ -118,3 +118,16 @@ export async function updateFollowUpScheduleAction(
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to save the follow-up schedule.' };
   }
 }
+
+export async function disconnectGmailAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireRole('admin');
+  const supabase = await createSupabaseServerClient();
+  try {
+    await supabase.from('email_connections').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await writeAudit(supabase, { userId: user.id, action: 'email_connection.disconnected', entityType: 'email_connection', entityId: 'gmail' });
+    revalidatePath('/admin/settings');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to disconnect Gmail.' };
+  }
+}

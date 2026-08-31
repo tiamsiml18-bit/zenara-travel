@@ -6,9 +6,13 @@ import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quot
 import { QuotationStatusControls, ConvertToBookingButton } from '@/components/quotations/quotation-status-controls';
 import { ArchiveQuotationButton } from '@/components/quotations/archive-quotation-button';
 import { PdfPreviewButton } from '@/components/quotations/pdf-preview-button';
+import { SendQuotationEmailButton } from '@/components/quotations/send-quotation-email-button';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { getBookingForQuotation } from '@/lib/services/bookings';
+import { getGmailConnection } from '@/lib/services/gmail';
+import { getEmailHistory } from '@/lib/services/email';
+import { generateQuotationEmail } from '@/lib/utils/email-templates';
 import { requireUser } from '@/lib/auth/session';
 
 function formatDate(d?: string | null) {
@@ -28,13 +32,23 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   const { quotation, versions, currentVersion } = await getQuotationById(supabase, id);
   if (!currentVersion) throw new Error('This quotation has no version data.');
 
-  const [{ itinerary, inclusions, exclusions }, pricing, existingBooking] = await Promise.all([
+  const [{ itinerary, inclusions, exclusions }, pricing, existingBooking, gmailConnection, emailHistory] = await Promise.all([
     getVersionDetail(supabase, currentVersion.id),
     getPricingForVersion(supabase, currentVersion.id),
     getBookingForQuotation(supabase, id),
+    getGmailConnection(supabase),
+    getEmailHistory(supabase, id),
   ]);
 
   const isDraft = currentVersion.status === 'draft';
+
+  const consultantFirstName = (currentVersion.consultant_name_snapshot ?? quotation.agent?.full_name ?? 'Your consultant').split(' ')[0]!;
+  const clientFirstName = (quotation.client?.full_name ?? 'there').split(' ')[0]!;
+  const quotationEmailDraft = generateQuotationEmail({
+    clientFirstName,
+    destination: currentVersion.destination,
+    consultantFirstName,
+  });
 
   return (
     <>
@@ -67,6 +81,15 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             >
               <Download className="h-4 w-4" /> Download PDF
             </a>
+            <SendQuotationEmailButton
+              quotationId={id}
+              connectedEmail={gmailConnection?.connected_email ?? null}
+              clientEmail={quotation.client?.email ?? null}
+              subject={quotationEmailDraft.subject}
+              body={quotationEmailDraft.body}
+              fromName={`${consultantFirstName} · Zenara Travel and Tours`}
+              attachmentLabel={`${quotation.quotation_number}.pdf will be attached automatically`}
+            />
             {isDraft && (
               <Link
                 href={`/quotations/${id}/edit`}
@@ -212,6 +235,28 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                 ))}
               </ul>
             </section>
+
+            {emailHistory.length > 0 && (
+              <section className="rounded-lg border border-sand-200 bg-white p-5">
+                <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Email history</h3>
+                <ul className="space-y-3">
+                  {emailHistory.map((e: any) => (
+                    <li key={e.id} className="text-sm">
+                      <p className="font-medium text-ink-900">
+                        {e.email_type === 'followup' ? `Follow-up Email #${e.follow_up_number}` : 'Quotation Email'}
+                      </p>
+                      <p className="text-xs text-ink-500">
+                        {formatDate(e.sent_at)} · Sent by {e.sent_by?.full_name ?? 'Unknown'}
+                      </p>
+                      <p className="text-xs text-ink-500">To: {e.recipient_email}</p>
+                      <p className={`text-xs font-medium ${e.status === 'failed' ? 'text-coral-600' : 'text-harbor-600'}`}>
+                        Status: {e.status === 'failed' ? 'Failed' : 'Sent'}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         </div>
       </main>

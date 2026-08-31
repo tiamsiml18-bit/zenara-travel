@@ -113,8 +113,8 @@ export interface FollowUpListFilters {
 const FOLLOWUP_SELECT = `
   id, due_date, status, outcome, method, notes, completed_at, sequence_number,
   client:clients ( id, full_name, mobile_number, whatsapp_number, messenger_handle, email ),
-  quotation:quotations ( id, quotation_number,
-    current_version:quotation_versions!quotations_current_version_id_fkey ( destination, travel_start_date, travel_end_date, total_price ) ),
+  quotation:quotations ( id, quotation_number, pipeline_stage,
+    current_version:quotation_versions!quotations_current_version_id_fkey ( destination, travel_start_date, travel_end_date, total_price, consultant_name_snapshot ) ),
   agent:users ( id, full_name )
 `;
 

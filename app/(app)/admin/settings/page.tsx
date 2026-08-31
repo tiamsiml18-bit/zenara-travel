@@ -1,19 +1,30 @@
 import { LogoUploader } from '@/components/admin/logo-uploader';
 import { FollowUpScheduleForm } from '@/components/admin/followup-schedule-form';
+import { GmailConnectionSection } from '@/components/admin/gmail-connection-section';
 import { Topbar } from '@/components/layout/topbar';
 import { createClient } from '@/lib/supabase/server';
 import { getAgencySettings } from '@/lib/services/lookups';
 import { getQuotationSettings } from '@/lib/services/followups';
+import { getGmailConnection } from '@/lib/services/gmail';
 import { requireRole } from '@/lib/auth/session';
 import { updateAgencySettingsAction } from './actions';
 
 const inputClass =
   'w-full rounded-md border border-sand-200 px-3 py-2 text-sm text-ink-900 outline-none ring-harbor-400 focus:ring-2';
 
-export default async function AgencySettingsPage() {
+export default async function AgencySettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ gmail_connected?: string; gmail_error?: string }>;
+}) {
   await requireRole('admin');
+  const params = await searchParams;
   const supabase = await createClient();
-  const [settings, quotationSettings] = await Promise.all([getAgencySettings(supabase), getQuotationSettings(supabase)]);
+  const [settings, quotationSettings, gmailConnection] = await Promise.all([
+    getAgencySettings(supabase),
+    getQuotationSettings(supabase),
+    getGmailConnection(supabase),
+  ]);
   const action = updateAgencySettingsAction.bind(null, settings.id);
 
   return (
@@ -77,6 +88,20 @@ export default async function AgencySettingsPage() {
         <div className="mt-6 max-w-2xl">
           <Section title="Follow-up automation">
             <FollowUpScheduleForm settingsId={quotationSettings.id} currentDays={quotationSettings.followup_schedule_days ?? [2, 3, 5]} />
+          </Section>
+        </div>
+
+        <div className="mt-6 max-w-2xl">
+          <Section title="Gmail connection">
+            {params.gmail_connected === '1' && (
+              <p className="mb-3 rounded-md bg-harbor-50 px-3 py-2 text-sm text-harbor-700">Gmail connected successfully.</p>
+            )}
+            {params.gmail_error && (
+              <p className="mb-3 rounded-md border border-coral-500/30 bg-coral-500/5 px-3 py-2 text-sm text-coral-600">
+                {params.gmail_error}
+              </p>
+            )}
+            <GmailConnectionSection connectedEmail={gmailConnection?.connected_email ?? null} />
           </Section>
         </div>
 

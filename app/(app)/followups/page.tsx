@@ -11,6 +11,7 @@ import { listFollowUps, getFollowUpCounts, getQuotationSettings } from '@/lib/se
 import { listQuotationsForPipeline, getLatestFollowUpsForQuotations } from '@/lib/services/pipeline';
 import { computeCardStatus } from '@/lib/utils/pipeline-card-status';
 import { listAgents } from '@/lib/services/lookups';
+import { getGmailConnection } from '@/lib/services/gmail';
 import { requireUser } from '@/lib/auth/session';
 
 const TABS = [
@@ -31,12 +32,13 @@ export default async function FollowUpsPage({
   const isPipelineView = params.view === 'pipeline';
 
   const supabase = await createClient();
-  const [followUps, counts, agents, pipelineRows, quotationSettings] = await Promise.all([
+  const [followUps, counts, agents, pipelineRows, quotationSettings, gmailConnection] = await Promise.all([
     isPipelineView ? Promise.resolve([]) : listFollowUps(supabase, { bucket, agentId: params.agent }),
     getFollowUpCounts(supabase, params.agent),
     user.role === 'admin' || user.role === 'manager' ? listAgents(supabase) : Promise.resolve([]),
     isPipelineView ? listQuotationsForPipeline(supabase, params.agent) : Promise.resolve([]),
     isPipelineView ? getQuotationSettings(supabase) : Promise.resolve(null),
+    getGmailConnection(supabase),
   ]);
 
   const scheduleLength = quotationSettings?.followup_schedule_days?.length ?? 3;
@@ -142,7 +144,7 @@ export default async function FollowUpsPage({
             {followUps.map((f) => (
               // @ts-expect-error — Supabase's inferred join shape matches FollowUpCardData at runtime;
               // full typing arrives once generated types replace the placeholder Database type.
-              <FollowUpCard key={f.id} followUp={f} />
+              <FollowUpCard key={f.id} followUp={f} gmailConnectedEmail={gmailConnection?.connected_email ?? null} />
             ))}
             {followUps.length === 0 && (
               <div className="rounded-lg border border-dashed border-sand-200 bg-white p-10 text-center text-sm text-ink-500">

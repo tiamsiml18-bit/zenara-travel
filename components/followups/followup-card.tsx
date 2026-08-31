@@ -22,6 +22,10 @@ import {
   skipFollowUpAction,
   stopFollowUpAction,
 } from '@/app/(app)/followups/actions';
+import { sendFollowUpEmailAction } from '@/app/(app)/emails/actions';
+import { EmailComposer } from '@/components/email/email-composer';
+import { generateFollowUpEmail } from '@/lib/utils/email-templates';
+import type { PipelineStage } from '@/lib/services/pipeline';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import { buildFollowUpMessage } from '@/lib/utils/followup-message';
 import { FOLLOWUP_OUTCOMES, FOLLOWUP_METHODS, OUTCOME_LABELS } from '@/lib/validation/followup';
@@ -34,11 +38,13 @@ export interface FollowUpCardData {
   method: string | null;
   notes: string | null;
   completed_at: string | null;
+  sequence_number: number;
   client: { id: string; full_name: string; mobile_number: string | null; whatsapp_number: string | null; messenger_handle: string | null; email: string | null } | null;
   quotation: {
     id: string;
     quotation_number: string;
-    current_version: { destination: string; travel_start_date: string; travel_end_date: string; total_price: number } | null;
+    pipeline_stage: string | null;
+    current_version: { destination: string; travel_start_date: string; travel_end_date: string; total_price: number; consultant_name_snapshot: string | null } | null;
   } | null;
   agent: { id: string; full_name: string } | null;
 }
@@ -51,10 +57,11 @@ function isOverdue(dueDate: string) {
   return dueDate < new Date().toISOString().slice(0, 10);
 }
 
-export function FollowUpCard({ followUp }: { followUp: FollowUpCardData }) {
+export function FollowUpCard({ followUp, gmailConnectedEmail }: { followUp: FollowUpCardData; gmailConnectedEmail: string | null }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [openPanel, setOpenPanel] = useState<'complete' | 'reschedule' | 'note' | null>(null);
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { confirm, dialog } = useConfirmDialog();
@@ -205,16 +212,20 @@ export function FollowUpCard({ followUp }: { followUp: FollowUpCardData }) {
           </a>
         )}
         {client?.email && (
-          <a
-            className="action-chip"
-            href={`mailto:${client.email}?subject=${encodeURIComponent(
-              `Following up: ${quotation?.quotation_number ?? 'your quotation'}`
-            )}&body=${encodeURIComponent(message)}`}
-          >
+          <button type="button" className="action-chip" onClick={() => setShowEmailComposer(true)}>
             <Mail className="h-3.5 w-3.5" /> Email
-          </a>
+          </button>
         )}
       </div>
+
+      {showEmailComposer && client?.email && (
+        <FollowUpEmailComposer
+          followUp={followUp}
+          clientEmail={client.email}
+          gmailConnectedEmail={gmailConnectedEmail}
+          onClose={() => setShowEmailComposer(false)}
+        />
+      )}
 
       {/* Expandable panels */}
       {openPanel === 'complete' && (
@@ -298,6 +309,52 @@ export function FollowUpCard({ followUp }: { followUp: FollowUpCardData }) {
         }
       `}</style>
     </div>
+  );
+}
+
+function FollowUpEmailComposer({
+  followUp,
+  clientEmail,
+  gmailConnectedEmail,
+  onClose,
+}: {
+  followUp: FollowUpCardData;
+  clientEmail: string;
+  gmailConnectedEmail: string | null;
+  onClose: () => void;
+}) {
+  const consultantFirstName = (followUp.quotation?.current_version?.consultant_name_snapshot ?? followUp.agent?.full_name ?? 'Your consultant').split(
+    ' '
+  )[0]!;
+  const clientFirstName = (followUp.client?.full_name ?? 'there').split(' ')[0]!;
+  const draft = generateFollowUpEmail({
+    clientFirstName,
+    destination: followUp.quotation?.current_version?.destination ?? 'your trip',
+    consultantFirstName,
+    followUpNumber: followUp.sequence_number,
+    pipelineStage: (followUp.quotation?.pipeline_stage as PipelineStage | null) ?? null,
+  });
+
+  return (
+    <EmailComposer
+      connectedEmail={gmailConnectedEmail}
+      to={clientEmail}
+      initialSubject={draft.subject}
+      initialBody={draft.body}
+      onClose={onClose}
+      onSend={(subject, body) =>
+        sendFollowUpEmailAction({
+          followUpId: followUp.id,
+          quotationId: followUp.quotation?.id ?? null,
+          clientId: followUp.client?.id ?? '',
+          to: clientEmail,
+          subject,
+          body,
+          fromName: `${consultantFirstName} · Zenara Travel and Tours`,
+          followUpNumber: followUp.sequence_number,
+        })
+      }
+    />
   );
 }
 
