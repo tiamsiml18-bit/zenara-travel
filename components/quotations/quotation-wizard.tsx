@@ -241,6 +241,7 @@ export function QuotationWizard({
     pwd: trip.numPwd,
   };
   const activeTypes = activeGuestTypes(guestCounts);
+  const tourDestinations = Array.from(new Set(tours.map((t) => t.destination).filter((d): d is string => Boolean(d)))).sort();
   // Tour contribution only — accumulated via handleTourSelected() as tours
   // are picked in the itinerary step. Airfare/Hotel/Transfer are computed
   // separately below and combined with this, exactly matching the server's
@@ -966,55 +967,99 @@ export function QuotationWizard({
                 </div>
 
                 {/* TOURS — one row per selected Tour, each with its own editable
-                    per-person rates for this quotation only. Pre-filled from
-                    the Tours library when first selected in the Itinerary
-                    step; editing here never changes the library record. */}
-                {tourPricing.length > 0 && (
-                  <div className="rounded-md border border-sand-200 bg-white p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Tours — Rate Per Person</p>
-                    <p className="mb-3 text-xs text-ink-500">
-                      Each Tour selected in the Itinerary step appears here once. Edit its per-person rates for
-                      this quotation — the Tours library itself is never changed.
-                    </p>
-                    <div className="space-y-4">
-                      {tourPricing.map((t) => (
-                        <div key={t.sourceTourId} className="rounded border border-sand-100 bg-sand-50/50 p-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <p className="text-sm font-medium text-ink-900">{t.tourName}</p>
-                            <button
-                              type="button"
-                              onClick={() => removeTourPricing(t.sourceTourId)}
-                              className="text-xs text-coral-600 hover:underline"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-5 gap-2">
-                            <PriceField label="Adult" value={t.rateAdult} onChange={(v) => updateTourPricing(t.sourceTourId, { rateAdult: v })} />
-                            <PriceField label="Senior" value={t.rateSenior} onChange={(v) => updateTourPricing(t.sourceTourId, { rateSenior: v })} />
-                            <PriceField label="Child" value={t.rateChild} onChange={(v) => updateTourPricing(t.sourceTourId, { rateChild: v })} />
-                            <PriceField
-                              label="Infant/Toddler"
-                              value={t.rateInfant}
-                              onChange={(v) => updateTourPricing(t.sourceTourId, { rateInfant: v })}
-                            />
-                            <PriceField label="PWD" value={t.ratePwd} onChange={(v) => updateTourPricing(t.sourceTourId, { ratePwd: v })} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-3 space-y-1 border-t border-sand-200 pt-2">
-                      {activeTypes
-                        .filter((t) => tourClientRateMap[t] > 0)
-                        .map((t) => (
-                          <div key={t} className="flex items-center justify-between text-xs text-ink-700">
-                            <span>{GUEST_TYPE_LABELS[t]} — all Tours combined</span>
-                            <span className="font-ticket">PHP {tourClientRateMap[t].toLocaleString('en-PH')} / person</span>
+                    per-person rates for this quotation only. A tour can be
+                    added here directly (not only via the Itinerary step) —
+                    picking one just adds its pricing row; it never creates
+                    a duplicate if the same tour is already priced. Pre-filled
+                    from the Tours library only as a starting point; editing
+                    here never changes the library record, and there's no
+                    markup on Tours — the entered rate is used as-is. */}
+                <div className="rounded-md border border-sand-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Tours — Rate Per Person</p>
+                  <p className="mb-3 text-xs text-ink-500">
+                    Add a Tour directly here, or select one in the Itinerary step — either way it appears once,
+                    below. No markup applies to Tours; enter each guest type's rate as the final rate.
+                  </p>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const tour = tours.find((t) => t.id === e.target.value);
+                      if (tour) handleTourSelected(tour);
+                      e.target.value = '';
+                    }}
+                    className="mb-3 w-full rounded-md border border-sand-200 bg-sand-50 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+                  >
+                    <option value="">+ Add a Tour…</option>
+                    {tourDestinations.map((destination) => (
+                      <optgroup key={destination} label={destination}>
+                        {tours
+                          .filter((t) => t.destination === destination)
+                          .map((t) => (
+                            <option key={t.id} value={t.id} disabled={tourPricing.some((tp) => tp.sourceTourId === t.id)}>
+                              {t.name}
+                              {tourPricing.some((tp) => tp.sourceTourId === t.id) ? ' (already added)' : ''}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                    {tours.some((t) => !t.destination) && (
+                      <optgroup label="Other">
+                        {tours
+                          .filter((t) => !t.destination)
+                          .map((t) => (
+                            <option key={t.id} value={t.id} disabled={tourPricing.some((tp) => tp.sourceTourId === t.id)}>
+                              {t.name}
+                              {tourPricing.some((tp) => tp.sourceTourId === t.id) ? ' (already added)' : ''}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </select>
+
+                  {tourPricing.length === 0 ? (
+                    <p className="text-xs text-ink-500">No Tours added yet.</p>
+                  ) : (
+                    <>
+                      <div className="space-y-4">
+                        {tourPricing.map((t) => (
+                          <div key={t.sourceTourId} className="rounded border border-sand-100 bg-sand-50/50 p-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <p className="text-sm font-medium text-ink-900">{t.tourName}</p>
+                              <button
+                                type="button"
+                                onClick={() => removeTourPricing(t.sourceTourId)}
+                                className="text-xs text-coral-600 hover:underline"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-5 gap-2">
+                              <PriceField label="Adult" value={t.rateAdult} onChange={(v) => updateTourPricing(t.sourceTourId, { rateAdult: v })} />
+                              <PriceField label="Senior" value={t.rateSenior} onChange={(v) => updateTourPricing(t.sourceTourId, { rateSenior: v })} />
+                              <PriceField label="Child" value={t.rateChild} onChange={(v) => updateTourPricing(t.sourceTourId, { rateChild: v })} />
+                              <PriceField
+                                label="Infant/Toddler"
+                                value={t.rateInfant}
+                                onChange={(v) => updateTourPricing(t.sourceTourId, { rateInfant: v })}
+                              />
+                              <PriceField label="PWD" value={t.ratePwd} onChange={(v) => updateTourPricing(t.sourceTourId, { ratePwd: v })} />
+                            </div>
                           </div>
                         ))}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                      <div className="mt-3 space-y-1 border-t border-sand-200 pt-2">
+                        {activeTypes
+                          .filter((t) => tourClientRateMap[t] > 0)
+                          .map((t) => (
+                            <div key={t} className="flex items-center justify-between text-xs text-ink-700">
+                              <span>{GUEST_TYPE_LABELS[t]} — all Tours combined</span>
+                              <span className="font-ticket">PHP {tourClientRateMap[t].toLocaleString('en-PH')} / person</span>
+                            </div>
+                          ))}
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 {/* OTHER SUPPLIER COSTS */}
                 <div className="rounded-md border border-sand-200 bg-white p-3">
@@ -1038,6 +1083,9 @@ export function QuotationWizard({
                       <option value="paypal">PayPal ({(feePercentages.paypal * 100).toFixed(1)}%)</option>
                       <option value="none">No Fee</option>
                     </select>
+                    {/* The calculated bank fee amount per person, same treatment as Hotel/Transfer's "Adjusted Rate" preview below their inputs. */}
+                    <p className="mt-2 text-xs text-ink-500">Bank fee per person</p>
+                    <AdjustedRateRow rates={computedBankFee} counts={guestCounts} />
                   </div>
                   <PriceField
                     label="Zenara Markup (flat, per person)"
