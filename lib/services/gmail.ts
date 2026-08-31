@@ -137,18 +137,106 @@ ${paragraphs}
 </div>`;
 }
 
+/**
+ * The single source of truth for the business signature -- agency name,
+ * website, phone, and WhatsApp all come from agency_settings (the same
+ * row the Settings page manages), never hardcoded here and never a second
+ * place an admin has to update. If a field is empty, its line is simply
+ * omitted rather than showing a broken "Phone: null".
+ */
+async function getAgencySignatureData(supabase: SupabaseClient) {
+  const { data } = await supabase.from('agency_settings').select('agency_name, website, phone, whatsapp').limit(1).maybeSingle();
+
+  return {
+    agencyName: data?.agency_name ?? 'Zenara Travel and Tours',
+    website: data?.website ?? null,
+    phone: data?.phone ?? null,
+    whatsapp: data?.whatsapp ?? null,
+  };
+}
+
+export function normalizeWebsiteUrl(website: string): string {
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
+}
+
+export function toDialableNumber(phone: string): string {
+  return phone.replace(/[^\d+]/g, '');
+}
+
+export function toWhatsAppUrl(whatsapp: string): string {
+  return `https://wa.me/${whatsapp.replace(/\D/g, '')}`;
+}
+
+export interface SignatureData {
+  agencyName: string;
+  website: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+}
+
+/**
+ * The plain-text fallback signature -- same information as the HTML
+ * version below, just without the clickable links (plain text can't have
+ * those), for mail clients that render text/plain. Just the business card
+ * info -- the consultant already signed off personally in the message
+ * body itself, so repeating their name here would be redundant.
+ */
+export function buildSignatureText(agency: SignatureData): string {
+  const lines = [`${agency.agencyName}`];
+  if (agency.website) lines.push(`Website: ${agency.website}`);
+  if (agency.phone) lines.push(`Phone: ${agency.phone}`);
+  if (agency.whatsapp) lines.push(`WhatsApp: ${agency.whatsapp}`);
+  return `\n\n--\n${lines.join('\n')}`;
+}
+
+/**
+ * The HTML signature -- agency name and clickable website/phone/WhatsApp
+ * links. No logo: an inline logo image is exactly the kind of thing that
+ * shows up as a broken icon depending on the mail client, image-loading
+ * settings, or a hiccup with the hosted file, so this stays text-only and
+ * always reliable. Kept deliberately compact: tight spacing, no color
+ * blocks or graphics, so it reads as a professional signature rather than
+ * a marketing banner.
+ */
+export function buildSignatureHtml(agency: SignatureData): string {
+  const contactLines: string[] = [];
+  if (agency.website) {
+    contactLines.push(
+      `Website: <a href="${normalizeWebsiteUrl(agency.website)}" style="color:#0b5b73;text-decoration:none;">${agency.website}</a>`
+    );
+  }
+  if (agency.phone) {
+    contactLines.push(`Phone: <a href="tel:${toDialableNumber(agency.phone)}" style="color:#0b5b73;text-decoration:none;">${agency.phone}</a>`);
+  }
+  if (agency.whatsapp) {
+    contactLines.push(`WhatsApp: <a href="${toWhatsAppUrl(agency.whatsapp)}" style="color:#0b5b73;text-decoration:none;">${agency.whatsapp}</a>`);
+  }
+
+  return `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e0d8;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#4a4a4a;">
+<div style="font-weight:bold;color:#1a1a1a;">${escapeHtmlAttr(agency.agencyName)}</div>
+${contactLines.join('<br>\n')}
+</div>`;
+}
+
+function escapeHtmlAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+
 /** The multipart/alternative block (plain text + HTML) shared by both the with-attachment and without-attachment cases below. */
-function buildAlternativePart(bodyText: string, boundary: string): string {
+function buildAlternativePart(bodyText: string, boundary: string, agency: SignatureData): string {
+  const plainBody = bodyText + buildSignatureText(agency);
+  const htmlBody = textToHtml(bodyText) + buildSignatureHtml(agency);
   return [
     `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     '',
-    bodyText,
+    plainBody,
     '',
     `--${boundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     '',
-    textToHtml(bodyText),
+    htmlBody,
     '',
     `--${boundary}--`,
   ].join('\r\n');
@@ -156,7 +244,7 @@ function buildAlternativePart(bodyText: string, boundary: string): string {
 
 export interface SendEmailInput {
   to: string;
-  fromName: string; // the consultant's display name, e.g. "Leo · Zenara Travel and Tours"
+  consultantFirstName: string; // used only in the signature, never in the sender display name
   subject: string;
   bodyText: string;
   attachment?: { filename: string; content: Buffer; mimeType: string };
@@ -164,22 +252,24 @@ export interface SendEmailInput {
 
 /**
  * Builds a raw RFC 2822 MIME message and sends it via the Gmail API's
- * messages.send endpoint. Sent "as" the connected Gmail account (Gmail
- * doesn't allow an arbitrary From address without domain verification),
- * with the consultant's name in the From header's display name — the
- * client sees a personal name, not a generic CRM address, even though the
- * underlying mailbox is the one shared account.
+ * messages.send endpoint. The sender display name is always the agency
+ * name -- "Zenara Travel and Tours", never "Leo | Zenara Travel and
+ * Tours" -- so every email looks like it came from the business, with the
+ * consultant's name appearing only inside the signature this function
+ * appends automatically. No caller needs to build or paste a signature;
+ * it's added here, in the one place all outgoing mail passes through, so
+ * it can never be missed or duplicated.
  */
 export async function sendGmailMessage(supabase: SupabaseClient, input: SendEmailInput): Promise<{ id: string }> {
   const connection = await getGmailConnection(supabase);
   if (!connection) throw new Error('No Gmail account is connected. Connect one in Admin → Settings first.');
 
-  const accessToken = await getValidAccessToken(supabase, connection);
+  const [accessToken, agency] = await Promise.all([getValidAccessToken(supabase, connection), getAgencySignatureData(supabase)]);
   const mixedBoundary = `zenara_mixed_${Date.now()}`;
   const altBoundary = `zenara_alt_${Date.now()}`;
 
   const headers = [
-    `From: "${encodeHeaderWord(input.fromName)}" <${connection.connected_email}>`,
+    `From: "${encodeHeaderWord(agency.agencyName)}" <${connection.connected_email}>`,
     `To: ${input.to}`,
     `Subject: ${encodeHeaderWord(input.subject)}`,
     `Date: ${new Date().toUTCString()}`,
@@ -200,7 +290,7 @@ export async function sendGmailMessage(supabase: SupabaseClient, input: SendEmai
       `--${mixedBoundary}`,
       `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
       '',
-      buildAlternativePart(input.bodyText, altBoundary),
+      buildAlternativePart(input.bodyText, altBoundary, agency),
       '',
       `--${mixedBoundary}`,
       `Content-Type: ${input.attachment.mimeType}; name="${input.attachment.filename}"`,
@@ -213,7 +303,7 @@ export async function sendGmailMessage(supabase: SupabaseClient, input: SendEmai
     ].join('\r\n');
   } else {
     headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
-    raw = [...headers, '', buildAlternativePart(input.bodyText, altBoundary)].join('\r\n');
+    raw = [...headers, '', buildAlternativePart(input.bodyText, altBoundary, agency)].join('\r\n');
   }
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {

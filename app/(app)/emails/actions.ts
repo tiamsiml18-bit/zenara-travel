@@ -12,7 +12,7 @@ export async function sendQuotationEmailAction(input: {
   to: string;
   subject: string;
   body: string;
-  fromName: string;
+  consultantFirstName: string;
 }): Promise<EmailActionResult> {
   const user = await requireUser();
   if (!input.to || !input.subject.trim() || !input.body.trim()) {
@@ -36,7 +36,7 @@ export async function sendFollowUpEmailAction(input: {
   to: string;
   subject: string;
   body: string;
-  fromName: string;
+  consultantFirstName: string;
   followUpNumber: number;
 }): Promise<EmailActionResult> {
   const user = await requireUser();

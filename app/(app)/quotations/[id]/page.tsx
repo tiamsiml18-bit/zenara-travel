@@ -88,7 +88,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               clientEmail={quotation.client?.email ?? null}
               subject={quotationEmailDraft.subject}
               body={quotationEmailDraft.body}
-              fromName={`${consultantFirstName} · Zenara Travel and Tours`}
+              consultantFirstName={consultantFirstName}
               attachmentLabel={`${quotation.quotation_number}.pdf will be attached automatically`}
             />
             {isDraft && (

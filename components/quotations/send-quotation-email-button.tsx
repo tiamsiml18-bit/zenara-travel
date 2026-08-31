@@ -11,7 +11,7 @@ export function SendQuotationEmailButton({
   clientEmail,
   subject,
   body,
-  fromName,
+  consultantFirstName,
   attachmentLabel,
 }: {
   quotationId: string;
@@ -19,7 +19,7 @@ export function SendQuotationEmailButton({
   clientEmail: string | null;
   subject: string;
   body: string;
-  fromName: string;
+  consultantFirstName: string;
   attachmentLabel: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -44,7 +44,7 @@ export function SendQuotationEmailButton({
           initialBody={body}
           attachmentLabel={attachmentLabel}
           onClose={() => setOpen(false)}
-          onSend={(s, b) => sendQuotationEmailAction({ quotationId, to: clientEmail, subject: s, body: b, fromName })}
+          onSend={(s, b) => sendQuotationEmailAction({ quotationId, to: clientEmail, subject: s, body: b, consultantFirstName })}
         />
       )}
     </>

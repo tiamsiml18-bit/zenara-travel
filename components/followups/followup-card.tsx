@@ -360,7 +360,7 @@ function FollowUpEmailComposer({
           to: clientEmail,
           subject,
           body,
-          fromName: `${consultantFirstName} · Zenara Travel and Tours`,
+          consultantFirstName,
           followUpNumber: followUp.sequence_number,
         })
       }

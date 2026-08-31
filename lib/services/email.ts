@@ -8,7 +8,7 @@ export interface SendQuotationEmailInput {
   to: string;
   subject: string;
   body: string;
-  fromName: string;
+  consultantFirstName: string;
 }
 
 /**
@@ -34,7 +34,7 @@ export async function sendQuotationEmail(supabase: SupabaseClient, input: SendQu
   try {
     await sendGmailMessage(supabase, {
       to: input.to,
-      fromName: input.fromName,
+      consultantFirstName: input.consultantFirstName,
       subject: input.subject,
       bodyText: input.body,
       attachment: { filename, content: pdfBuffer, mimeType: 'application/pdf' },
@@ -73,7 +73,7 @@ export interface SendFollowUpEmailInput {
   to: string;
   subject: string;
   body: string;
-  fromName: string;
+  consultantFirstName: string;
   followUpNumber: number;
 }
 
@@ -89,7 +89,7 @@ export async function sendFollowUpEmail(supabase: SupabaseClient, input: SendFol
   try {
     await sendGmailMessage(supabase, {
       to: input.to,
-      fromName: input.fromName,
+      consultantFirstName: input.consultantFirstName,
       subject: input.subject,
       bodyText: input.body,
     });
