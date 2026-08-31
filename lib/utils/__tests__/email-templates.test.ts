@@ -181,12 +181,19 @@ describe('generateFollowUpEmail', () => {
     }
   });
 
-  it('"still thinking" stage overrides the follow-up number, regardless of which number it is', () => {
+  it('"still thinking" stage varies by follow-up number instead of repeating the same email every time', () => {
     const draftAt1 = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Hanoi',
       consultantFirstName: 'Leo',
       followUpNumber: 1,
+      pipelineStage: 'still_thinking',
+    });
+    const draftAt2 = generateFollowUpEmail({
+      clientFirstName: 'Maria',
+      destination: 'Hanoi',
+      consultantFirstName: 'Leo',
+      followUpNumber: 2,
       pipelineStage: 'still_thinking',
     });
     const draftAt3 = generateFollowUpEmail({
@@ -197,7 +204,78 @@ describe('generateFollowUpEmail', () => {
       pipelineStage: 'still_thinking',
     });
     expect(draftAt1.body).toContain('a bit of thought');
-    expect(draftAt3.body).toBe(draftAt1.body); // stage signal wins over follow-up number either way
+    // Regression guard: a lead can sit in "Still Thinking" across several
+    // follow-up cycles — if the stage-specific email never varied with the
+    // follow-up number, the exact same email would go out verbatim every
+    // time, which is worse than the original "Hope you're doing well"
+    // problem this feature exists to fix.
+    expect(draftAt1.body).not.toBe(draftAt2.body);
+    expect(draftAt2.body).not.toBe(draftAt3.body);
+    expect(draftAt1.body).not.toBe(draftAt3.body);
+  });
+
+  it('"requested changes" stage also varies by follow-up number', () => {
+    const bodies = [1, 2, 3].map(
+      (n) =>
+        generateFollowUpEmail({
+          clientFirstName: 'Maria',
+          destination: 'Hanoi',
+          consultantFirstName: 'Leo',
+          followUpNumber: n,
+          pipelineStage: 'requested_changes',
+        }).body
+    );
+    expect(new Set(bodies).size).toBe(3);
+  });
+
+  it('"interested" stage also varies by follow-up number', () => {
+    const bodies = [1, 2, 3].map(
+      (n) =>
+        generateFollowUpEmail({
+          clientFirstName: 'Maria',
+          destination: 'Hanoi',
+          consultantFirstName: 'Leo',
+          followUpNumber: n,
+          pipelineStage: 'interested',
+        }).body
+    );
+    expect(new Set(bodies).size).toBe(3);
+  });
+
+  it('every stage x follow-up-number combination (12 total across the 3 real signal stages) produces a unique email', () => {
+    const stages: PipelineStage[] = ['still_thinking', 'requested_changes', 'interested'];
+    const bodies = new Set<string>();
+    for (const stage of stages) {
+      for (let n = 1; n <= 3; n++) {
+        bodies.add(
+          generateFollowUpEmail({
+            clientFirstName: 'Maria',
+            destination: 'Hanoi',
+            consultantFirstName: 'Leo',
+            followUpNumber: n,
+            pipelineStage: stage,
+          }).body
+        );
+      }
+    }
+    expect(bodies.size).toBe(9);
+  });
+
+  it('every stage-based #3 email uses the real validity date when set, and starts the sentence capitalized correctly', () => {
+    const stages: PipelineStage[] = ['still_thinking', 'requested_changes', 'interested'];
+    for (const stage of stages) {
+      const draft = generateFollowUpEmail({
+        clientFirstName: 'Maria',
+        destination: 'Hanoi',
+        consultantFirstName: 'Leo',
+        followUpNumber: 3,
+        pipelineStage: stage,
+        validUntil: '2026-09-15',
+      });
+      expect(draft.body).toContain('This quotation is valid until September 15, 2026');
+      // Never a lowercase sentence start (a grammar regression this fix specifically had to avoid)
+      expect(draft.body).not.toMatch(/\.\s+this quotation/);
+    }
   });
 
   it('"requested changes" stage references that specifically, using only real CRM data', () => {
@@ -205,7 +283,7 @@ describe('generateFollowUpEmail', () => {
       clientFirstName: 'Maria',
       destination: 'Hanoi',
       consultantFirstName: 'Leo',
-      followUpNumber: 2,
+      followUpNumber: 1,
       pipelineStage: 'requested_changes',
     });
     expect(draft.body).toContain('a few changes to the itinerary');
