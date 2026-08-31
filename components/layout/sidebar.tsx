@@ -11,6 +11,7 @@ import {
   UploadCloud,
   UserCog,
 } from 'lucide-react';
+import Link from 'next/link';
 import { NavLink } from './nav-link';
 import type { AppUser } from '@/lib/auth/session';
 
@@ -31,7 +32,7 @@ export function Sidebar({
           chip (not a hard circular crop) keeps a shield-shaped or
           light-colored logo visible against the dark sidebar regardless of
           its own background/shape, and shows the whole mark uncropped. */}
-      <div className="flex items-center gap-2.5 px-4 py-5">
+      <Link href="/dashboard" className="flex items-center gap-2.5 px-4 py-5 transition-opacity hover:opacity-80">
         {logoUrl ? (
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sand-50 p-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL, not worth a next/image remote-domain config for a single small sidebar mark */}
@@ -46,7 +47,7 @@ export function Sidebar({
           <p className="font-display text-sm font-semibold">Zenara</p>
           <p className="text-[11px] uppercase tracking-wide text-harbor-100/50">Travel &amp; Tours</p>
         </div>
-      </div>
+      </Link>
 
       {/* Perforated tear line — the tag's signature detail */}
       <div
