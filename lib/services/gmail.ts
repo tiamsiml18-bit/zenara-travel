@@ -139,20 +139,55 @@ ${paragraphs}
 
 /**
  * The single source of truth for the business signature -- agency name,
- * website, phone, and WhatsApp all come from agency_settings (the same
- * row the Settings page manages), never hardcoded here and never a second
- * place an admin has to update. If a field is empty, its line is simply
- * omitted rather than showing a broken "Phone: null".
+ * logo, website, phone, and WhatsApp all come from agency_settings (the
+ * same row the Settings page manages), never hardcoded here and never a
+ * second place an admin has to update. If a field is empty, its line is
+ * simply omitted rather than showing a broken "Phone: null". The logo URL
+ * is verified reachable right before use -- a broken or unreachable image
+ * is worse than no logo at all, so an invalid one is silently dropped.
  */
 async function getAgencySignatureData(supabase: SupabaseClient) {
-  const { data } = await supabase.from('agency_settings').select('agency_name, website, phone, whatsapp').limit(1).maybeSingle();
+  const { data } = await supabase
+    .from('agency_settings')
+    .select('agency_name, logo_url, website, phone, whatsapp, facebook, instagram')
+    .limit(1)
+    .maybeSingle();
+
+  const rawLogoUrl = data?.logo_url ?? null;
+  const logoUrl = rawLogoUrl && (await isValidImageUrl(rawLogoUrl)) ? rawLogoUrl : null;
 
   return {
     agencyName: data?.agency_name ?? 'Zenara Travel and Tours',
+    logoUrl,
     website: data?.website ?? null,
     phone: data?.phone ?? null,
     whatsapp: data?.whatsapp ?? null,
+    facebook: data?.facebook ?? null,
+    instagram: data?.instagram ?? null,
   };
+}
+
+/**
+ * A HEAD check -- confirms the URL actually resolves to a reasonably-sized
+ * image before it's ever put in front of a client. Rejects anything that
+ * fails, isn't an image, or is large enough to risk a slow/failed fetch
+ * through a mail client's image proxy (Gmail's proxy in particular can
+ * cache a failed fetch and keep showing a broken image even after the
+ * underlying file is fixed, so an oversized or unreachable file is worth
+ * catching here rather than finding out from a client's inbox).
+ */
+export async function isValidImageUrl(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) return false;
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.startsWith('image/')) return false;
+    const contentLength = Number(res.headers.get('content-length') ?? '0');
+    if (contentLength > 200_000) return false; // 200KB ceiling — a signature logo should be tiny
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeWebsiteUrl(website: string): string {
@@ -169,34 +204,43 @@ export function toWhatsAppUrl(whatsapp: string): string {
 
 export interface SignatureData {
   agencyName: string;
+  logoUrl: string | null;
   website: string | null;
   phone: string | null;
   whatsapp: string | null;
+  facebook: string | null;
+  instagram: string | null;
 }
 
 /**
  * The plain-text fallback signature -- same information as the HTML
- * version below, just without the clickable links (plain text can't have
- * those), for mail clients that render text/plain. Just the business card
- * info -- the consultant already signed off personally in the message
- * body itself, so repeating their name here would be redundant.
+ * version below, just without the logo or clickable links (plain text
+ * can't have either), for mail clients that render text/plain. Just the
+ * business card info -- the consultant already signed off personally in
+ * the message body itself, so repeating their name here would be
+ * redundant. Social links come after the primary contact methods,
+ * matching the HTML version's ordering.
  */
 export function buildSignatureText(agency: SignatureData): string {
   const lines = [`${agency.agencyName}`];
   if (agency.website) lines.push(`Website: ${agency.website}`);
-  if (agency.phone) lines.push(`Phone: ${agency.phone}`);
+  if (agency.phone) lines.push(`Landline: ${agency.phone}`);
   if (agency.whatsapp) lines.push(`WhatsApp: ${agency.whatsapp}`);
+  if (agency.facebook) lines.push(`Facebook: ${agency.facebook}`);
+  if (agency.instagram) lines.push(`Instagram: ${agency.instagram}`);
   return `\n\n--\n${lines.join('\n')}`;
 }
 
 /**
- * The HTML signature -- agency name and clickable website/phone/WhatsApp
- * links. No logo: an inline logo image is exactly the kind of thing that
- * shows up as a broken icon depending on the mail client, image-loading
- * settings, or a hiccup with the hosted file, so this stays text-only and
- * always reliable. Kept deliberately compact: tight spacing, no color
- * blocks or graphics, so it reads as a professional signature rather than
- * a marketing banner.
+ * The HTML signature -- logo on the left, agency name and contact details
+ * on the right, one line each, styled after a standard professional
+ * signature layout. Built as an HTML table rather than flexbox/CSS
+ * positioning specifically because table layouts are what actually
+ * render consistently across mail clients (Gmail, Outlook, Apple Mail all
+ * strip or mishandle more modern CSS layout in ways that don't show up
+ * when just previewing the HTML in a browser). The logo has an explicit
+ * width/height (not just CSS) so mail clients reserve the right amount of
+ * space even before the image itself loads.
  */
 export function buildSignatureHtml(agency: SignatureData): string {
   const contactLines: string[] = [];
@@ -206,16 +250,35 @@ export function buildSignatureHtml(agency: SignatureData): string {
     );
   }
   if (agency.phone) {
-    contactLines.push(`Phone: <a href="tel:${toDialableNumber(agency.phone)}" style="color:#0b5b73;text-decoration:none;">${agency.phone}</a>`);
+    contactLines.push(`Landline: <a href="tel:${toDialableNumber(agency.phone)}" style="color:#0b5b73;text-decoration:none;">${agency.phone}</a>`);
   }
   if (agency.whatsapp) {
-    contactLines.push(`WhatsApp: <a href="${toWhatsAppUrl(agency.whatsapp)}" style="color:#0b5b73;text-decoration:none;">${agency.whatsapp}</a>`);
+    contactLines.push(
+      `WhatsApp: <a href="${toWhatsAppUrl(agency.whatsapp)}" style="color:#0b5b73;text-decoration:none;">${agency.whatsapp}</a>`
+    );
+  }
+  if (agency.facebook) {
+    contactLines.push(`Facebook: <a href="${agency.facebook}" style="color:#0b5b73;text-decoration:none;">${agency.facebook}</a>`);
+  }
+  if (agency.instagram) {
+    contactLines.push(`Instagram: <a href="${agency.instagram}" style="color:#0b5b73;text-decoration:none;">${agency.instagram}</a>`);
   }
 
-  return `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e0d8;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#4a4a4a;">
-<div style="font-weight:bold;color:#1a1a1a;">${escapeHtmlAttr(agency.agencyName)}</div>
+  const logoCell = agency.logoUrl
+    ? `<td style="padding-right:14px;vertical-align:top;">
+<img src="${agency.logoUrl}" width="60" height="60" alt="${escapeHtmlAttr(agency.agencyName)}" style="display:block;width:60px;height:60px;border:0;" />
+</td>`
+    : '';
+
+  return `<table cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e0d8;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.7;color:#4a4a4a;">
+<tr>
+${logoCell}
+<td style="vertical-align:top;">
+<div style="font-weight:bold;font-size:13px;color:#1a1a1a;margin-bottom:2px;">${escapeHtmlAttr(agency.agencyName)}</div>
 ${contactLines.join('<br>\n')}
-</div>`;
+</td>
+</tr>
+</table>`;
 }
 
 function escapeHtmlAttr(s: string): string {

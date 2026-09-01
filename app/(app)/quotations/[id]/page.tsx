@@ -25,17 +25,33 @@ function formatMoney(n?: number | null) {
   return `PHP ${Number(n).toLocaleString('en-PH')}`;
 }
 
-export default async function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function QuotationDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ version?: string }>;
+}) {
   await requireUser();
   const { id } = await params;
+  const { version: viewedVersionId } = await searchParams;
   const supabase = await createClient();
 
   const { quotation, versions, currentVersion } = await getQuotationById(supabase, id);
   if (!currentVersion) throw new Error('This quotation has no version data.');
 
+  // Browsing a past revision only ever changes which version's CONTENT is
+  // displayed below — it never changes which version is actually current
+  // for the quotation (that's still quotation.current_version_id,
+  // untouched here). Falls back to the current version if the requested
+  // id doesn't match any version on this quotation, so a stale or
+  // tampered link can't show the wrong quotation's data.
+  const viewedVersion = (viewedVersionId && versions.find((v) => v.id === viewedVersionId)) || currentVersion;
+  const isViewingPastVersion = viewedVersion.id !== currentVersion.id;
+
   const [{ itinerary, inclusions, exclusions }, pricing, existingBooking, gmailConnection, emailHistory] = await Promise.all([
-    getVersionDetail(supabase, currentVersion.id),
-    getPricingForVersion(supabase, currentVersion.id),
+    getVersionDetail(supabase, viewedVersion.id),
+    getPricingForVersion(supabase, viewedVersion.id),
     getBookingForQuotation(supabase, id),
     getGmailConnection(supabase),
     getEmailHistory(supabase, id),
@@ -43,11 +59,11 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   const isDraft = currentVersion.status === 'draft';
 
-  const consultantFirstName = (currentVersion.consultant_name_snapshot ?? quotation.agent?.full_name ?? 'Your consultant').split(' ')[0]!;
+  const consultantFirstName = (viewedVersion.consultant_name_snapshot ?? quotation.agent?.full_name ?? 'Your consultant').split(' ')[0]!;
   const clientFirstName = (quotation.client?.full_name ?? 'there').split(' ')[0]!;
   const quotationEmailDraft = generateQuotationEmail({
     clientFirstName,
-    destination: currentVersion.destination,
+    destination: viewedVersion.destination,
     consultantFirstName,
     isRevision: currentVersion.version_number > 1,
   });
@@ -60,11 +76,11 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-ticket text-lg font-semibold text-ink-900">{quotation.quotation_number}</h2>
-              <span className="font-ticket text-sm text-ink-500">{currentVersion.version_label}</span>
+              <span className="font-ticket text-sm text-ink-500">{viewedVersion.version_label}</span>
               <StatusBadge label={quotation.status ? PIPELINE_STAGE_LABELS[quotation.status as PipelineStage] : 'Draft'} />
             </div>
             <p className="mt-1 text-sm text-ink-500">
-              {quotation.client?.full_name} &middot; {currentVersion.destination} &middot; agent:{' '}
+              {quotation.client?.full_name} &middot; {viewedVersion.destination} &middot; agent:{' '}
               {quotation.agent?.full_name ?? '—'}
             </p>
           </div>
@@ -76,6 +92,13 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             >
               View client
             </Link>
+            {/* Viewing a past revision is read-only — sending, editing,
+                revising, converting to a booking, or changing status all
+                only ever apply to the CURRENT version, so those actions
+                are hidden entirely rather than risk acting on stale data
+                as though it were current. PDF/download still work since
+                viewing a past revision's own PDF is a legitimate,
+                non-destructive thing to want. */}
             <PdfPreviewButton quotationId={id} />
             <a
               href={`/api/quotations/${id}/pdf`}
@@ -83,48 +106,66 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             >
               <Download className="h-4 w-4" /> Download PDF
             </a>
-            <SendQuotationEmailButton
-              quotationId={id}
-              connectedEmail={gmailConnection?.connected_email ?? null}
-              clientEmail={quotation.client?.email ?? null}
-              subject={quotationEmailDraft.subject}
-              body={quotationEmailDraft.body}
-              consultantFirstName={consultantFirstName}
-              attachmentLabel={`${quotation.quotation_number}.pdf will be attached automatically`}
-            />
-            {isDraft && (
-              <Link
-                href={`/quotations/${id}/edit`}
-                className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
-              >
-                <Pencil className="h-4 w-4" /> Edit
-              </Link>
+            {!isViewingPastVersion && (
+              <>
+                <SendQuotationEmailButton
+                  quotationId={id}
+                  connectedEmail={gmailConnection?.connected_email ?? null}
+                  clientEmail={quotation.client?.email ?? null}
+                  subject={quotationEmailDraft.subject}
+                  body={quotationEmailDraft.body}
+                  consultantFirstName={consultantFirstName}
+                  attachmentLabel={`${quotation.quotation_number}.pdf will be attached automatically`}
+                />
+                {isDraft && (
+                  <Link
+                    href={`/quotations/${id}/edit`}
+                    className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+                  >
+                    <Pencil className="h-4 w-4" /> Edit
+                  </Link>
+                )}
+                {isDraft && <SendQuotationButton quotationId={id} />}
+                {existingBooking ? (
+                  <Link
+                    href={`/bookings/${existingBooking.id}`}
+                    className="flex items-center gap-1.5 rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600"
+                  >
+                    View booking ({existingBooking.booking_number})
+                  </Link>
+                ) : (
+                  !isDraft && quotation.status === 'confirmed' && <ConvertToBookingButton quotationId={id} />
+                )}
+                {!isDraft && !['paid', 'lost', 'no_response'].includes(quotation.status ?? '') && (
+                  <Link
+                    href={`/quotations/${id}/revise`}
+                    className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+                  >
+                    <Pencil className="h-4 w-4" /> Edit
+                  </Link>
+                )}
+                <DuplicateQuotationButton quotationId={id} />
+                <ArchiveQuotationButton quotationId={id} quotationNumber={quotation.quotation_number} />
+              </>
             )}
-            {isDraft && <SendQuotationButton quotationId={id} />}
-            {existingBooking ? (
-              <Link
-                href={`/bookings/${existingBooking.id}`}
-                className="flex items-center gap-1.5 rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600"
-              >
-                View booking ({existingBooking.booking_number})
-              </Link>
-            ) : (
-              !isDraft && quotation.status === 'confirmed' && <ConvertToBookingButton quotationId={id} />
-            )}
-            {!isDraft && !['paid', 'lost', 'no_response'].includes(quotation.status ?? '') && (
-              <Link
-                href={`/quotations/${id}/revise`}
-                className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
-              >
-                <Pencil className="h-4 w-4" /> Edit
-              </Link>
-            )}
-            <DuplicateQuotationButton quotationId={id} />
-            <ArchiveQuotationButton quotationId={id} quotationNumber={quotation.quotation_number} />
           </div>
         </div>
 
-        {!isDraft && !['paid', 'lost', 'no_response', 'confirmed'].includes(quotation.status ?? '') && (
+        {isViewingPastVersion && (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-800">
+              You&apos;re viewing {viewedVersion.version_label} — a past revision, not the current version. It&apos;s read-only.
+            </p>
+            <Link
+              href={`/quotations/${id}`}
+              className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
+            >
+              Back to current ({currentVersion.version_label})
+            </Link>
+          </div>
+        )}
+
+        {!isViewingPastVersion && !isDraft && !['paid', 'lost', 'no_response', 'confirmed'].includes(quotation.status ?? '') && (
           <div className="mb-6 flex items-center justify-between rounded-lg border border-sand-200 bg-white px-4 py-3">
             <p className="text-sm text-ink-500">
               Once the client responds, update the quotation status to keep the dashboard and follow-ups accurate.
@@ -138,17 +179,17 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             <section className="rounded-lg border border-sand-200 bg-white p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Trip overview</h3>
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
-                <Row label="Destination" value={currentVersion.destination} />
+                <Row label="Destination" value={viewedVersion.destination} />
                 <Row
                   label="Travel dates"
-                  value={`${formatDate(currentVersion.travel_start_date)} – ${formatDate(currentVersion.travel_end_date)}`}
+                  value={`${formatDate(viewedVersion.travel_start_date)} – ${formatDate(viewedVersion.travel_end_date)}`}
                 />
-                <Row label="Guests" value={`${currentVersion.num_adults} adults, ${currentVersion.num_children} children`} />
+                <Row label="Guests" value={`${viewedVersion.num_adults} adults, ${viewedVersion.num_children} children`} />
                 <Row
                   label="Hotel"
                   value={
-                    currentVersion.hotel_name
-                      ? `${currentVersion.hotel_name} (${currentVersion.num_bedrooms ?? 0} bedrooms)`
+                    viewedVersion.hotel_name
+                      ? `${viewedVersion.hotel_name} (${viewedVersion.num_bedrooms ?? 0} bedrooms)`
                       : '—'
                   }
                 />
@@ -204,9 +245,9 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
           <div className="col-span-1 space-y-6">
             <section className="rounded-lg border border-sand-200 bg-white p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Client-facing price</h3>
-              <p className="font-ticket text-2xl font-semibold text-ink-900">{formatMoney(currentVersion.total_price)}</p>
-              {currentVersion.price_per_person && (
-                <p className="text-sm text-ink-500">{formatMoney(currentVersion.price_per_person)} per person</p>
+              <p className="font-ticket text-2xl font-semibold text-ink-900">{formatMoney(viewedVersion.total_price)}</p>
+              {viewedVersion.price_per_person && (
+                <p className="text-sm text-ink-500">{formatMoney(viewedVersion.price_per_person)} per person</p>
               )}
             </section>
 
@@ -227,14 +268,27 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             <section className="rounded-lg border border-sand-200 bg-white p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Version history</h3>
               <ul className="space-y-2">
-                {versions.map((v) => (
-                  <li key={v.id} className="flex items-center justify-between text-sm">
-                    <span className={v.id === currentVersion.id ? 'font-medium text-ink-900' : 'text-ink-700'}>
-                      {v.version_label}
-                    </span>
-                    <StatusBadge label={v.status} />
-                  </li>
-                ))}
+                {versions.map((v) => {
+                  const isCurrent = v.id === currentVersion.id;
+                  const isViewed = v.id === viewedVersion.id;
+                  const isOriginal = v.version_number === 1;
+                  return (
+                    <li key={v.id}>
+                      <Link
+                        href={isCurrent ? `/quotations/${id}` : `/quotations/${id}?version=${v.id}`}
+                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors ${
+                          isViewed ? 'bg-harbor-50 ring-1 ring-harbor-200' : 'hover:bg-sand-100'
+                        }`}
+                      >
+                        <span className={isCurrent ? 'font-medium text-ink-900' : 'text-ink-700'}>
+                          {v.version_label}
+                          <span className="ml-1.5 text-xs text-ink-500">{isCurrent ? '(Current)' : isOriginal ? '(Original)' : '(Previous)'}</span>
+                        </span>
+                        <StatusBadge label={v.status} />
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
 

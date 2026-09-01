@@ -4,6 +4,24 @@ import { writeAudit } from './audit';
 const BUCKET = 'branding';
 
 /**
+ * Determines the real image format from the file's own bytes (its magic
+ * number), never from what the browser reports as file.type. A file's
+ * reported MIME type can be wrong or inconsistent depending on how it was
+ * saved, renamed, or handled before upload -- if that mismatched type is
+ * then used as the served Content-Type header, the actual bytes and the
+ * declared format disagree. Most viewers tolerate that (they sniff the
+ * real bytes anyway), but stricter consumers -- notably Gmail's image
+ * proxy -- can reject or fail to render a file whose declared type
+ * doesn't match its content. Checking the real signature here is what
+ * guarantees the served Content-Type is always correct.
+ */
+export function detectImageFormat(bytes: Uint8Array): 'png' | 'jpeg' | null {
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'png';
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpeg';
+  return null;
+}
+
+/**
  * Uploads a new logo (JPEG or PNG), replacing whatever was there before.
  * Each upload gets its own timestamped filename rather than overwriting a
  * fixed path — avoids any CDN/browser caching showing a stale logo right
@@ -16,11 +34,17 @@ export async function uploadAgencyLogo(
   file: File,
   actingUserId: string
 ) {
-  const ext = file.type === 'image/png' ? 'png' : 'jpg';
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const realFormat = detectImageFormat(bytes);
+  if (!realFormat) {
+    throw new Error('This file does not look like a valid JPEG or PNG image — try a different file.');
+  }
+  const ext = realFormat === 'png' ? 'png' : 'jpg';
+  const contentType = realFormat === 'png' ? 'image/png' : 'image/jpeg';
   const path = `logo-${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
-    contentType: file.type,
+  const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, bytes, {
+    contentType,
     cacheControl: '3600',
   });
   if (uploadError) throw new Error(`Failed to upload logo: ${uploadError.message}`);
