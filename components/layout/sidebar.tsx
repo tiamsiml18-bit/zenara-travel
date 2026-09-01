@@ -28,16 +28,15 @@ export function Sidebar({
     <aside className="flex h-screen w-60 shrink-0 flex-col bg-harbor-900 text-sand-50">
       {/* Tag head — agency mark, styled like the punched end of a luggage tag.
           Falls back to the plain "Z" badge until a real logo is uploaded in
-          Settings — same fallback the PDF watermark uses. A white backing
-          chip (not a hard circular crop) keeps a shield-shaped or
-          light-colored logo visible against the dark sidebar regardless of
-          its own background/shape, and shows the whole mark uncropped. */}
+          Settings — same fallback the PDF watermark uses. Rendered directly
+          at its natural aspect ratio, no background chip — the logo's own
+          light background already reads clearly against the dark sidebar,
+          and a wrapping box made it look cramped/boxed-in for a wide
+          rectangular mark. */}
       <Link href="/dashboard" className="flex items-center gap-2.5 px-4 py-5 transition-opacity hover:opacity-80">
         {logoUrl ? (
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sand-50 p-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL, not worth a next/image remote-domain config for a single small sidebar mark */}
-            <img src={logoUrl} alt="" className="h-full w-full object-contain" />
-          </div>
+          // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL, not worth a next/image remote-domain config for a single small sidebar mark
+          <img src={logoUrl} alt="" className="h-11 w-auto shrink-0 object-contain" />
         ) : (
           <span className="flex h-11 w-11 items-center justify-center rounded-md border-2 border-sand-50/25 font-display text-base font-semibold">
             Z

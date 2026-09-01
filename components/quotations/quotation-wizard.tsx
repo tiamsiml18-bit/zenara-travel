@@ -18,6 +18,7 @@ import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { QuotationDraftInput, CostItemInput, OtherSupplierCostItemInput } from '@/lib/validation/quotation';
 import {
   GUEST_TYPES,
+  GUEST_TYPE_DISPLAY_ORDER,
   GUEST_TYPE_LABELS,
   type GuestType,
   type GuestCounts,
@@ -1255,7 +1256,7 @@ export function QuotationWizard({
                     <span>Final rate per person</span>
                     <span className="text-right">Subtotal</span>
                   </div>
-                  {activeTypes.map((guestType) => {
+                  {[...activeTypes].sort((a, b) => GUEST_TYPE_DISPLAY_ORDER.indexOf(a) - GUEST_TYPE_DISPLAY_ORDER.indexOf(b)).map((guestType) => {
                     const count = guestCounts[guestType];
                     const rate = clientRateMap[guestType];
                     return (
@@ -1502,7 +1503,7 @@ function AdjustedRateRow({ rates, counts }: { rates: GuestRates; counts: GuestCo
   const types = activeGuestTypes(counts);
   return (
     <div className="mt-3 grid grid-cols-5 gap-2 rounded-md bg-sand-50 px-2 py-2">
-      {GUEST_TYPES.map((t) =>
+      {GUEST_TYPE_DISPLAY_ORDER.map((t) =>
         types.includes(t) ? (
           <div key={t} className="text-center">
             <p className="text-[10px] uppercase tracking-wide text-ink-500">{GUEST_TYPE_LABELS[t]}</p>
@@ -1536,7 +1537,9 @@ function SummaryBar({
   counts: GuestCounts;
   tone: 'subtotal' | 'final';
 }) {
-  const types = activeGuestTypes(counts);
+  const types = activeGuestTypes(counts).sort(
+    (a, b) => GUEST_TYPE_DISPLAY_ORDER.indexOf(a) - GUEST_TYPE_DISPLAY_ORDER.indexOf(b)
+  );
   const bg = tone === 'final' ? 'bg-ink-900' : 'bg-harbor-800';
   return (
     <div className={`overflow-hidden rounded-md ${bg}`}>

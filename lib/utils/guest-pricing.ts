@@ -46,8 +46,14 @@ export interface GuestLineItem {
 }
 
 /** One row per active guest type, each with its own quantity × rate = subtotal — never combined with any other type's rate. */
+/** Adult-first display order — matches every per-guest-type input field's own order (Adult, Senior, Child, Infant/Toddler, PWD) throughout the wizard and PDF, independent of GUEST_TYPES' Senior-first internal calculation order. */
+export const GUEST_TYPE_DISPLAY_ORDER: GuestType[] = ['adult', 'senior', 'child', 'infant', 'pwd'];
+
 export function buildGuestLineItems(counts: GuestCounts, rates: GuestRates): GuestLineItem[] {
-  return activeGuestTypes(counts).map((guestType) => {
+  const orderedTypes = activeGuestTypes(counts).sort(
+    (a, b) => GUEST_TYPE_DISPLAY_ORDER.indexOf(a) - GUEST_TYPE_DISPLAY_ORDER.indexOf(b)
+  );
+  return orderedTypes.map((guestType) => {
     const quantity = counts[guestType] || 0;
     const pricePerPerson = rates[guestType] || 0;
     return { guestType, quantity, pricePerPerson, subtotal: pricePerPerson * quantity };

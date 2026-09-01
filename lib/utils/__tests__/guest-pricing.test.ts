@@ -112,6 +112,12 @@ describe('buildGuestLineItems — one row per active guest type, never combined'
     ]);
   });
 
+  it('orders Adult before Senior — matching every input field\'s own order throughout the wizard and PDF, not GUEST_TYPES\' internal Senior-first calculation order', () => {
+    const counts = { senior: 2, adult: 5, child: 1, infant: 0, pwd: 0 };
+    const lines = buildGuestLineItems(counts, { senior: 40000, adult: 45000, child: 35000 });
+    expect(lines.map((l) => l.guestType)).toEqual(['adult', 'senior', 'child']);
+  });
+
   it('omits guest types with zero quantity entirely, even with a rate set', () => {
     const counts = { ...ZERO_COUNTS, adult: 2 };
     const lines = buildGuestLineItems(counts, { adult: 45000, senior: 40000 });
