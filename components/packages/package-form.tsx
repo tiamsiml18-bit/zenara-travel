@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from '@/components/quotations/itinerary-builder';
 import { TagListInput } from '@/components/quotations/tag-list-input';
 import { createPackageAction, updatePackageAction } from '@/app/(app)/packages/actions';
+import { SavedSuccessPanel } from '@/components/shared/saved-success-panel';
 import type { PackageFormInput } from '@/lib/validation/package';
 
 export interface PackageFormInitialData {
@@ -19,6 +20,13 @@ export interface PackageFormInitialData {
   exclusions: string[];
 }
 
+/**
+ * The outer component owns the post-save flow, same pattern as TourForm —
+ * after a successful CREATE (never an edit), a success panel replaces the
+ * form instead of navigating away. "Create Another"/"Duplicate" remount
+ * PackageFormFields fresh via `formKey` rather than hand-resetting every
+ * field (itinerary days especially aren't trivial to reset in place).
+ */
 export function PackageForm({
   mode = 'create',
   packageId,
@@ -29,6 +37,73 @@ export function PackageForm({
   packageId?: string;
   initialData?: PackageFormInitialData;
   tours?: TourPickerItem[];
+}) {
+  const [formKey, setFormKey] = useState(0);
+  const [prefillData, setPrefillData] = useState<PackageFormInitialData | undefined>(initialData);
+  const [saved, setSaved] = useState<{ id: string; name: string; input: PackageFormInput } | null>(null);
+
+  if (mode === 'create' && saved) {
+    return (
+      <SavedSuccessPanel
+        entityLabel="Package"
+        entityName={saved.name}
+        viewHref={`/packages/${saved.id}`}
+        doneHref="/packages"
+        onCreateAnother={() => {
+          setSaved(null);
+          setPrefillData(undefined);
+          setFormKey((k) => k + 1);
+        }}
+        onDuplicate={() => {
+          setSaved(null);
+          setPrefillData({
+            ...packageFormInputToInitialData(saved.input),
+            name: `${saved.input.name} (Copy)`,
+          });
+          setFormKey((k) => k + 1);
+        }}
+      />
+    );
+  }
+
+  return (
+    <PackageFormFields
+      key={formKey}
+      mode={mode}
+      packageId={packageId}
+      initialData={prefillData}
+      tours={tours}
+      onCreated={(id, input) => setSaved({ id, name: input.name, input })}
+    />
+  );
+}
+
+function packageFormInputToInitialData(input: PackageFormInput): PackageFormInitialData {
+  return {
+    name: input.name,
+    destination: input.destination,
+    numDays: input.numDays,
+    numNights: input.numNights,
+    defaultNotes: input.defaultNotes ?? '',
+    isActive: input.isActive,
+    itinerary: input.itinerary.map((day) => ({ ...day, dayDate: day.dayDate ?? '', description: day.description ?? '' })),
+    inclusions: input.inclusions,
+    exclusions: input.exclusions,
+  };
+}
+
+function PackageFormFields({
+  mode = 'create',
+  packageId,
+  initialData,
+  tours = [],
+  onCreated,
+}: {
+  mode?: 'create' | 'edit';
+  packageId?: string;
+  initialData?: PackageFormInitialData;
+  tours?: TourPickerItem[];
+  onCreated: (packageId: string, input: PackageFormInput) => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -81,7 +156,11 @@ export function PackageForm({
         setError(result.error);
         return;
       }
-      router.push(`/packages/${result.packageId}`);
+      if (mode === 'edit') {
+        router.push(`/packages/${result.packageId}`);
+      } else {
+        onCreated(result.packageId, input);
+      }
     });
   }
 

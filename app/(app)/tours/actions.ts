@@ -16,13 +16,24 @@ export async function createTourAction(input: TourFormInput): Promise<ActionResu
   }
 
   const supabase = await createSupabaseServerClient();
+  // The database write is the ONLY thing that determines success or
+  // failure here. A tour that's already safely in the database must never
+  // be reported as a failure just because a secondary step below (cache
+  // revalidation) hiccups -- that mismatch is exactly what previously let
+  // an agent see an error, click Save again, and create a real duplicate.
+  let tourId: string;
   try {
-    const tourId = await toursService.createTour(supabase, parsed.data, user.id);
-    revalidatePath('/tours');
-    return { ok: true, tourId };
+    tourId = await toursService.createTour(supabase, parsed.data, user.id);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to create tour.' };
   }
+
+  try {
+    revalidatePath('/tours');
+  } catch (err) {
+    console.error('[tours] revalidatePath failed after a successful create — tour was still saved', err);
+  }
+  return { ok: true, tourId };
 }
 
 export async function updateTourAction(tourId: string, input: TourFormInput): Promise<ActionResult> {
@@ -35,12 +46,17 @@ export async function updateTourAction(tourId: string, input: TourFormInput): Pr
   const supabase = await createSupabaseServerClient();
   try {
     await toursService.updateTour(supabase, tourId, parsed.data, user.id);
-    revalidatePath('/tours');
-    revalidatePath(`/tours/${tourId}`);
-    return { ok: true, tourId };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to update tour.' };
   }
+
+  try {
+    revalidatePath('/tours');
+    revalidatePath(`/tours/${tourId}`);
+  } catch (err) {
+    console.error('[tours] revalidatePath failed after a successful update — tour was still saved', err);
+  }
+  return { ok: true, tourId };
 }
 
 export async function setTourActiveAction(tourId: string, isActive: boolean) {

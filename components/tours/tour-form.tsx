@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TagListInput } from '@/components/quotations/tag-list-input';
 import { createTourAction, updateTourAction } from '@/app/(app)/tours/actions';
+import { SavedSuccessPanel } from '@/components/shared/saved-success-panel';
 import type { TourFormInput } from '@/lib/validation/tour';
 
 export interface TourFormInitialData {
@@ -27,6 +28,14 @@ export interface TourFormInitialData {
   tourTypes: ('all_in' | 'land_arrangement')[];
 }
 
+/**
+ * The outer component owns the post-save flow — after a successful CREATE
+ * (never for an edit, which keeps its existing "save and go to the detail
+ * page" behavior), it shows a success panel instead of navigating away.
+ * "Create Another" and "Duplicate" both work by changing `formKey` and
+ * `prefillData`, which remounts TourFormFields fresh — the simplest way to
+ * fully reset a form with this many fields without hand-resetting each one.
+ */
 export function TourForm({
   mode = 'create',
   tourId,
@@ -35,6 +44,82 @@ export function TourForm({
   mode?: 'create' | 'edit';
   tourId?: string;
   initialData?: TourFormInitialData;
+}) {
+  const [formKey, setFormKey] = useState(0);
+  const [prefillData, setPrefillData] = useState<TourFormInitialData | undefined>(initialData);
+  const [saved, setSaved] = useState<{ id: string; name: string; input: TourFormInput } | null>(null);
+
+  if (mode === 'create' && saved) {
+    return (
+      <SavedSuccessPanel
+        entityLabel="Tour"
+        entityName={saved.name}
+        viewHref={`/tours/${saved.id}`}
+        doneHref="/tours"
+        onCreateAnother={() => {
+          setSaved(null);
+          setPrefillData(undefined);
+          setFormKey((k) => k + 1);
+        }}
+        onDuplicate={() => {
+          setSaved(null);
+          // The duplicate is a fresh, unsaved form pre-filled from the tour
+          // that was just created — never the saved tour itself, so saving
+          // it always creates a genuinely new record.
+          setPrefillData({
+            ...tourFormInputToInitialData(saved.input),
+            name: `${saved.input.name} (Copy)`,
+          });
+          setFormKey((k) => k + 1);
+        }}
+      />
+    );
+  }
+
+  return (
+    <TourFormFields
+      key={formKey}
+      mode={mode}
+      tourId={tourId}
+      initialData={prefillData}
+      onCreated={(id, input) => setSaved({ id, name: input.name, input })}
+    />
+  );
+}
+
+function tourFormInputToInitialData(input: TourFormInput): TourFormInitialData {
+  return {
+    name: input.name,
+    destination: input.destination ?? '',
+    description: input.description ?? '',
+    activities: input.activities,
+    defaultInclusions: input.defaultInclusions,
+    defaultExclusions: input.defaultExclusions,
+    priceSenior: input.priceSenior ?? null,
+    priceAdult: input.priceAdult ?? null,
+    priceChild: input.priceChild ?? null,
+    priceInfant: input.priceInfant ?? null,
+    pricePwd: input.pricePwd ?? null,
+    groupCost: input.groupCost ?? null,
+    ageRangeSenior: input.ageRangeSenior ?? '',
+    ageRangeAdult: input.ageRangeAdult ?? '',
+    ageRangeChild: input.ageRangeChild ?? '',
+    ageRangeInfant: input.ageRangeInfant ?? '',
+    ageRangePwd: input.ageRangePwd ?? '',
+    tourTypes: input.tourTypes ?? [],
+  };
+}
+
+function TourFormFields({
+  mode = 'create',
+  tourId,
+  initialData,
+  onCreated,
+}: {
+  mode?: 'create' | 'edit';
+  tourId?: string;
+  initialData?: TourFormInitialData;
+  onCreated: (tourId: string, input: TourFormInput) => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -88,7 +173,11 @@ export function TourForm({
         setError(result.error);
         return;
       }
-      router.push(`/tours/${result.tourId}`);
+      if (mode === 'edit') {
+        router.push(`/tours/${result.tourId}`);
+      } else {
+        onCreated(result.tourId, input);
+      }
     });
   }
 

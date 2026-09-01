@@ -115,6 +115,24 @@ async function replacePackageChildren(supabase: SupabaseClient, packageId: strin
 }
 
 export async function createPackage(supabase: SupabaseClient, input: PackageFormInput, actingUserId: string) {
+  // Same resubmission guard as Tours: if this exact package was already
+  // created moments ago by the same agent (the DB write succeeded but they
+  // never saw the confirmation and clicked Save again), return that
+  // package instead of creating a real duplicate.
+  const fifteenSecondsAgo = new Date(Date.now() - 15_000).toISOString();
+  const { data: recent } = await supabase
+    .from('packages')
+    .select('id')
+    .eq('name', input.name)
+    .eq('destination', input.destination)
+    .eq('created_by', actingUserId)
+    .is('deleted_at', null)
+    .gte('created_at', fifteenSecondsAgo)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (recent) return recent.id as string;
+
   const { data, error } = await supabase
     .from('packages')
     .insert({
@@ -130,7 +148,18 @@ export async function createPackage(supabase: SupabaseClient, input: PackageForm
     .single();
   if (error || !data) throw new Error(`Failed to create package: ${error?.message}`);
 
-  await replacePackageChildren(supabase, data.id, input);
+  // The package row now exists — if writing its itinerary/inclusions/
+  // exclusions fails, that would otherwise leave a broken, half-created
+  // package behind (a real record with no content, worse than either a
+  // clean success or a clean failure). Cleaning it up here means a failure
+  // at this stage genuinely means "nothing was created," matching what
+  // the UI reports.
+  try {
+    await replacePackageChildren(supabase, data.id, input);
+  } catch (err) {
+    await supabase.from('packages').delete().eq('id', data.id);
+    throw err;
+  }
   await writeAudit(supabase, { userId: actingUserId, action: 'package.created', entityType: 'package', entityId: data.id });
 
   return data.id as string;

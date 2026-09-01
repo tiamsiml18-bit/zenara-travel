@@ -17,13 +17,23 @@ export async function createPackageAction(input: PackageFormInput): Promise<Acti
   }
 
   const supabase = await createSupabaseServerClient();
+  // Same principle as Tours: the database write is the only thing that
+  // determines success or failure. A package already safely saved must
+  // never be reported as failed just because a secondary step below
+  // (cache revalidation) hiccups.
+  let packageId: string;
   try {
-    const packageId = await packagesService.createPackage(supabase, parsed.data, user.id);
-    revalidatePath('/packages');
-    return { ok: true, packageId };
+    packageId = await packagesService.createPackage(supabase, parsed.data, user.id);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to create package.' };
   }
+
+  try {
+    revalidatePath('/packages');
+  } catch (err) {
+    console.error('[packages] revalidatePath failed after a successful create — package was still saved', err);
+  }
+  return { ok: true, packageId };
 }
 
 export async function updatePackageAction(packageId: string, input: PackageFormInput): Promise<ActionResult> {
@@ -36,12 +46,17 @@ export async function updatePackageAction(packageId: string, input: PackageFormI
   const supabase = await createSupabaseServerClient();
   try {
     await packagesService.updatePackage(supabase, packageId, parsed.data, user.id);
-    revalidatePath('/packages');
-    revalidatePath(`/packages/${packageId}`);
-    return { ok: true, packageId };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to update package.' };
   }
+
+  try {
+    revalidatePath('/packages');
+    revalidatePath(`/packages/${packageId}`);
+  } catch (err) {
+    console.error('[packages] revalidatePath failed after a successful update — package was still saved', err);
+  }
+  return { ok: true, packageId };
 }
 
 export async function togglePackageActiveAction(packageId: string, isActive: boolean) {

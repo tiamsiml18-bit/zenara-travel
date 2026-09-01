@@ -129,6 +129,28 @@ export async function getTourById(supabase: SupabaseClient, tourId: string) {
 }
 
 export async function createTour(supabase: SupabaseClient, input: TourInput, actingUserId: string) {
+  // Guards against exactly the failure mode this feature exists to fix: if
+  // a prior request already created this exact tour moments ago (the DB
+  // write succeeded but the agent never saw the confirmation, so they
+  // clicked Save again), return that tour instead of creating a real
+  // duplicate. A short window and an exact name+destination+creator match
+  // means this can never mistake two genuinely different tours (even
+  // reusing a name deliberately) for a resubmission -- it only catches
+  // the same request landing twice within a few seconds of itself.
+  const fifteenSecondsAgo = new Date(Date.now() - 15_000).toISOString();
+  const { data: recent } = await supabase
+    .from('tours')
+    .select('id')
+    .eq('name', input.name)
+    .eq('destination', input.destination || null)
+    .eq('created_by', actingUserId)
+    .is('deleted_at', null)
+    .gte('created_at', fifteenSecondsAgo)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (recent) return recent.id as string;
+
   const { data, error } = await supabase
     .from('tours')
     .insert({ ...toDbRow(input), created_by: actingUserId })
