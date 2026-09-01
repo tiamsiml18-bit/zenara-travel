@@ -93,7 +93,7 @@ export default async function DashboardPage() {
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <KpiCard label="Total active leads" value={String(pipelineCounts.totalActiveLeads)} />
-            <KpiCard label="Proceeding" value={String(pipelineCounts.proceeding)} tone="positive" />
+            <KpiCard label="Negotiating" value={String(pipelineCounts.negotiating)} tone="positive" />
             <KpiCard label="Confirmed" value={String(pipelineCounts.confirmed)} tone="positive" />
             <KpiCard label="Lost" value={String(pipelineCounts.lost)} tone={pipelineCounts.lost > 0 ? 'negative' : 'default'} />
             <KpiCard label="No response" value={String(pipelineCounts.noResponse)} tone={pipelineCounts.noResponse > 0 ? 'warning' : 'default'} />

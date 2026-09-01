@@ -3,7 +3,7 @@ import type { QuotationDraftInput } from '@/lib/validation/quotation';
 import { writeAudit, diffFields } from './audit';
 import { setClientStatusByName } from './clients';
 import { generateFirstFollowUp } from './followups';
-import { updateQuotationPipelineStage } from './pipeline';
+import { updateQuotationPipelineStage, type PipelineStage } from './pipeline';
 
 const VERSION_SELECT = `
   id, version_number, version_label, status, client_name_snapshot, destination,
@@ -200,8 +200,8 @@ export async function getPricingForVersion(supabase: SupabaseClient, versionId: 
     .from('quotation_pricing_internal')
     .select(
       `supplier_cost, markup, selling_price, profit, profit_margin_pct,
-       airfare_adult_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate, airfare_markup_pct,
-       hotel_senior_rate, hotel_adult_rate, hotel_child_rate, hotel_infant_rate, hotel_pwd_rate, hotel_markup_pct,
+       airfare_adult_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate, airfare_markup_pct, airfare_markup_enabled,
+       hotel_senior_rate, hotel_adult_rate, hotel_child_rate, hotel_infant_rate, hotel_pwd_rate, hotel_markup_pct, hotel_markup_enabled,
        transfer_senior_rate, transfer_adult_rate, transfer_child_rate, transfer_infant_rate, transfer_pwd_rate, transfer_markup_pct,
        payment_method`
     )
@@ -308,11 +308,11 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
       infant: input.airfareInfantRate,
       pwd: input.airfarePwdRate,
     },
-    input.airfareMarkupPct
+    input.airfareMarkupEnabled ? input.airfareMarkupPct : 0
   );
   const hotelRates = calculateMarkedUpRates(
     { senior: input.hotelSeniorRate, adult: input.hotelAdultRate, child: input.hotelChildRate, infant: input.hotelInfantRate, pwd: input.hotelPwdRate },
-    input.hotelMarkupPct
+    input.hotelMarkupEnabled ? input.hotelMarkupPct : 0
   );
   // Transfer has NO markup at all, per spec — the entered per-person rate
   // is used exactly as-is, unlike Airfare/Hotel which each apply their own
@@ -506,12 +506,14 @@ async function insertVersionChildren(
     airfare_infant_rate: input.airfareInfantRate,
     airfare_pwd_rate: input.airfarePwdRate,
     airfare_markup_pct: input.airfareMarkupPct,
+    airfare_markup_enabled: input.airfareMarkupEnabled,
     hotel_senior_rate: input.hotelSeniorRate,
     hotel_adult_rate: input.hotelAdultRate,
     hotel_child_rate: input.hotelChildRate,
     hotel_infant_rate: input.hotelInfantRate,
     hotel_pwd_rate: input.hotelPwdRate,
     hotel_markup_pct: input.hotelMarkupPct,
+    hotel_markup_enabled: input.hotelMarkupEnabled,
     transfer_senior_rate: input.transferSeniorRate,
     transfer_adult_rate: input.transferAdultRate,
     transfer_child_rate: input.transferChildRate,
@@ -970,6 +972,30 @@ export async function unarchiveQuotation(supabase: SupabaseClient, quotationId: 
   await writeAudit(supabase, { userId: actingUserId, action: 'quotation.unarchived', entityType: 'quotation', entityId: quotationId });
 }
 
+/**
+ * Quotation Status -> Follow-up (pipeline) Stage, for the specific
+ * transitions that clearly represent the same client-journey moment on
+ * both sides. Only the explicitly-defined ones sync automatically —
+ * Draft, Viewed, and Follow-up (a quotation status, not to be confused
+ * with the sales follow-up sequence) intentionally have no mapping here,
+ * since a client viewing a quotation isn't the same signal as it being
+ * sent, and this list should stay exactly as specified rather than
+ * guessing further mappings.
+ */
+const QUOTATION_STATUS_TO_PIPELINE_STAGE: Record<string, PipelineStage> = {
+  sent: 'quotation_sent',
+  negotiating: 'negotiating',
+  confirmed: 'confirmed',
+  // "Lost" in Follow-up terms means the client declined, cancelled, or is
+  // no longer interested — both quotation outcomes map to it.
+  lost: 'lost',
+  cancelled: 'lost',
+  // An expired quotation's validity window passed with the client never
+  // having responded — the same meaning "No Response" has on the
+  // Follow-up side.
+  expired: 'no_response',
+};
+
 export async function updateQuotationStatus(
   supabase: SupabaseClient,
   quotationId: string,
@@ -1007,17 +1033,17 @@ export async function updateQuotationStatus(
     metadata: { from: quotation.status, to: newStatus },
   });
 
-  // Keeps pipeline_stage from ever contradicting quotation status — a
-  // quotation can't sit at status=confirmed while its pipeline card is
-  // still on Follow-up, or status=cancelled while the card reads
-  // Proceeding. Only these two statuses have an unambiguous pipeline
-  // equivalent; every other status change (sent is handled separately in
-  // sendQuotation(), and the rest don't map to a specific stage) leaves the
-  // pipeline exactly where the agent last manually put it.
-  if (newStatus === 'confirmed') {
-    await updateQuotationPipelineStage(supabase, quotationId, 'confirmed', actingUserId);
-  } else if (newStatus === 'cancelled') {
-    await updateQuotationPipelineStage(supabase, quotationId, 'lost', actingUserId);
+  // Quotation Status and Follow-up (pipeline) Stage remain separate systems
+  // with their own histories and audit trails, but specific status changes
+  // now also move the pipeline stage to match, so the team sees a
+  // consistent client stage without the agent updating both by hand.
+  // Deliberately one-directional: the pipeline stage reaching a stage
+  // (e.g. No Response) never pushes a change back onto quotation status —
+  // "No Response" means the client hasn't responded, not that they've
+  // declined, so it must never silently become "Lost" on either side.
+  const pipelineStageForStatus = QUOTATION_STATUS_TO_PIPELINE_STAGE[newStatus];
+  if (pipelineStageForStatus) {
+    await updateQuotationPipelineStage(supabase, quotationId, pipelineStageForStatus, actingUserId);
   }
 
   // Returned so the calling Server Action knows which client to revalidate
@@ -1061,12 +1087,14 @@ export async function duplicateQuotation(
     airfareInfantRate: pricing?.airfare_infant_rate ?? 0,
     airfarePwdRate: pricing?.airfare_pwd_rate ?? 0,
     airfareMarkupPct: pricing?.airfare_markup_pct ?? DEFAULT_AIRFARE_MARKUP_PCT,
+    airfareMarkupEnabled: pricing?.airfare_markup_enabled ?? true,
     hotelSeniorRate: pricing?.hotel_senior_rate ?? 0,
     hotelAdultRate: pricing?.hotel_adult_rate ?? 0,
     hotelChildRate: pricing?.hotel_child_rate ?? 0,
     hotelInfantRate: pricing?.hotel_infant_rate ?? 0,
     hotelPwdRate: pricing?.hotel_pwd_rate ?? 0,
     hotelMarkupPct: pricing?.hotel_markup_pct ?? DEFAULT_HOTEL_MARKUP_PCT,
+    hotelMarkupEnabled: pricing?.hotel_markup_enabled ?? true,
     transferSeniorRate: pricing?.transfer_senior_rate ?? 0,
     transferAdultRate: pricing?.transfer_adult_rate ?? 0,
     transferChildRate: pricing?.transfer_child_rate ?? 0,

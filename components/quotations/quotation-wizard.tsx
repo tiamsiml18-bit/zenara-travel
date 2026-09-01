@@ -76,12 +76,14 @@ export interface QuotationWizardInitialData {
   airfareInfantRate?: number;
   airfarePwdRate?: number;
   airfareMarkupPct?: number;
+  airfareMarkupEnabled?: boolean;
   hotelSeniorRate?: number;
   hotelAdultRate?: number;
   hotelChildRate?: number;
   hotelInfantRate?: number;
   hotelPwdRate?: number;
   hotelMarkupPct?: number;
+  hotelMarkupEnabled?: boolean;
   transferSeniorRate?: number;
   transferAdultRate?: number;
   transferChildRate?: number;
@@ -180,12 +182,14 @@ export function QuotationWizard({
     airfareInfantRate: (initialData?.airfareInfantRate ?? '') as number | '',
     airfarePwdRate: (initialData?.airfarePwdRate ?? '') as number | '',
     airfareMarkupPct: initialData?.airfareMarkupPct ?? DEFAULT_AIRFARE_MARKUP_PCT,
+    airfareMarkupEnabled: initialData?.airfareMarkupEnabled ?? true,
     hotelSeniorRate: (initialData?.hotelSeniorRate ?? '') as number | '',
     hotelAdultRate: (initialData?.hotelAdultRate ?? '') as number | '',
     hotelChildRate: (initialData?.hotelChildRate ?? '') as number | '',
     hotelInfantRate: (initialData?.hotelInfantRate ?? '') as number | '',
     hotelPwdRate: (initialData?.hotelPwdRate ?? '') as number | '',
     hotelMarkupPct: initialData?.hotelMarkupPct ?? DEFAULT_HOTEL_MARKUP_PCT,
+    hotelMarkupEnabled: initialData?.hotelMarkupEnabled ?? true,
     transferSeniorRate: (initialData?.transferSeniorRate ?? '') as number | '',
     transferAdultRate: (initialData?.transferAdultRate ?? '') as number | '',
     transferChildRate: (initialData?.transferChildRate ?? '') as number | '',
@@ -282,7 +286,7 @@ export function QuotationWizard({
       infant: numVal(trip.airfareInfantRate),
       pwd: numVal(trip.airfarePwdRate),
     },
-    trip.airfareMarkupPct
+    trip.airfareMarkupEnabled ? trip.airfareMarkupPct : 0
   );
   const computedHotelRates = calculateMarkedUpRates(
     {
@@ -292,7 +296,7 @@ export function QuotationWizard({
       infant: numVal(trip.hotelInfantRate),
       pwd: numVal(trip.hotelPwdRate),
     },
-    trip.hotelMarkupPct
+    trip.hotelMarkupEnabled ? trip.hotelMarkupPct : 0
   );
   const otherCostRateMap = GUEST_TYPES.reduce(
     (acc, t) => {
@@ -564,12 +568,14 @@ export function QuotationWizard({
       airfareInfantRate: numVal(trip.airfareInfantRate),
       airfarePwdRate: numVal(trip.airfarePwdRate),
       airfareMarkupPct: trip.airfareMarkupPct,
+      airfareMarkupEnabled: trip.airfareMarkupEnabled,
       hotelSeniorRate: numVal(trip.hotelSeniorRate),
       hotelAdultRate: numVal(trip.hotelAdultRate),
       hotelChildRate: numVal(trip.hotelChildRate),
       hotelInfantRate: numVal(trip.hotelInfantRate),
       hotelPwdRate: numVal(trip.hotelPwdRate),
       hotelMarkupPct: trip.hotelMarkupPct,
+      hotelMarkupEnabled: trip.hotelMarkupEnabled,
       transferSeniorRate: numVal(trip.transferSeniorRate),
       transferAdultRate: numVal(trip.transferAdultRate),
       transferChildRate: numVal(trip.transferChildRate),
@@ -937,7 +943,12 @@ export function QuotationWizard({
                 <div className="rounded-md border border-sand-200 bg-white p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">Airfare — Rate Per Person</p>
-                    <MarkupInput value={trip.airfareMarkupPct} onChange={(v) => setTrip((t) => ({ ...t, airfareMarkupPct: v }))} />
+                    <MarkupInput
+                      value={trip.airfareMarkupPct}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareMarkupPct: v }))}
+                      enabled={trip.airfareMarkupEnabled}
+                      onEnabledChange={(v) => setTrip((t) => ({ ...t, airfareMarkupEnabled: v }))}
+                    />
                   </div>
                   <p className="mb-2 text-xs text-ink-500">
                     Enter each guest type's per-person supplier rate — never a group total to divide. The Adult rate
@@ -962,7 +973,12 @@ export function QuotationWizard({
                 <div className="rounded-md border border-sand-200 bg-white p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">Hotel — Rate Per Person</p>
-                    <MarkupInput value={trip.hotelMarkupPct} onChange={(v) => setTrip((t) => ({ ...t, hotelMarkupPct: v }))} />
+                    <MarkupInput
+                      value={trip.hotelMarkupPct}
+                      onChange={(v) => setTrip((t) => ({ ...t, hotelMarkupPct: v }))}
+                      enabled={trip.hotelMarkupEnabled}
+                      onEnabledChange={(v) => setTrip((t) => ({ ...t, hotelMarkupEnabled: v }))}
+                    />
                   </div>
                   <p className="mb-2 text-xs text-ink-500">
                     Enter the per-person rate for each guest type. If every guest type pays the same, enter the same
@@ -1442,17 +1458,39 @@ function ProfitPreview({
 
 /** A labeled PHP-prefixed number input, used throughout the Internal Pricing panel for every "actual rate" / manual supplier-rate field. */
 /** An editable markup percentage, e.g. "10%" — stored/passed as a fraction (0.1) but displayed and typed as a whole percent. */
-function MarkupInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function MarkupInput({
+  value,
+  onChange,
+  enabled,
+  onEnabledChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  // Optional — Transfer/Tours have no markup at all and don't pass these,
+  // so they keep the plain always-on percentage field. Airfare/Hotel pass
+  // both, making the percentage itself optional per spec.
+  enabled?: boolean;
+  onEnabledChange?: (v: boolean) => void;
+}) {
   return (
     <label className="flex items-center gap-1.5 text-xs text-ink-500">
+      {onEnabledChange && (
+        <input
+          type="checkbox"
+          checked={enabled ?? true}
+          onChange={(e) => onEnabledChange(e.target.checked)}
+          title="Turn this markup on or off"
+        />
+      )}
       Markup
       <input
         type="number"
         min={0}
         step={0.1}
+        disabled={onEnabledChange ? !enabled : false}
         value={Math.round(value * 1000) / 10}
         onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value) / 100)}
-        className="w-16 rounded-md border border-sand-200 px-2 py-1 text-right text-xs outline-none ring-harbor-400 focus:ring-2"
+        className="w-16 rounded-md border border-sand-200 px-2 py-1 text-right text-xs outline-none ring-harbor-400 focus:ring-2 disabled:bg-sand-100 disabled:text-ink-400"
       />
       %
     </label>

@@ -1,58 +1,44 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeAudit } from './audit';
 
-// 8 stages, deliberately starting at "sent" — a draft quotation has no
+// 6 stages, deliberately starting at "sent" — a draft quotation has no
 // pipeline position at all (pipeline_stage is null in the database until
 // the quotation is actually sent), matching how the agency actually thinks
 // about it: the sales process starts when the client receives something,
-// not while it's still being drafted internally.
-export const PIPELINE_STAGES = [
-  'quotation_sent',
-  'follow_up',
-  'interested',
-  'still_thinking',
-  'requested_changes',
-  'proceeding',
-  'confirmed',
-  'not_interested',
-  'lost',
-  'no_response',
-] as const;
+// not while it's still being drafted internally. Simplified from an
+// earlier 10-stage version -- several near-duplicate stages (Interested /
+// Still Thinking / Requested Changes / Proceeding, and Not Interested vs
+// Lost) collapsed into single, clearer stages representing the real client
+// journey: Sent -> Negotiating -> Confirmed -> Paid, with No Response and
+// Lost as the two ways a lead closes without paying. Entirely separate
+// from quotation_status (Draft/Sent/Viewed/Follow-up/Negotiating/
+// Confirmed/Paid/Cancelled/Lost/Expired) -- same-sounding names on both
+// are a coincidence of the client journey, not a shared system; nothing
+// here reads or writes quotation_status, and nothing there reads or
+// writes pipeline_stage.
+export const PIPELINE_STAGES = ['quotation_sent', 'negotiating', 'confirmed', 'paid', 'no_response', 'lost'] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
-  quotation_sent: 'Quotation Sent',
-  follow_up: 'Follow-up',
-  interested: 'Interested',
-  still_thinking: 'Still Thinking',
-  requested_changes: 'Requested Changes',
-  proceeding: 'Proceeding',
+  quotation_sent: 'Sent',
+  negotiating: 'Negotiating',
   confirmed: 'Confirmed',
-  not_interested: 'Not Interested',
+  paid: 'Paid',
+  no_response: 'No Response',
   lost: 'Lost',
-  no_response: 'No Response / Dormant',
 };
 
-/** The options offered after completing a follow-up — every stage except the two an agent wouldn't manually pick themselves. */
-export const FOLLOWUP_OUTCOME_STAGES: PipelineStage[] = [
-  'interested',
-  'still_thinking',
-  'requested_changes',
-  'proceeding',
-  'confirmed',
-  'not_interested',
-  'lost',
-  'no_response',
-];
+/** The options offered after completing a follow-up. */
+export const FOLLOWUP_OUTCOME_STAGES: PipelineStage[] = ['negotiating', 'confirmed', 'paid', 'no_response', 'lost'];
 
 /**
  * A lead reaching any of these stages stops the automatic follow-up
  * sequence for good — the lead and quotation stay in the system for
- * historical tracking, but nothing further gets scheduled. Every other
- * stage (Interested, Still Thinking, Requested Changes, Proceeding) keeps
- * the cadence going automatically.
+ * historical tracking, but nothing further gets scheduled. "Negotiating"
+ * is the only non-closed stage — active back-and-forth keeps the cadence
+ * going automatically.
  */
-export const CLOSED_PIPELINE_STAGES: PipelineStage[] = ['confirmed', 'not_interested', 'lost', 'no_response'];
+export const CLOSED_PIPELINE_STAGES: PipelineStage[] = ['confirmed', 'paid', 'no_response', 'lost'];
 
 /**
  * The one function that ever writes `quotations.pipeline_stage` — every
@@ -155,7 +141,7 @@ export async function getPipelineDashboardCounts(supabase: SupabaseClient) {
   const { data } = await supabase.from('quotations').select('pipeline_stage').is('deleted_at', null);
   const rows = data ?? [];
 
-  const closedStages = new Set<PipelineStage>(['confirmed', 'lost']);
+  const closedStages = new Set<PipelineStage>(CLOSED_PIPELINE_STAGES);
   const totalActiveLeads = rows.filter(
     (r) => r.pipeline_stage && !closedStages.has(r.pipeline_stage as PipelineStage)
   ).length;
@@ -163,7 +149,7 @@ export async function getPipelineDashboardCounts(supabase: SupabaseClient) {
 
   return {
     totalActiveLeads,
-    proceeding: countOf('proceeding'),
+    negotiating: countOf('negotiating'),
     confirmed: countOf('confirmed'),
     lost: countOf('lost'),
     noResponse: countOf('no_response'),

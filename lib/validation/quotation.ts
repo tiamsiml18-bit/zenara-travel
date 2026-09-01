@@ -78,6 +78,9 @@ export const quotationDraftSchema = z
     airfareInfantRate: z.coerce.number().min(0).default(0),
     airfarePwdRate: z.coerce.number().min(0).default(0),
     airfareMarkupPct: z.coerce.number().min(0).max(1).default(0.1),
+    // ON by default (matches the existing 10% behavior) — when OFF, the
+    // entered supplier rates are used exactly as-is, no markup applied.
+    airfareMarkupEnabled: z.boolean().default(true),
 
     hotelSeniorRate: z.coerce.number().min(0).default(0),
     hotelAdultRate: z.coerce.number().min(0).default(0),
@@ -85,6 +88,7 @@ export const quotationDraftSchema = z
     hotelInfantRate: z.coerce.number().min(0).default(0),
     hotelPwdRate: z.coerce.number().min(0).default(0),
     hotelMarkupPct: z.coerce.number().min(0).max(1).default(0.1),
+    hotelMarkupEnabled: z.boolean().default(true),
 
     transferSeniorRate: z.coerce.number().min(0).default(0),
     transferAdultRate: z.coerce.number().min(0).default(0),

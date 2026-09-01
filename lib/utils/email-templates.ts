@@ -94,17 +94,17 @@ ${SIGN_OFF(params.consultantFirstName)}`,
  * apply together, not one-or-the-other:
  *
  * 1. The lead's current pipeline stage, when it's one that reflects an
- *    actual client signal (Still Thinking, Requested Changes, Interested)
+ *    actual client signal (Negotiating)
  *    -- a real conversation already happened, so the email should
  *    acknowledge that specifically rather than sound like a form reminder.
  * 2. The follow-up NUMBER (1/2/3+) -- ALWAYS varies the wording within
- *    whichever stage applies. A lead can sit in "Still Thinking" for
- *    several follow-up cycles in a row; if the stage-specific email never
- *    also changed with the follow-up number, the exact same email would
- *    go out verbatim every single time that stage persisted -- a worse
- *    version of the generic "Hope you're doing well" problem this
- *    feature exists to solve. So every stage below has its own 1/2/3+
- *    progression, same as the no-signal-yet sequence does:
+ *    whichever stage applies. A lead can sit in "Negotiating" for several
+ *    follow-up cycles in a row; if the stage-specific email never also
+ *    changed with the follow-up number, the exact same email would go out
+ *    verbatim every single time that stage persisted -- a worse version
+ *    of the generic "Hope you're doing well" problem this feature exists
+ *    to solve. So every stage below has its own 1/2/3+ progression, same
+ *    as the no-signal-yet sequence does:
  *
  *    #1 Review and offer help -- simple, friendly, just checking they saw it.
  *    #2 Customization and decision support -- names the specific things
@@ -138,22 +138,27 @@ export function generateFollowUpEmail(params: {
     ? `This quotation is valid until ${formatValidUntil(params.validUntil)}, so let me know if you'd like to move forward before then`
     : `I'm happy to update the package or check the latest options whenever you're ready`;
 
-  if (params.pipelineStage === 'still_thinking') {
+  // "Negotiating" replaces the earlier, more granular Still Thinking /
+  // Requested Changes / Interested split (simplified to 6 pipeline stages
+  // total) -- a real back-and-forth is happening, so the email
+  // acknowledges that generally rather than assuming specifics (like
+  // exactly what changed) the CRM doesn't actually have on file.
+  if (params.pipelineStage === 'negotiating') {
     if (params.followUpNumber <= 1) {
       return {
-        subject: `Still deciding on your ${dest} trip?`,
+        subject: `Following up on your ${dest} trip`,
         body: `Hi ${params.clientFirstName},
 
-Just checking in on your ${dest} trip. I know these things take a bit of thought, so no rush at all, just wanted to see where things stand.
+Just following up on where things stand with your ${dest} trip. No rush at all, just wanted to check in.
 
-If it'd help to talk through any of the options or explore something different, I'm happy to jump on a quick call whenever works for you.
+If it'd help to talk through any of the details or adjust something, I'm happy to jump on a quick call whenever works for you.
 
 ${SIGN_OFF(params.consultantFirstName)}`,
       };
     }
     if (params.followUpNumber === 2) {
       return {
-        subject: `A different take on your ${dest} trip?`,
+        subject: `Any updates on your ${dest} trip?`,
         body: `Hi ${params.clientFirstName},
 
 Wanted to check back in on the ${dest} trip. If it would help to see a different option, we can look at ${changeOptions}.
@@ -167,77 +172,9 @@ ${SIGN_OFF(params.consultantFirstName)}`,
       subject: `Your ${dest} trip, whenever you're ready`,
       body: `Hi ${params.clientFirstName},
 
-Just a quick note in case you're still weighing the ${dest} trip. ${timingLine}.
+Just a quick note in case you're still working through the ${dest} trip. ${timingLine}.
 
 No pressure at all, feel free to reach out whenever the timing works for you.
-
-${SIGN_OFF(params.consultantFirstName)}`,
-    };
-  }
-
-  if (params.pipelineStage === 'requested_changes') {
-    if (params.followUpNumber <= 1) {
-      return {
-        subject: `Your updated ${dest} option`,
-        body: `Hi ${params.clientFirstName},
-
-Following up on the ${dest} package, I remember you were looking at a few changes to the itinerary.
-
-Let me know if you'd like me to put together the updated version, happy to get that over to you whenever you're ready.
-
-${SIGN_OFF(params.consultantFirstName)}`,
-      };
-    }
-    if (params.followUpNumber === 2) {
-      return {
-        subject: `Ready for the updated ${dest} package?`,
-        body: `Hi ${params.clientFirstName},
-
-Just checking back on the changes you mentioned for your ${dest} trip. Whenever you're ready, I can put the updated version together and send it straight over.
-
-${SIGN_OFF(params.consultantFirstName)}`,
-      };
-    }
-    return {
-      subject: `Checking in on your ${dest} package`,
-      body: `Hi ${params.clientFirstName},
-
-Wanted to check in one more time about the updates to your ${dest} package. ${timingLine}.
-
-If you're still interested, happy to put that together whenever works for you.
-
-${SIGN_OFF(params.consultantFirstName)}`,
-    };
-  }
-
-  if (params.pipelineStage === 'interested') {
-    if (params.followUpNumber <= 1) {
-      return {
-        subject: `Ready to lock in your ${dest} trip?`,
-        body: `Hi ${params.clientFirstName},
-
-Glad to hear you're interested in the ${dest} trip. Just wanted to check where things stand, let me know if you're ready to move forward, or if there's anything you'd like adjusted first.
-
-${SIGN_OFF(params.consultantFirstName)}`,
-      };
-    }
-    if (params.followUpNumber === 2) {
-      return {
-        subject: `Finalizing your ${dest} trip`,
-        body: `Hi ${params.clientFirstName},
-
-Just following up since you mentioned you were interested in the ${dest} trip. Happy to help finalize the details whenever you're ready to move forward.
-
-${SIGN_OFF(params.consultantFirstName)}`,
-      };
-    }
-    return {
-      subject: `Your ${dest} trip, ready when you are`,
-      body: `Hi ${params.clientFirstName},
-
-Wanted to check in one more time on the ${dest} trip. ${timingLine}.
-
-If you're ready to move forward, just let me know and I'll take care of the next steps.
 
 ${SIGN_OFF(params.consultantFirstName)}`,
     };

@@ -50,7 +50,7 @@ describe('generateFollowUpEmail', () => {
       destination: 'Hanoi',
       consultantFirstName: 'Leo',
       followUpNumber: 1,
-      pipelineStage: 'follow_up',
+      pipelineStage: null,
     });
     expect(draft.body).toContain('chance to look through the details');
     expect(draft.body).toMatch(/change anything|check the options/i);
@@ -62,7 +62,7 @@ describe('generateFollowUpEmail', () => {
       destination: 'Boracay',
       consultantFirstName: 'Leo',
       followUpNumber: 2,
-      pipelineStage: 'follow_up',
+      pipelineStage: null,
     });
     expect(draft.body).toContain('the hotel, tours, itinerary, or travel dates');
   });
@@ -73,7 +73,7 @@ describe('generateFollowUpEmail', () => {
       destination: 'Boracay',
       consultantFirstName: 'Leo',
       followUpNumber: 2,
-      pipelineStage: 'follow_up',
+      pipelineStage: null,
       hotelName: 'Shangri-La Boracay',
     });
     expect(draft.body).toContain('Shangri-La Boracay');
@@ -85,7 +85,7 @@ describe('generateFollowUpEmail', () => {
       destination: 'Boracay',
       consultantFirstName: 'Leo',
       followUpNumber: 3,
-      pipelineStage: 'follow_up',
+      pipelineStage: null,
       validUntil: '2026-09-15',
     });
     expect(draft.body).toContain('valid until September 15, 2026');
@@ -97,7 +97,7 @@ describe('generateFollowUpEmail', () => {
       destination: 'Boracay',
       consultantFirstName: 'Leo',
       followUpNumber: 3,
-      pipelineStage: 'follow_up',
+      pipelineStage: null,
     });
     expect(draft.body).not.toMatch(/valid until|expires|limited/i);
     expect(draft.body).toContain('no worries');
@@ -111,7 +111,7 @@ describe('generateFollowUpEmail', () => {
           destination: 'Boracay',
           consultantFirstName: 'Leo',
           followUpNumber: n,
-          pipelineStage: 'follow_up',
+          pipelineStage: null,
         }).body
     );
     const openingLines = bodies.map((b) => b.split('\n\n')[1]); // the line right after "Hi Maria,"
@@ -126,7 +126,7 @@ describe('generateFollowUpEmail', () => {
         destination: 'Boracay',
         consultantFirstName: 'Leo',
         followUpNumber: n,
-        pipelineStage: 'follow_up',
+        pipelineStage: null,
         hotelName: 'Shangri-La Boracay',
         validUntil: '2026-09-15',
       });
@@ -147,7 +147,7 @@ describe('generateFollowUpEmail', () => {
       'final attempt',
       'last chance',
     ];
-    const stages: (PipelineStage | null)[] = ['still_thinking', 'requested_changes', 'interested', 'follow_up', null];
+    const stages: (PipelineStage | null)[] = ['negotiating', null];
     for (const stage of stages) {
       for (let n = 1; n <= 3; n++) {
         const draft = generateFollowUpEmail({
@@ -166,7 +166,7 @@ describe('generateFollowUpEmail', () => {
   });
 
   it('never uses excessive exclamation marks', () => {
-    const stages: (PipelineStage | null)[] = ['still_thinking', 'requested_changes', 'interested', 'follow_up', null];
+    const stages: (PipelineStage | null)[] = ['negotiating', null];
     for (const stage of stages) {
       for (let n = 1; n <= 3; n++) {
         const draft = generateFollowUpEmail({
@@ -181,30 +181,30 @@ describe('generateFollowUpEmail', () => {
     }
   });
 
-  it('"still thinking" stage varies by follow-up number instead of repeating the same email every time', () => {
+  it('"negotiating" stage varies by follow-up number instead of repeating the same email every time', () => {
     const draftAt1 = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Hanoi',
       consultantFirstName: 'Leo',
       followUpNumber: 1,
-      pipelineStage: 'still_thinking',
+      pipelineStage: 'negotiating',
     });
     const draftAt2 = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Hanoi',
       consultantFirstName: 'Leo',
       followUpNumber: 2,
-      pipelineStage: 'still_thinking',
+      pipelineStage: 'negotiating',
     });
     const draftAt3 = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Hanoi',
       consultantFirstName: 'Leo',
       followUpNumber: 3,
-      pipelineStage: 'still_thinking',
+      pipelineStage: 'negotiating',
     });
-    expect(draftAt1.body).toContain('a bit of thought');
-    // Regression guard: a lead can sit in "Still Thinking" across several
+    expect(draftAt1.body).toContain('Just following up on where things stand');
+    // Regression guard: a lead can sit in "Negotiating" across several
     // follow-up cycles — if the stage-specific email never varied with the
     // follow-up number, the exact same email would go out verbatim every
     // time, which is worse than the original "Hope you're doing well"
@@ -214,7 +214,7 @@ describe('generateFollowUpEmail', () => {
     expect(draftAt1.body).not.toBe(draftAt3.body);
   });
 
-  it('"requested changes" stage also varies by follow-up number', () => {
+  it('"negotiating" stage combinations across follow-up numbers 1-3 produce 3 unique emails', () => {
     const bodies = [1, 2, 3].map(
       (n) =>
         generateFollowUpEmail({
@@ -222,28 +222,14 @@ describe('generateFollowUpEmail', () => {
           destination: 'Hanoi',
           consultantFirstName: 'Leo',
           followUpNumber: n,
-          pipelineStage: 'requested_changes',
+          pipelineStage: 'negotiating',
         }).body
     );
     expect(new Set(bodies).size).toBe(3);
   });
 
-  it('"interested" stage also varies by follow-up number', () => {
-    const bodies = [1, 2, 3].map(
-      (n) =>
-        generateFollowUpEmail({
-          clientFirstName: 'Maria',
-          destination: 'Hanoi',
-          consultantFirstName: 'Leo',
-          followUpNumber: n,
-          pipelineStage: 'interested',
-        }).body
-    );
-    expect(new Set(bodies).size).toBe(3);
-  });
-
-  it('every stage x follow-up-number combination (12 total across the 3 real signal stages) produces a unique email', () => {
-    const stages: PipelineStage[] = ['still_thinking', 'requested_changes', 'interested'];
+  it('every stage x follow-up-number combination (3 for negotiating, 3 for no signal yet) produces a unique email', () => {
+    const stages: (PipelineStage | null)[] = ['negotiating', null];
     const bodies = new Set<string>();
     for (const stage of stages) {
       for (let n = 1; n <= 3; n++) {
@@ -258,37 +244,34 @@ describe('generateFollowUpEmail', () => {
         );
       }
     }
-    expect(bodies.size).toBe(9);
+    expect(bodies.size).toBe(6);
   });
 
-  it('every stage-based #3 email uses the real validity date when set, and starts the sentence capitalized correctly', () => {
-    const stages: PipelineStage[] = ['still_thinking', 'requested_changes', 'interested'];
-    for (const stage of stages) {
-      const draft = generateFollowUpEmail({
-        clientFirstName: 'Maria',
-        destination: 'Hanoi',
-        consultantFirstName: 'Leo',
-        followUpNumber: 3,
-        pipelineStage: stage,
-        validUntil: '2026-09-15',
-      });
-      expect(draft.body).toContain('This quotation is valid until September 15, 2026');
-      // Never a lowercase sentence start (a grammar regression this fix specifically had to avoid)
-      expect(draft.body).not.toMatch(/\.\s+this quotation/);
-    }
-  });
-
-  it('"requested changes" stage references that specifically, using only real CRM data', () => {
+  it('the "negotiating" #3 email uses the real validity date when set, and starts the sentence capitalized correctly', () => {
     const draft = generateFollowUpEmail({
       clientFirstName: 'Maria',
       destination: 'Hanoi',
       consultantFirstName: 'Leo',
-      followUpNumber: 1,
-      pipelineStage: 'requested_changes',
+      followUpNumber: 3,
+      pipelineStage: 'negotiating',
+      validUntil: '2026-09-15',
     });
-    expect(draft.body).toContain('a few changes to the itinerary');
-    // Never invents specifics about WHAT changed, since the CRM doesn't have that detail
-    expect(draft.body).not.toMatch(/\bhotel\b|\bprice\b|\bdate\b|\bflight\b/i);
+    expect(draft.body).toContain('This quotation is valid until September 15, 2026');
+    // Never a lowercase sentence start (a grammar regression this fix specifically had to avoid)
+    expect(draft.body).not.toMatch(/\.\s+this quotation/);
+  });
+
+  it('"negotiating" stage acknowledges an active back-and-forth without inventing specifics the CRM does not have', () => {
+    const draft = generateFollowUpEmail({
+      clientFirstName: 'Maria',
+      destination: 'Hanoi',
+      consultantFirstName: 'Leo',
+      followUpNumber: 2,
+      pipelineStage: 'negotiating',
+      hotelName: 'Shangri-La Hanoi',
+    });
+    // Only real CRM data (hotel name on file) shows up — never an invented specific like "the changes you mentioned"
+    expect(draft.body).toContain('Shangri-La Hanoi');
   });
 
   it('never mentions another destination, guest type, or price the CRM does not have', () => {
@@ -303,7 +286,7 @@ describe('generateFollowUpEmail', () => {
   });
 
   it('never uses an em dash in any follow-up variant', () => {
-    const stages: (PipelineStage | null)[] = ['still_thinking', 'requested_changes', 'interested', 'follow_up', null];
+    const stages: (PipelineStage | null)[] = ['negotiating', null];
     for (const stage of stages) {
       for (let n = 1; n <= 3; n++) {
         const draft = generateFollowUpEmail({
@@ -326,7 +309,7 @@ describe('generateFollowUpEmail', () => {
           destination: 'Hong Kong',
           consultantFirstName: 'Leo',
           followUpNumber: n,
-          pipelineStage: 'follow_up',
+          pipelineStage: null,
         }).subject
     );
     expect(new Set(subjects).size).toBe(3);

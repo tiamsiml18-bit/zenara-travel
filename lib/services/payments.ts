@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PaymentInput } from '@/lib/validation/booking';
 import { writeAudit, diffFields, writeFieldChangeAudit } from './audit';
 import { setClientStatusByName } from './clients';
+import { updateQuotationPipelineStage } from './pipeline';
 import { unwrapToOne } from '@/lib/utils/unwrap-embed';
 
 export async function listPayments(supabase: SupabaseClient, bookingId: string) {
@@ -21,7 +22,7 @@ export async function listPayments(supabase: SupabaseClient, bookingId: string) 
  */
 async function recomputePaymentStatus(supabase: SupabaseClient, bookingId: string) {
   const [{ data: booking }, { data: payments }] = await Promise.all([
-    supabase.from('bookings').select('total_amount, client_id').eq('id', bookingId).single(),
+    supabase.from('bookings').select('total_amount, client_id, quotation_id').eq('id', bookingId).single(),
     supabase.from('payments').select('amount').eq('booking_id', bookingId),
   ]);
   if (!booking) return;
@@ -30,7 +31,13 @@ async function recomputePaymentStatus(supabase: SupabaseClient, bookingId: strin
   const status = totalPaid <= 0 ? 'unpaid' : totalPaid >= Number(booking.total_amount) ? 'paid' : 'partial';
 
   await supabase.from('bookings').update({ payment_status: status }).eq('id', bookingId);
-  return { totalPaid, status, balance: Math.max(0, Number(booking.total_amount) - totalPaid), clientId: booking.client_id };
+  return {
+    totalPaid,
+    status,
+    balance: Math.max(0, Number(booking.total_amount) - totalPaid),
+    clientId: booking.client_id,
+    quotationId: booking.quotation_id as string | null,
+  };
 }
 
 export async function addPayment(supabase: SupabaseClient, input: PaymentInput, actingUserId: string) {
@@ -58,6 +65,14 @@ export async function addPayment(supabase: SupabaseClient, input: PaymentInput, 
     // "When the client confirms" style mapping — paid is the natural end state.
     if (result.status === 'paid') {
       await setClientStatusByName(supabase, result.clientId, 'Paid', actingUserId);
+      // Payment recorded -> Follow-up (pipeline) stage becomes Paid too, per
+      // spec — this is the one payment-driven sync point, distinct from the
+      // quotation-status-driven sync in updateQuotationStatus. Quotation
+      // Status itself is never touched here; the two stay separate systems
+      // that happen to both move to a "paid" concept from different triggers.
+      if (result.quotationId) {
+        await updateQuotationPipelineStage(supabase, result.quotationId, 'paid', actingUserId);
+      }
     }
   }
 

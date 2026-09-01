@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 13, fontWeight: 700, color: COLORS.ink900, textTransform: 'uppercase', letterSpacing: 0.3 },
   priceValueTotal: { fontSize: 19, fontWeight: 700, color: COLORS.harbor700 },
 
-  termsBlock: { marginTop: 16, fontSize: 9.5, color: COLORS.ink500, lineHeight: 1.5 },
+  termsBlock: { fontSize: 9.5, color: COLORS.ink500, lineHeight: 1.5 },
   termsTitle: { fontSize: 11, fontWeight: 700, color: COLORS.ink700, marginBottom: 4 },
 
   footer: {
@@ -167,11 +167,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.harbor900,
     color: COLORS.sand50,
     paddingHorizontal: 32,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    fontSize: 9.5,
+    paddingVertical: 10,
+    alignItems: 'center',
+    fontSize: 8.5,
   },
+  footerLine: { textAlign: 'center' },
 });
 
 function formatDate(iso: string) {
@@ -232,7 +232,7 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
             <Text style={styles.agencyName}>{agency.name.toUpperCase()}</Text>
             <View style={styles.infoRow}>
               <InfoField label="Prepared For" value={client.name} />
-              <InfoField label="Consultant" value={agent?.full_name ?? '—'} />
+              <InfoField label="Consultant" value={agent?.full_name?.split(' ')[0] ?? '—'} />
             </View>
             <View style={styles.infoRow}>
               <InfoField label="Tour Package" value={packageTitle} />
@@ -317,44 +317,62 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
 
           {/* PACKAGE PRICING -- full width, after the two-column body. One
               row per guest type actually present, never combined with
-              another category's rate. */}
-          <View style={styles.pricingSection} wrap={false}>
-            <Text style={styles.pricingTitle}>Package Pricing</Text>
-            {pricing.guestLines.map((line) => (
-              <View key={line.guestType} style={styles.guestPriceRow}>
-                <View>
-                  <Text style={styles.guestPriceLabel}>{GUEST_TYPE_LABELS[line.guestType]}</Text>
-                  <Text style={styles.guestPriceDetail}>
-                    {line.quantity} guest{line.quantity !== 1 ? 's' : ''} × {formatMoney(line.pricePerPerson, pricing.currency)} per person
-                  </Text>
+              another category's rate. Deliberately NOT wrap={false} on the
+              outer section -- that forced the entire block (every guest
+              row + total) to jump to a new page as one atomic unit even
+              when only the first row or two would have fit, wasting the
+              remaining space on the page before it and leaving the next
+              page sparse. Each row is its own wrap={false} unit instead,
+              so a single row's label/detail/subtotal never splits
+              mid-row, but the SET of rows can flow naturally across a
+              page break like any other list. The heading is grouped with
+              the first row specifically so "Package Pricing" can never be
+              orphaned alone at the bottom of a page with its rows pushed
+              to the next one. */}
+          <View style={styles.pricingSection}>
+            {pricing.guestLines.map((line, i) => (
+              <View key={line.guestType} wrap={false}>
+                {i === 0 && <Text style={styles.pricingTitle}>Package Pricing</Text>}
+                <View style={styles.guestPriceRow}>
+                  <View>
+                    <Text style={styles.guestPriceLabel}>{GUEST_TYPE_LABELS[line.guestType]}</Text>
+                    <Text style={styles.guestPriceDetail}>
+                      {line.quantity} guest{line.quantity !== 1 ? 's' : ''} × {formatMoney(line.pricePerPerson, pricing.currency)} per person
+                    </Text>
+                  </View>
+                  <Text style={styles.guestPriceSubtotal}>{formatMoney(line.subtotal, pricing.currency)}</Text>
                 </View>
-                <Text style={styles.guestPriceSubtotal}>{formatMoney(line.subtotal, pricing.currency)}</Text>
               </View>
             ))}
-            <View style={styles.totalRow}>
+            <View style={styles.totalRow} wrap={false}>
               <Text style={styles.totalLabel}>Total Package</Text>
               <Text style={styles.priceValueTotal}>{formatMoney(pricing.totalPrice, pricing.currency)}</Text>
             </View>
           </View>
 
-          <View style={styles.termsBlock}>
+          {/* TERMS AND CONDITIONS / PAYMENT INSTRUCTIONS -- each its own
+              wrap={false} block so a paragraph's own heading never
+              separates from its text, but the two blocks can still land on
+              different pages from each other and from the pricing section
+              above if that's where the natural break falls. */}
+          <View wrap={false} style={{ marginTop: 16 }}>
             <Text style={styles.termsTitle}>Terms and Conditions</Text>
-            <Text>{agency.termsAndConditions}</Text>
-            {agency.paymentInstructions && (
-              <>
-                <Text style={[styles.termsTitle, { marginTop: 8 }]}>Payment Instructions</Text>
-                <Text>{agency.paymentInstructions}</Text>
-              </>
-            )}
+            <Text style={styles.termsBlock}>{agency.termsAndConditions}</Text>
           </View>
+          {agency.paymentInstructions && (
+            <View wrap={false} style={{ marginTop: 8 }}>
+              <Text style={styles.termsTitle}>Payment Instructions</Text>
+              <Text style={styles.termsBlock}>{agency.paymentInstructions}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.footer} fixed>
-          <Text>
-            {agent?.full_name ?? 'Your travel consultant'}
-            {agent?.email ? `  ·  ${agent.email}` : ''}
+          <Text style={styles.footerLine}>
+            {[agency.name, agency.email, agency.phone, agency.whatsapp ? `WhatsApp: ${agency.whatsapp}` : null]
+              .filter(Boolean)
+              .join('   •   ')}
           </Text>
-          <Text>{agency.footer ?? 'Thank you for choosing ' + agency.name}</Text>
         </View>
       </Page>
     </Document>
