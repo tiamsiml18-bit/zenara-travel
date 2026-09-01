@@ -23,9 +23,7 @@ export function NavLink({
       href={href}
       className={clsx(
         'group flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
-        isActive
-          ? 'bg-harbor-800 text-sand-50'
-          : 'text-harbor-100/70 hover:bg-harbor-800/60 hover:text-sand-50'
+        isActive ? 'bg-harbor-100 text-harbor-600' : 'text-ink-700 hover:bg-sand-100 hover:text-ink-900'
       )}
     >
       <span className="flex items-center gap-2.5">
@@ -36,7 +34,7 @@ export function NavLink({
         <span
           className={clsx(
             'font-ticket rounded-full px-1.5 py-0.5 text-[11px] leading-none',
-            isActive ? 'bg-sand-50 text-harbor-800' : 'bg-coral-500 text-white'
+            isActive ? 'bg-harbor-600 text-white' : 'bg-coral-500 text-white'
           )}
         >
           {badge}

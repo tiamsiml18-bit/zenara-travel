@@ -273,6 +273,46 @@ export async function getLeadSourceBreakdown(supabase: SupabaseClient, filters: 
     .sort((a, b) => b.client_count - a.client_count);
 }
 
+export async function getUpcomingConfirmedTravel(supabase: SupabaseClient, limit = 8) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  // Filtering/sorting on the embedded quotation_versions row is done here
+  // in application code rather than via PostgREST's embedded-filter
+  // syntax (.gte('current_version.travel_start_date', ...)) — that syntax
+  // can behave inconsistently across PostgREST versions (sometimes an
+  // inner-join filter, sometimes a left-join with nulled-out embeds), and
+  // getting it subtly wrong here would either hide real upcoming travel
+  // or silently include past dates. The confirmed-quotations dataset for
+  // a single agency is small enough that fetching them all and filtering
+  // in JS is both simpler and unambiguous.
+  const { data, error } = await supabase
+    .from('quotations')
+    .select(
+      `id, quotation_number,
+       client:clients ( full_name ),
+       current_version:quotation_versions!quotations_current_version_id_fkey ( destination, travel_start_date, travel_end_date )`
+    )
+    .eq('status', 'confirmed')
+    .is('deleted_at', null);
+  if (error) throw new Error(`Failed to load upcoming travel: ${error.message}`);
+
+  return (data ?? [])
+    .map((q) => {
+      const client = Array.isArray(q.client) ? q.client[0] : q.client;
+      const version = Array.isArray(q.current_version) ? q.current_version[0] : q.current_version;
+      return {
+        quotationId: q.id,
+        quotationNumber: q.quotation_number,
+        clientName: client?.full_name ?? 'Unknown',
+        destination: version?.destination ?? '—',
+        travelStartDate: version?.travel_start_date ?? null,
+        travelEndDate: version?.travel_end_date ?? null,
+      };
+    })
+    .filter((row): row is typeof row & { travelStartDate: string } => Boolean(row.travelStartDate) && row.travelStartDate! >= todayIso)
+    .sort((a, b) => a.travelStartDate.localeCompare(b.travelStartDate))
+    .slice(0, limit);
+}
+
 export async function getAgentPerformance(supabase: SupabaseClient, agentId?: string) {
   let query = supabase.from('v_agent_performance').select('*').order('confirmed_sales_value', { ascending: false });
   if (agentId) query = query.eq('agent_id', agentId);

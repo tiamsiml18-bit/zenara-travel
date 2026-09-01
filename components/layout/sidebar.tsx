@@ -25,12 +25,12 @@ export function Sidebar({
   logoUrl?: string | null;
 }) {
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col bg-harbor-900 text-sand-50">
+    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-sand-200 bg-harbor-50 text-ink-900">
       {/* Tag head — agency mark, styled like the punched end of a luggage tag.
           Falls back to the plain "Z" badge until a real logo is uploaded in
           Settings — same fallback the PDF watermark uses. Rendered directly
           at its natural aspect ratio, no background chip — the logo's own
-          light background already reads clearly against the dark sidebar,
+          light background reads clearly against this equally light sidebar,
           and a wrapping box made it look cramped/boxed-in for a wide
           rectangular mark. */}
       <Link href="/dashboard" className="flex items-center gap-2.5 px-4 py-5 transition-opacity hover:opacity-80">
@@ -38,21 +38,18 @@ export function Sidebar({
           // eslint-disable-next-line @next/next/no-img-element -- external Supabase Storage URL, not worth a next/image remote-domain config for a single small sidebar mark
           <img src={logoUrl} alt="" className="h-11 w-auto shrink-0 object-contain" />
         ) : (
-          <span className="flex h-11 w-11 items-center justify-center rounded-md border-2 border-sand-50/25 font-display text-base font-semibold">
+          <span className="flex h-11 w-11 items-center justify-center rounded-md border-2 border-harbor-600/30 font-display text-base font-semibold text-harbor-600">
             Z
           </span>
         )}
         <div className="leading-tight">
-          <p className="font-display text-sm font-semibold">Zenara</p>
-          <p className="text-[11px] uppercase tracking-wide text-harbor-100/50">Travel &amp; Tours</p>
+          <p className="font-display text-sm font-semibold text-ink-900">Zenara</p>
+          <p className="text-[11px] uppercase tracking-wide text-ink-500">Travel &amp; Tours</p>
         </div>
       </Link>
 
       {/* Perforated tear line — the tag's signature detail */}
-      <div
-        aria-hidden
-        className="mx-4 border-t border-dashed border-sand-50/15"
-      />
+      <div aria-hidden className="mx-4 border-t border-dashed border-sand-200" />
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
         <NavLink href="/dashboard" label="Dashboard" icon={<LayoutDashboard className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
@@ -66,9 +63,7 @@ export function Sidebar({
 
         {user.role === 'admin' && (
           <>
-            <div className="mt-4 mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-harbor-100/40">
-              Admin
-            </div>
+            <div className="mt-4 mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-ink-500">Admin</div>
             <NavLink href="/admin/settings" label="Settings" icon={<Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
             <NavLink href="/admin/users" label="Users" icon={<UserCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
             <NavLink href="/admin/import" label="Import clients" icon={<UploadCloud className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
@@ -77,9 +72,9 @@ export function Sidebar({
       </nav>
 
       {/* Tag stub footer — signed-in agent, like the traveler name on a tag */}
-      <div className="border-t border-harbor-800 px-4 py-3">
-        <p className="truncate text-sm font-medium">{user.fullName}</p>
-        <p className="truncate text-xs capitalize text-harbor-100/50">{user.role}</p>
+      <div className="border-t border-sand-200 px-4 py-3">
+        <p className="truncate text-sm font-medium text-ink-900">{user.fullName}</p>
+        <p className="truncate text-xs capitalize text-ink-500">{user.role}</p>
       </div>
     </aside>
   );

@@ -18,7 +18,7 @@ export function KpiCard({
         className={clsx(
           'font-ticket mt-1.5 text-2xl font-semibold',
           tone === 'positive' && 'text-harbor-700',
-          tone === 'warning' && 'text-amber-700',
+          tone === 'warning' && 'text-coral-500',
           tone === 'negative' && 'text-coral-600',
           tone === 'default' && 'text-ink-900'
         )}

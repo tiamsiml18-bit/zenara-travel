@@ -6,16 +6,16 @@ import { GUEST_TYPE_LABELS } from '@/lib/utils/guest-pricing';
 // Harbor/sand palette, matched to the app's design tokens, rendered as flat
 // hex since @react-pdf/renderer doesn't read CSS variables.
 const COLORS = {
-  harbor900: '#0c2020',
-  harbor700: '#1a4141',
-  harbor500: '#2b6868',
-  harbor100: '#d3e6e6',
-  sand50: '#faf8f4',
-  sand200: '#e6ddcb',
-  ink900: '#161b1b',
-  ink700: '#3a4342',
-  ink500: '#6b7473',
-  coral500: '#e0693f',
+  harbor900: '#222659',
+  harbor700: '#3841b2',
+  harbor500: '#666dcc',
+  harbor100: '#E9EBFF',
+  sand50: '#F8F9FC',
+  sand200: '#E5E7EB',
+  ink900: '#374151',
+  ink700: '#576275',
+  ink500: '#7e899a',
+  coral500: '#F47B73',
 };
 
 // A long, fully-bulleted itinerary (one line per activity, per the spec --

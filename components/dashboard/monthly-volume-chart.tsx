@@ -2,7 +2,7 @@
 
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-const COLORS = { harbor: '#1a4141', coral: '#e0693f', grid: '#e6ddcb' };
+const COLORS = { bar: '#E9EBFF', coral: '#F47B73', grid: '#E5E7EB' };
 
 export interface MonthlyVolumePoint {
   month: string;
@@ -25,16 +25,16 @@ export function MonthlyVolumeChart({ data, title }: { data: MonthlyVolumePoint[]
           <XAxis
             dataKey="month"
             tickFormatter={formatMonth}
-            tick={{ fontSize: 11, fill: '#6b7473' }}
+            tick={{ fontSize: 11, fill: '#7e899a' }}
             axisLine={{ stroke: COLORS.grid }}
             tickLine={false}
           />
-          <YAxis tick={{ fontSize: 11, fill: '#6b7473' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#7e899a' }} axisLine={false} tickLine={false} />
           <Tooltip
             labelFormatter={(v) => formatMonth(String(v))}
             contentStyle={{ fontSize: 12, borderRadius: 6, borderColor: COLORS.grid }}
           />
-          <Bar dataKey="created" name="Created" fill={COLORS.grid} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="created" name="Created" fill={COLORS.bar} radius={[3, 3, 0, 0]} />
           <Line type="monotone" dataKey="confirmed" name="Confirmed" stroke={COLORS.coral} strokeWidth={2} dot={false} />
         </ComposedChart>
       </ResponsiveContainer>

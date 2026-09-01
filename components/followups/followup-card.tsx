@@ -292,28 +292,28 @@ export function FollowUpCard({ followUp, gmailConnectedEmail }: { followUp: Foll
           align-items: center;
           gap: 0.35rem;
           border-radius: 0.375rem;
-          border: 1px solid #e6ddcb;
+          border: 1px solid #E5E7EB;
           padding: 0.35rem 0.6rem;
           font-size: 0.75rem;
           font-weight: 500;
-          color: #3a4342;
+          color: #576275;
         }
         :global(.action-chip:hover) {
-          background-color: #faf8f4;
+          background-color: #F8F9FC;
         }
         :global(.action-chip-primary) {
           display: inline-flex;
           align-items: center;
           gap: 0.35rem;
           border-radius: 0.375rem;
-          background-color: #1a4141;
+          background-color: #5961C7;
           padding: 0.35rem 0.6rem;
           font-size: 0.75rem;
           font-weight: 500;
-          color: #faf8f4;
+          color: #F8F9FC;
         }
         :global(.action-chip-primary:hover) {
-          background-color: #2b6868;
+          background-color: #3841b2;
         }
       `}</style>
     </div>
