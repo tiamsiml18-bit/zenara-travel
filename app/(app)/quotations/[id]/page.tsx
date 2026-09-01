@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Download, Pencil } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeline';
 import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quotations/quotation-actions';
 import { QuotationStatusControls, ConvertToBookingButton } from '@/components/quotations/quotation-status-controls';
 import { ArchiveQuotationButton } from '@/components/quotations/archive-quotation-button';
@@ -60,7 +61,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             <div className="flex items-center gap-2">
               <h2 className="font-ticket text-lg font-semibold text-ink-900">{quotation.quotation_number}</h2>
               <span className="font-ticket text-sm text-ink-500">{currentVersion.version_label}</span>
-              <StatusBadge label={quotation.status} />
+              <StatusBadge label={quotation.status ? PIPELINE_STAGE_LABELS[quotation.status as PipelineStage] : 'Draft'} />
             </div>
             <p className="mt-1 text-sm text-ink-500">
               {quotation.client?.full_name} &middot; {currentVersion.destination} &middot; agent:{' '}
@@ -110,7 +111,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             ) : (
               !isDraft && quotation.status === 'confirmed' && <ConvertToBookingButton quotationId={id} />
             )}
-            {!isDraft && !['cancelled', 'lost', 'expired', 'paid'].includes(quotation.status) && (
+            {!isDraft && !['paid', 'lost', 'no_response'].includes(quotation.status ?? '') && (
               <Link
                 href={`/quotations/${id}/revise`}
                 className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
@@ -123,12 +124,12 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
           </div>
         </div>
 
-        {!isDraft && !['cancelled', 'lost', 'expired', 'confirmed', 'paid'].includes(quotation.status) && (
+        {!isDraft && !['paid', 'lost', 'no_response', 'confirmed'].includes(quotation.status ?? '') && (
           <div className="mb-6 flex items-center justify-between rounded-lg border border-sand-200 bg-white px-4 py-3">
             <p className="text-sm text-ink-500">
               Once the client responds, update the quotation status to keep the dashboard and follow-ups accurate.
             </p>
-            <QuotationStatusControls quotationId={id} status={quotation.status} />
+            <QuotationStatusControls quotationId={id} status={quotation.status ?? ''} />
           </div>
         )}
 

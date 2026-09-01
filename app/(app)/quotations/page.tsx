@@ -8,6 +8,7 @@ import { QuotationFilterBar } from '@/components/quotations/quotation-filter-bar
 import { createClient } from '@/lib/supabase/server';
 import { listQuotations } from '@/lib/services/quotations';
 import { listConsultants } from '@/lib/services/lookups';
+import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeline';
 import { requireUser } from '@/lib/auth/session';
 
 // Forces this page to be rendered fresh on every request rather than
@@ -98,7 +99,7 @@ export default async function QuotationsPage({
                   </td>
                   <td className="px-4 py-3 font-ticket text-ink-700">{formatMoney(q.current_version?.total_price)}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge label={q.status} />
+                    <StatusBadge label={q.status ? PIPELINE_STAGE_LABELS[q.status as PipelineStage] : 'Draft'} />
                   </td>
                   <td className="px-4 py-3 text-ink-700">{q.current_version?.consultant_name_snapshot ?? '—'}</td>
                   <td className="px-4 py-3 text-ink-500">{formatDate(q.updated_at)}</td>

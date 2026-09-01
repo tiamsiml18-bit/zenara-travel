@@ -7,6 +7,7 @@ import { paymentSchema, bookingStatusSchema, paymentDetailsSchema, type PaymentI
 import * as bookingsService from '@/lib/services/bookings';
 import * as paymentsService from '@/lib/services/payments';
 import * as quotationsService from '@/lib/services/quotations';
+import type { PipelineStage } from '@/lib/services/pipeline';
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -66,8 +67,8 @@ export async function addPaymentAction(input: PaymentInput): Promise<ActionResul
   }
 }
 
-/** Used from the quotation detail page to move a sent quotation to Negotiating/Confirmed/Cancelled/Lost/Expired. */
-export async function updateQuotationStatusAction(input: { quotationId: string; status: string }): Promise<ActionResult> {
+/** Used from the quotation detail page to move a sent quotation to Negotiating/Confirmed/Paid/No Response/Lost — the same six stages the Follow-up pipeline uses. */
+export async function updateQuotationStatusAction(input: { quotationId: string; status: PipelineStage }): Promise<ActionResult> {
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
   try {

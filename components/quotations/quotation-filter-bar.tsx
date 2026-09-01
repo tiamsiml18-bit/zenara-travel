@@ -2,8 +2,11 @@
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
+import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeline';
 
-const STATUS_OPTIONS = ['draft', 'sent', 'viewed', 'follow_up', 'negotiating', 'confirmed', 'paid', 'cancelled', 'lost', 'expired'];
+// The same six stages Follow-up (pipeline) status uses — one consistent
+// status system throughout the CRM.
+const STATUS_OPTIONS: PipelineStage[] = ['sent', 'negotiating', 'confirmed', 'paid', 'no_response', 'lost'];
 
 export function QuotationFilterBar({ consultants }: { consultants: { id: string; full_name: string }[] }) {
   const router = useRouter();
@@ -44,7 +47,7 @@ export function QuotationFilterBar({ consultants }: { consultants: { id: string;
         <option value="">All statuses</option>
         {STATUS_OPTIONS.map((s) => (
           <option key={s} value={s}>
-            {s.replace(/_/g, ' ')}
+            {PIPELINE_STAGE_LABELS[s]}
           </option>
         ))}
       </select>

@@ -660,7 +660,9 @@ export async function createDraftQuotation(
       quotation_number: quotationNumber,
       client_id: input.clientId,
       package_id: input.packageId || null,
-      status: 'draft',
+      // Not sent yet — no status, no pipeline stage, matching
+      // pipeline_stage's existing "null means draft" meaning exactly.
+      status: null,
       assigned_agent_id: actingUserId,
     })
     .select('id')
@@ -761,7 +763,7 @@ export async function sendQuotation(supabase: SupabaseClient, quotationId: strin
 
   const { error: qError } = await supabase
     .from('quotations')
-    .update({ status: 'sent', pipeline_stage: 'quotation_sent' })
+    .update({ status: 'sent', pipeline_stage: 'sent' })
     .eq('id', quotationId);
   if (qError) throw new Error(`Failed to update quotation status: ${qError.message}`);
 
@@ -773,7 +775,7 @@ export async function sendQuotation(supabase: SupabaseClient, quotationId: strin
     action: 'quotation.pipeline_stage_changed',
     entityType: 'quotation',
     entityId: quotationId,
-    metadata: { previousStage: quotation.pipeline_stage, newStage: 'quotation_sent' },
+    metadata: { previousStage: quotation.pipeline_stage, newStage: 'sent' },
   });
 
   await setClientStatusByName(
@@ -862,7 +864,11 @@ export async function reviseQuotation(
 
   await supabase
     .from('quotations')
-    .update({ current_version_id: version.id, status: 'draft' })
+    // Revising resets both status AND pipeline_stage together back to "not
+    // sent yet" (null on both) — the existing behavior already reset
+    // status alone; leaving pipeline_stage at its old value here would
+    // immediately re-create the exact drift this unification exists to fix.
+    .update({ current_version_id: version.id, status: null, pipeline_stage: null })
     .eq('id', quotationId);
 
   await supabase.from('client_activities').insert({
@@ -948,9 +954,11 @@ export async function reviseQuotation(
 const QUOTATION_TO_CLIENT_STATUS: Partial<Record<string, string>> = {
   negotiating: 'Negotiating',
   confirmed: 'Confirmed',
-  cancelled: 'Cancelled',
+  paid: 'Paid',
   lost: 'Lost',
-  expired: 'Expired',
+  // No client status change for "No Response" — none of the existing
+  // client_statuses options represents it precisely, so the client's
+  // status is simply left as whatever it already was.
 };
 
 /**
@@ -973,33 +981,20 @@ export async function unarchiveQuotation(supabase: SupabaseClient, quotationId: 
 }
 
 /**
- * Quotation Status -> Follow-up (pipeline) Stage, for the specific
- * transitions that clearly represent the same client-journey moment on
- * both sides. Only the explicitly-defined ones sync automatically —
- * Draft, Viewed, and Follow-up (a quotation status, not to be confused
- * with the sales follow-up sequence) intentionally have no mapping here,
- * since a client viewing a quotation isn't the same signal as it being
- * sent, and this list should stay exactly as specified rather than
- * guessing further mappings.
+ * Quotation Status and Follow-up (pipeline) Stage now share the exact same
+ * six values (Sent, Negotiating, Confirmed, Paid, No Response, Lost) — one
+ * consistent status system, not two systems that happen to look similar.
+ * This function is the one place that ever changes a quotation's status,
+ * and it always sets BOTH columns to the same value together, so they can
+ * never drift apart the way historical data briefly did before this
+ * unification. newStatus must be one of the six shared PipelineStage
+ * values (draft/unsent quotations have no status at all — null on both
+ * columns — until they're actually sent, via sendQuotation below).
  */
-const QUOTATION_STATUS_TO_PIPELINE_STAGE: Record<string, PipelineStage> = {
-  sent: 'quotation_sent',
-  negotiating: 'negotiating',
-  confirmed: 'confirmed',
-  // "Lost" in Follow-up terms means the client declined, cancelled, or is
-  // no longer interested — both quotation outcomes map to it.
-  lost: 'lost',
-  cancelled: 'lost',
-  // An expired quotation's validity window passed with the client never
-  // having responded — the same meaning "No Response" has on the
-  // Follow-up side.
-  expired: 'no_response',
-};
-
 export async function updateQuotationStatus(
   supabase: SupabaseClient,
   quotationId: string,
-  newStatus: string,
+  newStatus: PipelineStage,
   actingUserId: string
 ) {
   const { data: quotation, error: fetchError } = await supabase
@@ -1033,18 +1028,11 @@ export async function updateQuotationStatus(
     metadata: { from: quotation.status, to: newStatus },
   });
 
-  // Quotation Status and Follow-up (pipeline) Stage remain separate systems
-  // with their own histories and audit trails, but specific status changes
-  // now also move the pipeline stage to match, so the team sees a
-  // consistent client stage without the agent updating both by hand.
-  // Deliberately one-directional: the pipeline stage reaching a stage
-  // (e.g. No Response) never pushes a change back onto quotation status —
-  // "No Response" means the client hasn't responded, not that they've
-  // declined, so it must never silently become "Lost" on either side.
-  const pipelineStageForStatus = QUOTATION_STATUS_TO_PIPELINE_STAGE[newStatus];
-  if (pipelineStageForStatus) {
-    await updateQuotationPipelineStage(supabase, quotationId, pipelineStageForStatus, actingUserId);
-  }
+  // The pipeline (Follow-up) stage moves to the exact same value in the
+  // same action — this IS the unification, not a mapping between two
+  // vocabularies. updateQuotationPipelineStage handles its own audit
+  // entry and is a no-op if the stage is already there.
+  await updateQuotationPipelineStage(supabase, quotationId, newStatus, actingUserId);
 
   // Returned so the calling Server Action knows which client to revalidate
   // in addition to the quotation itself — the client's status badge (on

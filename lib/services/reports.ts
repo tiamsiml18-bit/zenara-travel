@@ -76,9 +76,9 @@ export async function getDashboardKpis(supabase: SupabaseClient, filters: Dashbo
   if (filters.destination) confirmedBookingsQuery = confirmedBookingsQuery.ilike('destination', `%${filters.destination}%`);
   const { count: confirmedBookingsCount } = await confirmedBookingsQuery;
 
-  const quotesSent = rows.filter((r) => r.status !== 'draft').length;
-  const quotesPending = rows.filter((r) => ['sent', 'viewed'].includes(r.status)).length;
-  const lostLeads = rows.filter((r) => ['lost', 'expired'].includes(r.status)).length;
+  const quotesSent = rows.filter((r) => r.status !== null).length;
+  const quotesPending = rows.filter((r) => r.status === 'sent').length;
+  const lostLeads = rows.filter((r) => ['lost', 'no_response'].includes(r.status)).length;
   const totalQuotedValue = rows.reduce((sum, r) => sum + Number(r.total_price ?? 0), 0);
   const totalConfirmedSales = rows
     .filter((r) => ['confirmed', 'paid'].includes(r.status))
@@ -168,7 +168,7 @@ export async function getMonthlyQuotationVolume(supabase: SupabaseClient, filter
 
   return groupByMonth(data ?? [], (rows) => ({
     quotations_created: rows.length,
-    quotations_sent: rows.filter((r) => r.status !== 'draft').length,
+    quotations_sent: rows.filter((r) => r.status !== null).length,
     quotations_confirmed: rows.filter((r) => r.status === 'confirmed').length,
     confirmed_value: rows
       .filter((r) => ['confirmed', 'paid'].includes(r.status))
@@ -287,7 +287,7 @@ export async function getConversionRate(supabase: SupabaseClient, filters: Dashb
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   const rows = data ?? [];
-  const sent = rows.filter((r) => r.status !== 'draft').length;
+  const sent = rows.filter((r) => r.status !== null).length;
   const confirmed = rows.filter((r) => ['confirmed', 'paid'].includes(r.status)).length;
   return sent === 0 ? 0 : Math.round((confirmed / sent) * 1000) / 10;
 }

@@ -1,17 +1,10 @@
 'use client';
 
-const QUOTATION_STATUSES = [
-  'draft',
-  'sent',
-  'viewed',
-  'follow_up',
-  'negotiating',
-  'confirmed',
-  'paid',
-  'cancelled',
-  'lost',
-  'expired',
-] as const;
+import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeline';
+
+// The same six stages Follow-up (pipeline) status uses — one consistent
+// status system throughout the CRM.
+const QUOTATION_STATUSES: PipelineStage[] = ['sent', 'negotiating', 'confirmed', 'paid', 'no_response', 'lost'];
 
 const inputClass = 'rounded-md border border-sand-200 bg-white px-2.5 py-[0.45rem] text-[0.8125rem] text-ink-900';
 
@@ -69,7 +62,7 @@ export function ReportFilterBar({
           <option value="">Any status</option>
           {QUOTATION_STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s.replace(/_/g, ' ')}
+              {PIPELINE_STAGE_LABELS[s]}
             </option>
           ))}
         </select>

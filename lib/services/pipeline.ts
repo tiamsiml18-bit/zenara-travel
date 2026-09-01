@@ -16,11 +16,11 @@ import { writeAudit } from './audit';
 // are a coincidence of the client journey, not a shared system; nothing
 // here reads or writes quotation_status, and nothing there reads or
 // writes pipeline_stage.
-export const PIPELINE_STAGES = ['quotation_sent', 'negotiating', 'confirmed', 'paid', 'no_response', 'lost'] as const;
+export const PIPELINE_STAGES = ['sent', 'negotiating', 'confirmed', 'paid', 'no_response', 'lost'] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
-  quotation_sent: 'Sent',
+  sent: 'Sent',
   negotiating: 'Negotiating',
   confirmed: 'Confirmed',
   paid: 'Paid',

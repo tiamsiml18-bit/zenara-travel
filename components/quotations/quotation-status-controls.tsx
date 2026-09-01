@@ -4,42 +4,43 @@ import { useTransition, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Briefcase } from 'lucide-react';
 import { updateQuotationStatusAction, convertToBookingAction } from '@/app/(app)/bookings/actions';
+import type { PipelineStage } from '@/lib/services/pipeline';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 
+// The same six stages Follow-up (pipeline) status uses — Quotation Status
+// and Follow-up Status are now one consistent system, not two vocabularies
+// that happen to look similar. Changing either one here moves both
+// together (see updateQuotationStatus).
 const NEXT_STATUS_OPTIONS: Record<string, { value: string; label: string }[]> = {
   sent: [
     { value: 'negotiating', label: 'Mark as Negotiating' },
     { value: 'confirmed', label: 'Mark as Confirmed' },
-    { value: 'lost', label: 'Mark as Lost' },
-    { value: 'expired', label: 'Mark as Expired' },
-  ],
-  viewed: [
-    { value: 'negotiating', label: 'Mark as Negotiating' },
-    { value: 'confirmed', label: 'Mark as Confirmed' },
+    { value: 'no_response', label: 'Mark as No Response' },
     { value: 'lost', label: 'Mark as Lost' },
   ],
   negotiating: [
     { value: 'confirmed', label: 'Mark as Confirmed' },
+    { value: 'no_response', label: 'Mark as No Response' },
     { value: 'lost', label: 'Mark as Lost' },
   ],
-  follow_up: [
-    { value: 'negotiating', label: 'Mark as Negotiating' },
-    { value: 'confirmed', label: 'Mark as Confirmed' },
-    { value: 'lost', label: 'Mark as Lost' },
-  ],
-  // Previously missing entirely — a confirmed quotation had no path to
-  // Cancelled or Paid in the UI at all.
   confirmed: [
     { value: 'paid', label: 'Mark as Paid' },
-    { value: 'cancelled', label: 'Mark as Cancelled' },
+    // Covers what "Cancelled" used to mean — a confirmed booking that
+    // falls through is Lost, same as any other client who's no longer
+    // proceeding, per the unified six-stage vocabulary.
+    { value: 'lost', label: 'Mark as Lost' },
+  ],
+  no_response: [
+    { value: 'negotiating', label: 'Mark as Negotiating' },
+    { value: 'lost', label: 'Mark as Lost' },
   ],
 };
 
-// Per the confirmation policy: "Changing a quotation to Confirmed" and
-// "Changing a confirmed quotation to Cancelled" are explicitly called out as
-// major changes. Other transitions (Negotiating, Lost, Expired, Paid) save
-// directly, same as any other status progression.
-const MAJOR_TRANSITIONS = new Set(['confirmed', 'cancelled']);
+// Per the confirmation policy: moving TO Confirmed, and moving a confirmed
+// quotation to Lost (covering what "Cancelled" used to mean), are major
+// changes. Other transitions save directly, same as any other status
+// progression.
+const MAJOR_TRANSITIONS = new Set(['confirmed']);
 
 export function QuotationStatusControls({ quotationId, status }: { quotationId: string; status: string }) {
   const [isPending, startTransition] = useTransition();
@@ -54,22 +55,23 @@ export function QuotationStatusControls({ quotationId, status }: { quotationId: 
     if (!value) return;
     setError(null);
 
-    if (MAJOR_TRANSITIONS.has(value)) {
+    const isCancellingConfirmed = status === 'confirmed' && value === 'lost';
+    if (MAJOR_TRANSITIONS.has(value) || isCancellingConfirmed) {
       const label = options.find((o) => o.value === value)?.label ?? 'Update status';
       const ok = await confirm({
         title: `${label}?`,
         description:
           value === 'confirmed'
             ? 'This marks the sale as won and updates the client record accordingly.'
-            : 'This marks a confirmed quotation as cancelled.',
-        tone: value === 'cancelled' ? 'danger' : 'default',
+            : 'This marks a confirmed booking as lost.',
+        tone: isCancellingConfirmed ? 'danger' : 'default',
         confirmLabel: label,
       });
       if (!ok) return;
     }
 
     startTransition(async () => {
-      const result = await updateQuotationStatusAction({ quotationId, status: value });
+      const result = await updateQuotationStatusAction({ quotationId, status: value as PipelineStage });
       if (!result.ok) setError(result.error);
       else router.refresh();
     });

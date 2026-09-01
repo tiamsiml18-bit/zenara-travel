@@ -12,7 +12,15 @@ const TONE_BY_STATUS: Record<string, string> = {
   Cancelled: 'bg-sand-200 text-ink-500',
   Lost: 'bg-sand-200 text-ink-500',
   Expired: 'bg-sand-200 text-ink-500',
-  // quotation statuses
+  // Quotation Status and Follow-up Status share these exact six stages —
+  // one consistent status system, so this Title Case set is the only one
+  // that should ever be passed in going forward (see PIPELINE_STAGE_LABELS
+  // in lib/services/pipeline.ts, the single source for these labels).
+  Sent: 'bg-harbor-100 text-harbor-700',
+  Draft: 'bg-sand-200 text-ink-700',
+  'No Response': 'bg-sand-200 text-ink-500',
+  // Lowercase raw enum values, kept only so any already-rendered or
+  // historical value still gets a real tone instead of the gray fallback.
   draft: 'bg-sand-200 text-ink-700',
   sent: 'bg-harbor-100 text-harbor-700',
   viewed: 'bg-harbor-100 text-harbor-700',
@@ -23,6 +31,7 @@ const TONE_BY_STATUS: Record<string, string> = {
   cancelled: 'bg-sand-200 text-ink-500',
   lost: 'bg-sand-200 text-ink-500',
   expired: 'bg-sand-200 text-ink-500',
+  no_response: 'bg-sand-200 text-ink-500',
 };
 
 export function StatusBadge({ label }: { label: string }) {
