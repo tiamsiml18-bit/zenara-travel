@@ -191,7 +191,7 @@ describe('Downstream pricing chain — unchanged since the input-stage rewrite',
     // Land Arrangement Only excludes exactly the airfare portion — every
     // other component (hotel, transfer, tours) is completely unaffected.
     expect(landArrangementOnly.adult).toBe(6500); // 5000 + 1000 + 500
-    expect(allIn.adult - landArrangementOnly.adult).toBe(airfareRates.adult);
+    expect((allIn.adult ?? 0) - (landArrangementOnly.adult ?? 0)).toBe(airfareRates.adult);
   });
 
   it('Package per PAX includes Other Supplier Costs as a genuine per-guest-type contribution, not just an internal cost total', () => {

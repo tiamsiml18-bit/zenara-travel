@@ -406,9 +406,13 @@ async function insertVersionChildren(
 
   // Each selected Tour's own editable per-person rates for this quotation
   // — one row per unique Tour, never re-pulled from or written back to the
-  // Tours library (source_tour_id is for traceability only).
+  // Tours library (source_tour_id is for traceability only). upsert
+  // rather than a plain insert as a defense-in-depth measure: the actual
+  // fix for the "duplicate key" bug is the caller deleting old rows
+  // first, but an upsert here means a future caller that forgets that
+  // step fails safe (overwrites the existing row) instead of throwing.
   if (input.tourPricing.length > 0) {
-    const { error } = await supabase.from('quotation_tour_pricing').insert(
+    const { error } = await supabase.from('quotation_tour_pricing').upsert(
       input.tourPricing.map((t) => ({
         quotation_version_id: versionId,
         source_tour_id: t.sourceTourId || null,
@@ -418,7 +422,8 @@ async function insertVersionChildren(
         rate_child: t.rateChild ?? null,
         rate_infant: t.rateInfant ?? null,
         rate_pwd: t.ratePwd ?? null,
-      }))
+      })),
+      { onConflict: 'quotation_version_id,source_tour_id' }
     );
     if (error) throw new Error(`Failed to save tour pricing: ${error.message}`);
   }
@@ -633,6 +638,13 @@ export async function updateDraftQuotation(
     supabase.from('quotation_items').delete().eq('quotation_version_id', versionId),
     supabase.from('quotation_guest_pricing').delete().eq('quotation_version_id', versionId),
     supabase.from('quotation_guest_pricing_internal').delete().eq('quotation_version_id', versionId),
+    // Missing here previously — quotation_tour_pricing has a unique
+    // constraint on (quotation_version_id, source_tour_id), so editing an
+    // existing quotation a second time (reusing the same version id)
+    // always hit "duplicate key" the moment any tour pricing row from the
+    // first save was still there when insertVersionChildren tried to
+    // insert it again.
+    supabase.from('quotation_tour_pricing').delete().eq('quotation_version_id', versionId),
   ]);
   await supabase.from('quotation_pricing_internal').delete().eq('quotation_version_id', versionId);
 
