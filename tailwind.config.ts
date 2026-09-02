@@ -11,6 +11,14 @@ import type { Config } from 'tailwindcss';
 // highlights only; "sand" is the light neutral background/border family;
 // "ink" is body text, several shades lighter than before so the overall
 // page reads soft rather than high-contrast-dark.
+//
+// Every color below resolves through a CSS variable defined in
+// globals.css (":root" for light, ".dark" for dark) rather than a static
+// hex — this is what makes Dark Mode apply consistently everywhere
+// without every component needing its own dark: variant. "surface" is
+// new: the card/panel background, white in light mode, dark charcoal in
+// dark mode (previously every card just used Tailwind's built-in "white",
+// which can't have a dark-mode counterpart the same way).
 const config: Config = {
   darkMode: 'class',
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
@@ -18,30 +26,31 @@ const config: Config = {
     extend: {
       colors: {
         harbor: {
-          50: '#F7F8FC',
-          100: '#E9EBFF',
-          200: '#d0d2f1',
-          400: '#8389d8',
-          500: '#666dcc',
-          600: '#5961C7',
-          700: '#3841b2',
-          800: '#2b3282',
-          900: '#222659',
-          950: '#181a3a',
+          50: 'rgb(var(--harbor-50) / <alpha-value>)',
+          100: 'rgb(var(--harbor-100) / <alpha-value>)',
+          200: 'rgb(var(--harbor-200) / <alpha-value>)',
+          400: 'rgb(var(--harbor-400) / <alpha-value>)',
+          500: 'rgb(var(--harbor-500) / <alpha-value>)',
+          600: 'rgb(var(--harbor-600) / <alpha-value>)',
+          700: 'rgb(var(--harbor-700) / <alpha-value>)',
+          800: 'rgb(var(--harbor-800) / <alpha-value>)',
+          900: 'rgb(var(--harbor-900) / <alpha-value>)',
+          950: 'rgb(var(--harbor-950) / <alpha-value>)',
         },
         sand: {
-          50: '#F8F9FC',
-          100: '#f0f2f4',
-          200: '#E5E7EB',
+          50: 'rgb(var(--sand-50) / <alpha-value>)',
+          100: 'rgb(var(--sand-100) / <alpha-value>)',
+          200: 'rgb(var(--sand-200) / <alpha-value>)',
         },
+        surface: 'rgb(var(--surface) / <alpha-value>)',
         coral: {
-          500: '#F47B73',
-          600: '#ee584f',
+          500: 'rgb(var(--coral-500) / <alpha-value>)',
+          600: 'rgb(var(--coral-600) / <alpha-value>)',
         },
         ink: {
-          900: '#374151',
-          700: '#576275',
-          500: '#7e899a',
+          900: 'rgb(var(--ink-900) / <alpha-value>)',
+          700: 'rgb(var(--ink-700) / <alpha-value>)',
+          500: 'rgb(var(--ink-500) / <alpha-value>)',
         },
       },
       fontFamily: {

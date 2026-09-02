@@ -83,7 +83,7 @@ export default async function FollowUpsPage({
                 href={viewLink('list')}
                 className={clsx(
                   'flex items-center gap-1 border-r border-sand-200 px-2 py-1 font-medium transition-colors',
-                  !isPipelineView ? 'bg-sand-100 text-ink-900' : 'bg-white text-ink-500 hover:text-ink-700'
+                  !isPipelineView ? 'bg-sand-100 text-ink-900' : 'bg-surface text-ink-500 hover:text-ink-700'
                 )}
               >
                 <List className="h-3 w-3" strokeWidth={2} />
@@ -93,7 +93,7 @@ export default async function FollowUpsPage({
                 href={viewLink('pipeline')}
                 className={clsx(
                   'flex items-center gap-1 px-2 py-1 font-medium transition-colors',
-                  isPipelineView ? 'bg-sand-100 text-ink-900' : 'bg-white text-ink-500 hover:text-ink-700'
+                  isPipelineView ? 'bg-sand-100 text-ink-900' : 'bg-surface text-ink-500 hover:text-ink-700'
                 )}
               >
                 <Kanban className="h-3 w-3" strokeWidth={2} />
@@ -110,7 +110,7 @@ export default async function FollowUpsPage({
                     href={`/followups?tab=${tab.key}${params.agent ? `&agent=${params.agent}` : ''}`}
                     className={clsx(
                       'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium',
-                      bucket === tab.key ? 'bg-harbor-700 text-sand-50' : 'bg-white text-ink-700 hover:bg-sand-100'
+                      bucket === tab.key ? 'bg-harbor-700 text-sand-50' : 'bg-surface text-ink-700 hover:bg-sand-100'
                     )}
                   >
                     {tab.label}
@@ -147,7 +147,7 @@ export default async function FollowUpsPage({
               <FollowUpCard key={f.id} followUp={f} gmailConnectedEmail={gmailConnection?.connected_email ?? null} />
             ))}
             {followUps.length === 0 && (
-              <div className="rounded-lg border border-dashed border-sand-200 bg-white p-10 text-center text-sm text-ink-500">
+              <div className="rounded-lg border border-dashed border-sand-200 bg-surface p-10 text-center text-sm text-ink-500">
                 Nothing here right now.
               </div>
             )}

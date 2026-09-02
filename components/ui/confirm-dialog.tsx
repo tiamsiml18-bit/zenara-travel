@@ -33,7 +33,7 @@ export function useConfirmDialog() {
 
   const dialog = state ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+      <div className="w-full max-w-md rounded-lg bg-surface p-5 shadow-xl">
         <h3 className="font-display text-base font-semibold text-ink-900">{state.title}</h3>
         {state.description && <p className="mt-1.5 text-sm text-ink-500">{state.description}</p>}
         {state.summary && state.summary.length > 0 && (

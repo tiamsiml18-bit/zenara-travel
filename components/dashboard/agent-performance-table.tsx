@@ -16,7 +16,7 @@ function formatMoney(n: number) {
 
 export function AgentPerformanceTable({ rows }: { rows: AgentPerformanceRow[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
       <table className="w-full text-sm">
         <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
           <tr>

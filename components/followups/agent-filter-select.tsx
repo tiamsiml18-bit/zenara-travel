@@ -19,7 +19,7 @@ export function AgentFilterSelect({
       name="agent"
       defaultValue={defaultValue}
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className="rounded-md border border-sand-200 bg-white px-3 py-2 text-sm"
+      className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm"
     >
       <option value="">All agents</option>
       {agents.map((a) => (

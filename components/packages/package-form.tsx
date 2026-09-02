@@ -176,7 +176,7 @@ function PackageFormFields({
         </div>
       )}
 
-      <section className="rounded-lg border border-sand-200 bg-white p-5">
+      <section className="rounded-lg border border-sand-200 bg-surface p-5">
         <h3 className="mb-4 font-display text-sm font-semibold text-ink-900">Package details</h3>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Package name">
@@ -250,17 +250,17 @@ function PackageFormFields({
         </label>
       </section>
 
-      <section className="rounded-lg border border-sand-200 bg-white p-5">
+      <section className="rounded-lg border border-sand-200 bg-surface p-5">
         <h3 className="mb-4 font-display text-sm font-semibold text-ink-900">Default itinerary</h3>
         <ItineraryBuilder days={itinerary} onChange={setItinerary} tours={tours} onTourSelected={handleTourSelected} />
       </section>
 
       <section className="grid grid-cols-2 gap-6">
-        <div className="rounded-lg border border-sand-200 bg-white p-5">
+        <div className="rounded-lg border border-sand-200 bg-surface p-5">
           <h3 className="mb-2 font-display text-sm font-semibold text-ink-900">Default inclusions</h3>
           <TagListInput items={inclusions} onChange={setInclusions} placeholder="Add an inclusion…" tone="positive" />
         </div>
-        <div className="rounded-lg border border-sand-200 bg-white p-5">
+        <div className="rounded-lg border border-sand-200 bg-surface p-5">
           <h3 className="mb-2 font-display text-sm font-semibold text-ink-900">Default exclusions</h3>
           <TagListInput items={exclusions} onChange={setExclusions} placeholder="Add an exclusion…" tone="negative" />
         </div>

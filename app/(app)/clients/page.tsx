@@ -72,7 +72,7 @@ export default async function ClientsPage({
           </Link>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-sand-200 bg-sand-50 text-xs uppercase tracking-wide text-ink-500">
               <tr>

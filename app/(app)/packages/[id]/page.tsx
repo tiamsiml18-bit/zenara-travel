@@ -39,7 +39,7 @@ export default async function PackageDetailPage({ params }: { params: Promise<{ 
             }}
           />
         ) : (
-          <div className="max-w-3xl rounded-lg border border-sand-200 bg-white p-6 text-sm text-ink-500">
+          <div className="max-w-3xl rounded-lg border border-sand-200 bg-surface p-6 text-sm text-ink-500">
             You have view-only access to package templates. Contact an admin or manager to make changes.
           </div>
         )}

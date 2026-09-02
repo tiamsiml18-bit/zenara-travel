@@ -31,7 +31,7 @@ export function PdfPreviewButton({ quotationId }: { quotationId: string }) {
 
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50 p-4 sm:p-8">
-          <div className="flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+          <div className="flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-surface shadow-xl">
             <div className="flex items-center justify-between border-b border-sand-200 px-4 py-2.5">
               <span className="text-sm font-medium text-ink-700">Quotation preview</span>
               <div className="flex items-center gap-1">

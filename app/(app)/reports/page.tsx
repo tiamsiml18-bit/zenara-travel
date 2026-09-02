@@ -101,7 +101,7 @@ export default async function ReportsPage({
           />
         </div>
 
-        <div className="mb-6 rounded-lg border border-sand-200 bg-white p-5">
+        <div className="mb-6 rounded-lg border border-sand-200 bg-surface p-5">
           <h3 className="mb-1 font-display text-sm font-semibold text-ink-900">Overall conversion rate</h3>
           <p className="font-ticket text-3xl font-semibold text-harbor-700">{conversionRate}%</p>
           <p className="text-xs text-ink-500">Confirmed quotations ÷ quotations sent, across the filtered range.</p>

@@ -106,7 +106,7 @@ function Card({ card }: { card: PipelineCard }) {
       style={style}
       {...listeners}
       {...attributes}
-      className={`cursor-grab rounded-md border border-sand-200 bg-white p-3 shadow-sm active:cursor-grabbing ${
+      className={`cursor-grab rounded-md border border-sand-200 bg-surface p-3 shadow-sm active:cursor-grabbing ${
         isDragging ? 'opacity-50' : ''
       }`}
     >
@@ -126,7 +126,7 @@ function Card({ card }: { card: PipelineCard }) {
 
 const STATUS_STYLES: Record<CardStatus['kind'], { dot: string; text: string; label: string }> = {
   needs_attention: { dot: 'bg-coral-500', text: 'text-coral-600', label: 'Needs Attention' },
-  upcoming: { dot: 'bg-amber-500', text: 'text-amber-600', label: 'Upcoming' },
+  upcoming: { dot: 'bg-amber-500 dark:bg-amber-600', text: 'text-amber-600 dark:text-amber-400', label: 'Upcoming' },
   active: { dot: 'bg-harbor-500', text: 'text-harbor-600', label: 'Active' },
   waiting: { dot: 'bg-ink-400', text: 'text-ink-500', label: 'Waiting' },
 };

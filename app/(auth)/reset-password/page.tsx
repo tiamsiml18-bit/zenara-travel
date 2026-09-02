@@ -29,7 +29,7 @@ export default function ResetPasswordPage({ searchParams }: { searchParams?: { e
       <div className="w-full max-w-sm">
         <h1 className="mb-8 text-center font-display text-xl font-semibold text-ink-900">Set a new password</h1>
 
-        <form action={updatePassword} className="rounded-lg border border-sand-200 bg-white p-6 shadow-card">
+        <form action={updatePassword} className="rounded-lg border border-sand-200 bg-surface p-6 shadow-card">
           {searchParams?.error && (
             <div className="mb-4 rounded-md border border-coral-500/30 bg-coral-500/5 px-3 py-2 text-sm text-coral-600">
               {searchParams.error}

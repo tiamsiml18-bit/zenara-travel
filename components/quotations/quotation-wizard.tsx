@@ -703,7 +703,7 @@ export function QuotationWizard({
         </div>
       )}
 
-      <div className="rounded-lg border border-sand-200 bg-white p-6">
+      <div className="rounded-lg border border-sand-200 bg-surface p-6">
         {step === 0 && (
           <div>
             <div className="mb-4 flex gap-2">
@@ -842,7 +842,7 @@ export function QuotationWizard({
                 (still changeable here, per-quotation only, never
                 touching the Package itself); a Custom Package never gets
                 a silent default, so the agent must choose explicitly. */}
-            <div className="rounded-md border border-sand-200 bg-white p-3">
+            <div className="rounded-md border border-sand-200 bg-surface p-3">
               <label className="mb-1.5 block text-sm font-medium text-ink-700">
                 Package Type <span className="text-coral-500">*</span>
               </label>
@@ -1008,7 +1008,7 @@ export function QuotationWizard({
                     Land Arrangement Only is selected. */}
                 <div
                   className={clsx(
-                    'rounded-md border border-sand-200 bg-white p-3',
+                    'rounded-md border border-sand-200 bg-surface p-3',
                     trip.packageType === 'land_arrangement' && 'opacity-60'
                   )}
                 >
@@ -1047,7 +1047,7 @@ export function QuotationWizard({
                 </div>
 
                 {/* HOTEL */}
-                <div className="rounded-md border border-sand-200 bg-white p-3">
+                <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">Hotel — Rate Per Person</p>
                     <MarkupInput
@@ -1076,7 +1076,7 @@ export function QuotationWizard({
                 </div>
 
                 {/* TRANSFER — no markup at all, per spec; the entered rate is used exactly as-is. */}
-                <div className="rounded-md border border-sand-200 bg-white p-3">
+                <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Transfer — Rate Per Person</p>
                   <p className="mb-2 text-xs text-ink-500">
                     Include any tour-specific transfer here too — e.g. a Disneyland ticket plus its roundtrip hotel
@@ -1108,7 +1108,7 @@ export function QuotationWizard({
                     from the Tours library only as a starting point; editing
                     here never changes the library record, and there's no
                     markup on Tours — the entered rate is used as-is. */}
-                <div className="rounded-md border border-sand-200 bg-white p-3">
+                <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Tours — Rate Per Person</p>
                   <p className="mb-3 text-xs text-ink-500">
                     Add a Tour directly here, or select one in the Itinerary step — either way it appears once,
@@ -1200,7 +1200,7 @@ export function QuotationWizard({
                     a permit, a one-off request). Same per-guest-type card
                     structure as Tours; never a place to re-enter a cost
                     that already has its own dedicated section above. */}
-                <div className="rounded-md border border-sand-200 bg-white p-3">
+                <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Other Supplier Costs — Rate Per Person</p>
                   <p className="mb-3 text-xs text-ink-500">
                     Only for costs genuinely outside Airfare, Hotel, Transfer, and Tours — a visa fee, a permit, a
@@ -1258,7 +1258,7 @@ export function QuotationWizard({
                     Airfare/Hotel/Transfer above: a title, a short
                     explanation, the payment method + fee %, and the
                     calculated per-person amount below. */}
-                <div className="rounded-md border border-sand-200 bg-white p-3">
+                <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Bank Fee</p>
                   <p className="mb-2 text-xs text-ink-500">
                     The fee percentage is set by the payment method — Credit Card {(feePercentages.creditCard * 100).toFixed(1)}%,
@@ -1282,7 +1282,7 @@ export function QuotationWizard({
                 <SummaryBar label="Adjusted Package Per PAX" rates={computedAdjustedPackage} counts={guestCounts} tone="subtotal" />
 
                 {/* ZENARA MARKUP — one shared flat amount, applied identically to every guest type. */}
-                <div className="rounded-md border border-sand-200 bg-white p-3">
+                <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Zenara Markup</p>
                   <p className="mb-2 text-xs text-ink-500">
                     One shared amount, entered once — applied identically to every guest type&apos;s Adjusted Package rate.

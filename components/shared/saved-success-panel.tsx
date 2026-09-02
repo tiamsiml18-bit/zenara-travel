@@ -36,13 +36,13 @@ export function SavedSuccessPanel({
         <button
           type="button"
           onClick={onDuplicate}
-          className="rounded-md border border-sand-200 bg-white px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+          className="rounded-md border border-sand-200 bg-surface px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
         >
           Duplicate {entityLabel}
         </button>
         <Link
           href={viewHref}
-          className="rounded-md border border-sand-200 bg-white px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+          className="rounded-md border border-sand-200 bg-surface px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
         >
           View {entityLabel}
         </Link>

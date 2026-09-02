@@ -38,7 +38,7 @@ export function ActivityTimeline({
           {i < activities.length - 1 && (
             <span className="absolute left-[15px] top-6 h-full w-px bg-sand-200" aria-hidden />
           )}
-          <span className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand-200 bg-white text-xs">
+          <span className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand-200 bg-surface text-xs">
             {ICON_BY_TYPE[a.activity_type] ?? '•'}
           </span>
           <div className="pt-0.5">

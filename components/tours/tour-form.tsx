@@ -185,7 +185,7 @@ function TourFormFields({
     <div className="max-w-2xl space-y-6">
       {error && <div className="rounded-md border border-coral-500/30 bg-coral-500/5 px-4 py-3 text-sm text-coral-600">{error}</div>}
 
-      <div className="rounded-lg border border-sand-200 bg-white p-4">
+      <div className="rounded-lg border border-sand-200 bg-surface p-4">
         <p className="mb-3 text-sm font-medium text-ink-900">Tour details</p>
         <div className="space-y-3">
           <LabeledInput label="Tour name" value={name} onChange={setName} required />
@@ -243,24 +243,24 @@ function TourFormFields({
         </div>
       </div>
 
-      <div className="rounded-lg border border-sand-200 bg-white p-4">
+      <div className="rounded-lg border border-sand-200 bg-surface p-4">
         <p className="mb-3 text-sm font-medium text-ink-900">Activities</p>
         <p className="mb-2 text-xs text-ink-500">These populate the itinerary day when this tour is selected in a quotation or package.</p>
         <TagListInput items={activities} onChange={setActivities} placeholder="Add an activity, e.g. Puka Beach…" />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border border-sand-200 bg-white p-4">
+        <div className="rounded-lg border border-sand-200 bg-surface p-4">
           <p className="mb-2 text-sm font-medium text-ink-900">Default inclusions</p>
           <TagListInput items={defaultInclusions} onChange={setDefaultInclusions} placeholder="Add an inclusion…" tone="positive" />
         </div>
-        <div className="rounded-lg border border-sand-200 bg-white p-4">
+        <div className="rounded-lg border border-sand-200 bg-surface p-4">
           <p className="mb-2 text-sm font-medium text-ink-900">Default exclusions</p>
           <TagListInput items={defaultExclusions} onChange={setDefaultExclusions} placeholder="Add an exclusion…" tone="negative" />
         </div>
       </div>
 
-      <div className="rounded-lg border border-sand-200 bg-white p-4">
+      <div className="rounded-lg border border-sand-200 bg-surface p-4">
         <p className="mb-1 text-sm font-medium text-ink-900">Default pricing</p>
         <p className="mb-3 text-xs text-ink-500">
           Copied into a quotation's rates when this tour is selected — the agent can still adjust it for that specific quotation

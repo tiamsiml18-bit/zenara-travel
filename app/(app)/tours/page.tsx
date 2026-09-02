@@ -125,7 +125,7 @@ export default async function ToursPage({
 
         <div className="space-y-6">
           {Array.from(groups.entries()).map(([destination, groupTours]) => (
-            <div key={destination} className="overflow-hidden rounded-lg border border-sand-200 bg-white">
+            <div key={destination} className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
               <div className="border-b border-sand-200 bg-sand-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-700">
                 {destination}
               </div>
@@ -179,7 +179,7 @@ export default async function ToursPage({
             </div>
           ))}
           {tours.length === 0 && (
-            <div className="rounded-lg border border-sand-200 bg-white px-4 py-10 text-center text-ink-500">
+            <div className="rounded-lg border border-sand-200 bg-surface px-4 py-10 text-center text-ink-500">
               No tours found. Add your first tour to start building it into the itinerary dropdown.
             </div>
           )}

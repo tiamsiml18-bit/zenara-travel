@@ -40,7 +40,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         {clients.length > 0 && (
           <section className="mb-8">
             <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">Clients</h3>
-            <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">
+            <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
               {clients.map((c) => (
                 <Link
                   key={c.id}
@@ -62,7 +62,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         {quotations.length > 0 && (
           <section>
             <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">Quotations</h3>
-            <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">
+            <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
               {quotations.map((qt) => (
                 <Link
                   key={qt.id}

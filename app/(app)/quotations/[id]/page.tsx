@@ -152,13 +152,13 @@ export default async function QuotationDetailPage({
         </div>
 
         {isViewingPastVersion && (
-          <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-            <p className="text-sm text-amber-800">
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+            <p className="text-sm text-amber-800 dark:text-amber-300">
               You&apos;re viewing {viewedVersion.version_label} — a past revision, not the current version. It&apos;s read-only.
             </p>
             <Link
               href={`/quotations/${id}`}
-              className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
+              className="rounded-md border border-amber-300 dark:border-amber-700 bg-surface px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:bg-amber-900/30"
             >
               Back to current ({currentVersion.version_label})
             </Link>
@@ -166,7 +166,7 @@ export default async function QuotationDetailPage({
         )}
 
         {!isViewingPastVersion && !isDraft && !['paid', 'lost', 'no_response', 'confirmed'].includes(quotation.status ?? '') && (
-          <div className="mb-6 flex items-center justify-between rounded-lg border border-sand-200 bg-white px-4 py-3">
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-sand-200 bg-surface px-4 py-3">
             <p className="text-sm text-ink-500">
               Once the client responds, update the quotation status to keep the dashboard and follow-ups accurate.
             </p>
@@ -176,7 +176,7 @@ export default async function QuotationDetailPage({
 
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2 space-y-6">
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Trip overview</h3>
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <Row label="Destination" value={viewedVersion.destination} />
@@ -200,7 +200,7 @@ export default async function QuotationDetailPage({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Itinerary</h3>
               {itinerary.length === 0 && <p className="text-sm text-ink-500">No itinerary added.</p>}
               <div className="space-y-4">
@@ -225,7 +225,7 @@ export default async function QuotationDetailPage({
             </section>
 
             <div className="grid grid-cols-2 gap-6">
-              <section className="rounded-lg border border-sand-200 bg-white p-5">
+              <section className="rounded-lg border border-sand-200 bg-surface p-5">
                 <h3 className="mb-2 font-display text-sm font-semibold text-ink-900">Inclusions</h3>
                 <ul className="space-y-1 text-sm text-ink-700">
                   {inclusions.map((i) => (
@@ -234,7 +234,7 @@ export default async function QuotationDetailPage({
                   {inclusions.length === 0 && <li className="text-ink-500">None listed.</li>}
                 </ul>
               </section>
-              <section className="rounded-lg border border-sand-200 bg-white p-5">
+              <section className="rounded-lg border border-sand-200 bg-surface p-5">
                 <h3 className="mb-2 font-display text-sm font-semibold text-ink-900">Exclusions</h3>
                 <ul className="space-y-1 text-sm text-ink-700">
                   {exclusions.map((e) => (
@@ -247,7 +247,7 @@ export default async function QuotationDetailPage({
           </div>
 
           <div className="col-span-1 space-y-6">
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Client-facing price</h3>
               <p className="font-ticket text-2xl font-semibold text-ink-900">{formatMoney(viewedVersion.total_price)}</p>
               {viewedVersion.price_per_person && (
@@ -269,7 +269,7 @@ export default async function QuotationDetailPage({
               </section>
             )}
 
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Version history</h3>
               <ul className="space-y-2">
                 {versions.map((v) => {
@@ -297,7 +297,7 @@ export default async function QuotationDetailPage({
             </section>
 
             {emailHistory.length > 0 && (
-              <section className="rounded-lg border border-sand-200 bg-white p-5">
+              <section className="rounded-lg border border-sand-200 bg-surface p-5">
                 <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Email history</h3>
                 <ul className="space-y-3">
                   {emailHistory.map((e: any) => (

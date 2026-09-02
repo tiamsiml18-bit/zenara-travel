@@ -12,7 +12,7 @@ export function KpiCard({
   tone?: 'default' | 'positive' | 'warning' | 'negative';
 }) {
   return (
-    <div className="rounded-lg border border-sand-200 bg-white p-4">
+    <div className="rounded-lg border border-sand-200 bg-surface p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
       <p
         className={clsx(

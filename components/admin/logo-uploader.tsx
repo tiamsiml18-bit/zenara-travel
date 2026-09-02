@@ -37,7 +37,7 @@ export function LogoUploader({ agencySettingsId, currentLogoUrl }: { agencySetti
   return (
     <div>
       <div className="flex items-center gap-4">
-        <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-md border border-sand-200 bg-white">
+        <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-md border border-sand-200 bg-surface">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element -- admin-only settings preview, not worth next/image remote-domain config
             <img src={preview} alt="Agency logo preview" className="max-h-full max-w-full object-contain" />

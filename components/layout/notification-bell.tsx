@@ -47,7 +47,7 @@ export function NotificationBell({ followUps }: { followUps: NotificationFollowU
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border border-sand-200 bg-white py-2 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border border-sand-200 bg-surface py-2 shadow-lg">
           {count === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-ink-500">Nothing needs attention right now.</p>
           ) : (

@@ -1,19 +1,11 @@
 import { Topbar } from '@/components/layout/topbar';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { MonthlyVolumeChart } from '@/components/dashboard/monthly-volume-chart';
-import { AgentPerformanceTable } from '@/components/dashboard/agent-performance-table';
 import { UpcomingTravelWidget } from '@/components/dashboard/upcoming-travel-widget';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
 import { getPipelineDashboardCounts } from '@/lib/services/pipeline';
-import {
-  getDashboardKpis,
-  getProfitSummary,
-  getMonthlyQuotationVolume,
-  getAgentPerformance,
-  getConversionRate,
-  getUpcomingConfirmedTravel,
-} from '@/lib/services/reports';
+import { getDashboardKpis, getProfitSummary, getMonthlyQuotationVolume, getConversionRate, getUpcomingConfirmedTravel } from '@/lib/services/reports';
 
 function formatMoney(n: number) {
   return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
@@ -23,13 +15,11 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const supabase = await createClient();
   const canSeeProfit = user.role === 'admin' || user.role === 'manager';
-  const canSeeAgentTable = user.role === 'admin' || user.role === 'manager';
 
-  const [kpis, monthlyQuotations, conversionRate, agentPerformance, profit, pipelineCounts, upcomingTravel] = await Promise.all([
+  const [kpis, monthlyQuotations, conversionRate, profit, pipelineCounts, upcomingTravel] = await Promise.all([
     getDashboardKpis(supabase),
     getMonthlyQuotationVolume(supabase),
     getConversionRate(supabase),
-    canSeeAgentTable ? getAgentPerformance(supabase) : Promise.resolve([]),
     // Profit touches quotation_pricing_internal — RLS already restricts
     // rows to admin/manager/owning-agent, but we also skip the call
     // entirely for agents so the dashboard never even asks for it.
@@ -89,15 +79,12 @@ export default async function DashboardPage() {
           />
         </div>
 
-        {canSeeAgentTable && (
-          <section className="rounded-lg border border-sand-200 bg-white p-5">
-            <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Agent performance</h3>
-            <AgentPerformanceTable rows={agentPerformance} />
-          </section>
-        )}
-
-        <p className="mt-6 text-xs text-ink-500">
-          Top destinations, lead sources, and the full breakdown by date range, agent, and status live on{' '}
+        {/* Agent performance intentionally removed from here — that detail
+            still lives on the Reports page (see getAgentPerformance,
+            untouched). The Monthly quotations / Upcoming travel row above
+            simply fills the space naturally. */}
+        <p className="mt-2 text-xs text-ink-500">
+          Top destinations, lead sources, agent performance, and the full breakdown by date range and status live on{' '}
           <a href="/reports" className="font-medium text-harbor-600 hover:underline">
             Reports
           </a>

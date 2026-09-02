@@ -19,7 +19,7 @@ function formatMoney(n?: number | null) {
 
 const PAYMENT_STATUS_STYLE: Record<string, string> = {
   unpaid: 'bg-coral-500/10 text-coral-600',
-  partial: 'bg-amber-100 text-amber-700',
+  partial: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
   paid: 'bg-harbor-100 text-harbor-700',
   refunded: 'bg-sand-100 text-ink-500',
 };
@@ -57,7 +57,7 @@ export default async function BookingsPage({
           <AutoSubmitDateInput name="to" defaultValue={params.to} title="Travel date to" />
         </form>
 
-        <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
           <table className="w-full text-sm">
             <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
               <tr>

@@ -117,7 +117,7 @@ export default async function AgencySettingsPage({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-sand-200 bg-white p-5">
+    <section className="rounded-lg border border-sand-200 bg-surface p-5">
       <h3 className="mb-4 font-display text-sm font-semibold text-ink-900">{title}</h3>
       <div className="space-y-3">{children}</div>
     </section>

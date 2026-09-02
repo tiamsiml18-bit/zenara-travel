@@ -198,7 +198,7 @@ export function ImportWizard({
       )}
 
       {step === 'validating' && (
-        <div className="rounded-lg border border-sand-200 bg-white p-10 text-center">
+        <div className="rounded-lg border border-sand-200 bg-surface p-10 text-center">
           <p className="mb-3 text-sm font-medium text-ink-900">Validating rows… {validationProgress}%</p>
           <div className="mx-auto h-1.5 w-64 overflow-hidden rounded-full bg-sand-100">
             <div className="h-full bg-harbor-600 transition-all" style={{ width: `${validationProgress}%` }} />
@@ -235,7 +235,7 @@ export function ImportWizard({
       )}
 
       {step === 'done' && (
-        <div className="rounded-lg border border-sand-200 bg-white p-10 text-center">
+        <div className="rounded-lg border border-sand-200 bg-surface p-10 text-center">
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-harbor-600" strokeWidth={1.5} />
           <p className="mb-1 font-display text-lg font-semibold text-ink-900">
             {importedCount.toLocaleString()} client{importedCount !== 1 ? 's' : ''} imported

@@ -38,7 +38,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
         <div className="grid grid-cols-3 gap-6">
           {/* Left column: client info */}
           <div className="col-span-1 space-y-6">
-            <div className="rounded-lg border border-sand-200 bg-white p-5">
+            <div className="rounded-lg border border-sand-200 bg-surface p-5">
               <div className="mb-3 flex items-start justify-between">
                 {client.status && <StatusBadge label={client.status.name} />}
                 <div className="flex items-center gap-3">
@@ -99,7 +99,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
 
           {/* Middle column: quotations + notes */}
           <div className="col-span-1 space-y-6">
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h2 className="mb-3 font-display text-sm font-semibold text-ink-900">Quotation history</h2>
               {quotations.length === 0 ? (
                 <p className="text-sm text-ink-500">No quotations yet.</p>
@@ -125,7 +125,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
               )}
             </section>
 
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h2 className="mb-3 font-display text-sm font-semibold text-ink-900">Notes</h2>
               <form action={addClientNoteAction} className="mb-4 flex gap-2">
                 <input type="hidden" name="clientId" value={id} />
@@ -154,7 +154,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
 
           {/* Right column: timeline */}
           <div className="col-span-1">
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h2 className="mb-4 font-display text-sm font-semibold text-ink-900">Activity timeline</h2>
               <ActivityTimeline activities={timeline as any} />
             </section>

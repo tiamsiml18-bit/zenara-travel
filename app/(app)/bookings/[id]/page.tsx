@@ -30,14 +30,14 @@ function formatMoney(n?: number | null) {
 
 const PAYMENT_STATUS_STYLE: Record<string, string> = {
   unpaid: 'bg-coral-500/10 text-coral-600',
-  partial: 'bg-amber-100 text-amber-700',
+  partial: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
   paid: 'bg-harbor-100 text-harbor-700',
   refunded: 'bg-sand-100 text-ink-500',
 };
 
 const DISPLAY_STATUS_STYLE: Record<string, string> = {
   deposit_pending: 'bg-sand-100 text-ink-700',
-  partially_paid: 'bg-amber-100 text-amber-700',
+  partially_paid: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
   balance_due: 'bg-coral-500/10 text-coral-600',
   paid_in_full: 'bg-harbor-100 text-harbor-700',
 };
@@ -107,7 +107,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2 space-y-6">
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Trip</h3>
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <Row label="Destination" value={booking.destination} />
@@ -123,7 +123,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               )}
             </section>
 
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Payment history</h3>
               {payments.length === 0 && <p className="text-sm text-ink-500">No payments recorded yet.</p>}
               <ul className="space-y-2">
@@ -143,7 +143,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             </section>
 
             {paymentHistory.length > 0 && (
-              <section className="rounded-lg border border-sand-200 bg-white p-5">
+              <section className="rounded-lg border border-sand-200 bg-surface p-5">
                 <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Payment change history</h3>
                 <ul className="space-y-3">
                   {paymentHistory.map((entry) => (
@@ -173,7 +173,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
           </div>
 
           <div className="col-span-1 space-y-6">
-            <section className="rounded-lg border border-sand-200 bg-white p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Balance</h3>
               <dl className="space-y-2 text-sm">
                 <Row label="Total package" value={formatMoney(booking.total_amount)} />

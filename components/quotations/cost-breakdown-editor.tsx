@@ -55,7 +55,7 @@ export function CostBreakdownEditor({
             type="button"
             disabled={usedLabels.has(label)}
             onClick={() => addItem(label)}
-            className="flex items-center gap-1 rounded-md border border-coral-500/30 bg-white px-2.5 py-1.5 text-xs font-medium text-coral-700 hover:bg-coral-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-1 rounded-md border border-coral-500/30 bg-surface px-2.5 py-1.5 text-xs font-medium text-coral-700 hover:bg-coral-500/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Plus className="h-3 w-3" /> {label}
           </button>

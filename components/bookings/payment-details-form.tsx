@@ -44,7 +44,7 @@ export function PaymentDetailsForm({
   }
 
   return (
-    <section className="rounded-lg border border-sand-200 bg-white p-5">
+    <section className="rounded-lg border border-sand-200 bg-surface p-5">
       <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Payment reminder</h3>
 
       <div className="space-y-3">

@@ -26,7 +26,7 @@ export function AutoSubmitSelect({
       name={name}
       defaultValue={defaultValue ?? ''}
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className={className ?? 'rounded-md border border-sand-200 bg-white px-3 py-2 text-sm'}
+      className={className ?? 'rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm'}
     >
       <option value="">{placeholder}</option>
       {options.map((o) => (

@@ -87,7 +87,7 @@ export function UploadStep({ onParsed }: { onParsed: (sheet: ParsedSheet) => voi
           if (file) handleFile(file);
         }}
         className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center transition-colors ${
-          isDragging ? 'border-harbor-500 bg-harbor-50' : 'border-sand-200 bg-white'
+          isDragging ? 'border-harbor-500 bg-harbor-50' : 'border-sand-200 bg-surface'
         }`}
       >
         {isParsing ? (

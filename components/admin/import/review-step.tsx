@@ -79,7 +79,7 @@ function SummaryCard({
 }) {
   const toneClasses = {
     positive: 'text-harbor-700 bg-harbor-100',
-    warning: 'text-amber-700 bg-amber-100',
+    warning: 'text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
     negative: 'text-coral-600 bg-coral-500/10',
   }[tone];
 
@@ -88,7 +88,7 @@ function SummaryCard({
     <Wrapper
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`rounded-lg border border-sand-200 bg-white p-4 text-left ${onClick ? 'cursor-pointer hover:bg-sand-50' : ''}`}
+      className={`rounded-lg border border-sand-200 bg-surface p-4 text-left ${onClick ? 'cursor-pointer hover:bg-sand-50' : ''}`}
     >
       <div className={`mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full ${toneClasses}`}>{icon}</div>
       <p className="font-ticket text-2xl font-semibold text-ink-900">{count.toLocaleString()}</p>
@@ -109,7 +109,7 @@ function RowTable<T extends RowValidationResult>({
   reasonFor: (row: T) => string;
 }) {
   return (
-    <div className="mb-5 overflow-hidden rounded-lg border border-sand-200 bg-white">
+    <div className="mb-5 overflow-hidden rounded-lg border border-sand-200 bg-surface">
       <div className="border-b border-sand-200 bg-sand-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-ink-500">
         {title}
       </div>

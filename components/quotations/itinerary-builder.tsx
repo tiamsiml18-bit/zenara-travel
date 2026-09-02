@@ -176,7 +176,7 @@ export function ItineraryBuilder({
   return (
     <div className="space-y-4">
       {days.map((day, index) => (
-        <div key={index} className="rounded-lg border border-sand-200 bg-white p-4">
+        <div key={index} className="rounded-lg border border-sand-200 bg-surface p-4">
           <div className="mb-3 flex items-start gap-3">
             <span className="font-ticket mt-1.5 shrink-0 rounded-full bg-harbor-100 px-2.5 py-1 text-xs font-medium text-harbor-700">
               Day {day.dayNumber}

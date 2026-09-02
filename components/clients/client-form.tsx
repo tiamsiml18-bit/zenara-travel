@@ -269,7 +269,7 @@ const inputClass =
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-4 rounded-lg border border-sand-200 bg-white p-5">
+    <div className="space-y-4 rounded-lg border border-sand-200 bg-surface p-5">
       <h2 className="font-display text-sm font-semibold text-ink-900">{title}</h2>
       {children}
     </div>

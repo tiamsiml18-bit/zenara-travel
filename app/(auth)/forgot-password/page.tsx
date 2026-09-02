@@ -34,7 +34,7 @@ export default function ForgotPasswordPage({
             'use server';
             await sendResetLink(formData);
           }}
-          className="rounded-lg border border-sand-200 bg-white p-6 shadow-card"
+          className="rounded-lg border border-sand-200 bg-surface p-6 shadow-card"
         >
           <div className="mb-5">
             <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink-700">

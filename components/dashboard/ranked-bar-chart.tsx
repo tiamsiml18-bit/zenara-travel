@@ -19,7 +19,7 @@ export function RankedBarChart({
   valueLabel?: string;
 }) {
   return (
-    <div className="rounded-lg border border-sand-200 bg-white p-5">
+    <div className="rounded-lg border border-sand-200 bg-surface p-5">
       <h3 className="mb-4 font-display text-sm font-semibold text-ink-900">{title}</h3>
       {data.length === 0 ? (
         <p className="py-8 text-center text-sm text-ink-500">No data yet.</p>

@@ -91,7 +91,7 @@ export function SupplierImportPanel({
   }
 
   return (
-    <div className="rounded-lg border border-sand-200 bg-white p-5">
+    <div className="rounded-lg border border-sand-200 bg-surface p-5">
       {state === 'input' && (
         <div>
           <div className="mb-3 flex items-center gap-2 text-sm font-medium text-ink-900">
@@ -168,7 +168,7 @@ export function SupplierImportPanel({
           </div>
 
           {warnings.length > 0 && (
-            <div className="mb-4 rounded-md border border-amber-300/50 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            <div className="mb-4 rounded-md border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300">
               <p className="mb-1 font-medium">Review carefully — some fields couldn't be found automatically:</p>
               <ul className="list-inside list-disc space-y-0.5">
                 {warnings.map((w, i) => (

@@ -6,7 +6,7 @@ import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeli
 // status system throughout the CRM.
 const QUOTATION_STATUSES: PipelineStage[] = ['sent', 'negotiating', 'confirmed', 'paid', 'no_response', 'lost'];
 
-const inputClass = 'rounded-md border border-sand-200 bg-white px-2.5 py-[0.45rem] text-[0.8125rem] text-ink-900';
+const inputClass = 'rounded-md border border-sand-200 bg-surface px-2.5 py-[0.45rem] text-[0.8125rem] text-ink-900';
 
 export function ReportFilterBar({
   agents,
@@ -32,7 +32,7 @@ export function ReportFilterBar({
   const autoSubmit = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => e.currentTarget.form?.requestSubmit();
 
   return (
-    <form action="/reports" className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-sand-200 bg-white p-4">
+    <form action="/reports" className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-sand-200 bg-surface p-4">
       <Field label="From">
         <input type="date" name="from" defaultValue={defaults.dateFrom} onChange={autoSubmit} className={inputClass} />
       </Field>

@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
@@ -18,8 +19,19 @@ export interface AppUser {
  * read `users.role` for authorization decisions — components and server
  * actions call this rather than querying `users` themselves, so role logic
  * stays in one place.
+ *
+ * Wrapped in React's `cache()` because both the shared (app) layout AND
+ * almost every individual page call requireUser() — without this, each
+ * navigation ran the full auth check (a real network round trip to
+ * Supabase's Auth server, plus a separate `users` table lookup) TWICE per
+ * request, once for the layout and once for the page. `cache()` dedupes
+ * repeated calls to the same function within a single request/render pass,
+ * so no matter how many components call requireUser() while rendering one
+ * page, the actual network work only happens once. This is the standard
+ * Next.js App Router pattern for exactly this situation, not something
+ * specific to this app.
  */
-export async function getCurrentUser(): Promise<AppUser | null> {
+export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   const supabase = await createClient();
   const {
     data: { user: authUser },
@@ -43,7 +55,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     managerId: profile.manager_id,
     isActive: profile.is_active,
   };
-}
+});
 
 /**
  * Use at the top of any Server Component / Server Action that requires

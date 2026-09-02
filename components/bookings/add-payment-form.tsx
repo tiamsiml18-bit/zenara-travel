@@ -35,7 +35,7 @@ export function AddPaymentForm({ bookingId }: { bookingId: string }) {
   }
 
   return (
-    <div className="rounded-lg border border-sand-200 bg-white p-4">
+    <div className="rounded-lg border border-sand-200 bg-surface p-4">
       <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Record a payment</h3>
       {error && <p className="mb-2 text-xs text-coral-600">{error}</p>}
       <div className="grid grid-cols-2 gap-2">

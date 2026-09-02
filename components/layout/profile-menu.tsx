@@ -29,7 +29,7 @@ export function ProfileMenu({ isAdmin }: { isAdmin: boolean }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-sand-200 bg-white py-1.5 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-sand-200 bg-surface py-1.5 shadow-lg">
           {isAdmin && (
             <Link
               href="/admin/settings"

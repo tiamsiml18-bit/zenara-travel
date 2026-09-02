@@ -97,7 +97,7 @@ export function FollowUpCard({ followUp, gmailConnectedEmail }: { followUp: Foll
   return (
     <div
       className={clsx(
-        'rounded-lg border bg-white p-4',
+        'rounded-lg border bg-surface p-4',
         overdue ? 'border-coral-500/40' : 'border-sand-200',
         followUp.status === 'completed' && 'opacity-70'
       )}

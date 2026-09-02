@@ -36,7 +36,7 @@ export default async function LoginPage({
           <p className="text-sm text-ink-500">Sign in to your workspace</p>
         </div>
 
-        <form action={login} className="rounded-lg border border-sand-200 bg-white p-6 shadow-card">
+        <form action={login} className="rounded-lg border border-sand-200 bg-surface p-6 shadow-card">
           <input type="hidden" name="redirectTo" value={params.redirectTo ?? '/dashboard'} />
 
           {params.error && (

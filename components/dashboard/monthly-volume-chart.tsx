@@ -17,7 +17,7 @@ function formatMonth(iso: string) {
 
 export function MonthlyVolumeChart({ data, title }: { data: MonthlyVolumePoint[]; title: string }) {
   return (
-    <div className="rounded-lg border border-sand-200 bg-white p-5">
+    <div className="rounded-lg border border-sand-200 bg-surface p-5">
       <h3 className="mb-4 font-display text-sm font-semibold text-ink-900">{title}</h3>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ left: -20 }}>
