@@ -16,6 +16,11 @@ export const packageFormSchema = z.object({
   numNights: z.coerce.number().int().min(0, 'Cannot be negative.'),
   defaultNotes: z.string().trim().max(4000).optional().or(z.literal('')),
   isActive: z.coerce.boolean().default(true),
+  // Defaults to 'all_in' — every existing package before this field existed
+  // was effectively an all-in package (airfare was always part of the
+  // calculation), so this default preserves that behavior for the many
+  // packages that don't explicitly set it.
+  packageType: z.enum(['all_in', 'land_arrangement']).default('all_in'),
   itinerary: z.array(itineraryDaySchema).default([]),
   inclusions: z.array(z.string().trim().min(1)).default([]),
   exclusions: z.array(z.string().trim().min(1)).default([]),

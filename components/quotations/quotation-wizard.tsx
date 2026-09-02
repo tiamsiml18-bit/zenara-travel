@@ -51,6 +51,7 @@ export interface QuotationWizardInitialData {
   clientId: string;
   clientLabel: string;
   destination: string;
+  packageType?: 'all_in' | 'land_arrangement' | null;
   travelStartDate: string;
   travelEndDate: string;
   validUntil?: string;
@@ -168,6 +169,12 @@ export function QuotationWizard({
     hotelName: initialData?.hotelName ?? '',
     numBedrooms: initialData?.numBedrooms ?? 1,
     markup: (initialData?.markup ?? '') as number | '',
+    // No default — a Custom Package must never silently assume a type;
+    // the agent picks one explicitly (or it's set automatically the
+    // moment an existing Package is selected, from that Package's own
+    // stored type). null means "not yet decided," which the submit
+    // validation below refuses to let through.
+    packageType: (initialData?.packageType ?? null) as 'all_in' | 'land_arrangement' | null,
     notes: initialData?.notes ?? '',
     consultantId: initialData?.consultantId ?? '',
     // Structured supplier-cost inputs — every rate is a per-person amount
@@ -315,8 +322,14 @@ export function QuotationWizard({
     infant: numVal(trip.transferInfantRate),
     pwd: numVal(trip.transferPwdRate),
   };
+  // Land Arrangement Only excludes Airfare from the calculation entirely —
+  // not by deleting or zeroing the entered rates (those stay exactly as
+  // typed, in case the agent switches back to All-In), but by simply not
+  // passing them into the sum. All-In passes them normally. Everything
+  // downstream (Bank Fee, Zenara Markup, Final Client Rate) is completely
+  // unaffected either way — only this one sum changes.
   const computedPackagePerPax = calculatePackagePerPax(
-    computedAirfareRates,
+    trip.packageType === 'land_arrangement' ? {} : computedAirfareRates,
     computedHotelRates,
     computedTransferRates,
     tourClientRateMap,
@@ -456,7 +469,7 @@ export function QuotationWizard({
     setPackageId(id);
     setError(null);
     const pkg = await getPackageDetailsAction(id);
-    setTrip((t) => ({ ...t, destination: pkg.package.destination }));
+    setTrip((t) => ({ ...t, destination: pkg.package.destination, packageType: pkg.package.package_type }));
     setItinerary(pkg.itinerary as ItineraryDayDraft[]);
     setInclusions(pkg.inclusions);
     setExclusions(pkg.exclusions);
@@ -518,7 +531,13 @@ export function QuotationWizard({
 
   function canAdvance(): boolean {
     if (step === 0) return Boolean(clientId);
-    if (step === 1) return packageMode === 'custom' || (packageMode === 'existing' && Boolean(packageId));
+    if (step === 1) {
+      const packageChosen = packageMode === 'custom' || (packageMode === 'existing' && Boolean(packageId));
+      // Package Type is required for every quotation — never a silent
+      // default for a Custom Package, and still required (though already
+      // pre-filled) for an existing Package.
+      return packageChosen && trip.packageType !== null;
+    }
     if (step === 2) {
       return Boolean(
         trip.destination && trip.travelStartDate && trip.travelEndDate && trip.numAdults > 0 && computedTotalPrice > 0
@@ -533,6 +552,10 @@ export function QuotationWizard({
       clientId,
       packageId: packageMode === 'existing' ? packageId : '',
       destination: trip.destination,
+      // Guarded by canProceedFromStep(1) requiring a non-null selection
+      // before the agent can even reach this point, but falling back to
+      // 'all_in' here is just defensive — it should never actually be hit.
+      packageType: trip.packageType ?? 'all_in',
       travelStartDate: trip.travelStartDate,
       travelEndDate: trip.travelEndDate,
       validUntil: trip.validUntil,
@@ -812,6 +835,43 @@ export function QuotationWizard({
             {packageMode === 'import' && (
               <SupplierImportPanel onApply={handleApplySupplierData} onCancel={() => setPackageMode('custom')} />
             )}
+
+            {/* Package Type — required for every quotation regardless of
+                how it was sourced. Selecting an existing Package
+                auto-fills this from that Package's own stored type
+                (still changeable here, per-quotation only, never
+                touching the Package itself); a Custom Package never gets
+                a silent default, so the agent must choose explicitly. */}
+            <div className="rounded-md border border-sand-200 bg-white p-3">
+              <label className="mb-1.5 block text-sm font-medium text-ink-700">
+                Package Type <span className="text-coral-500">*</span>
+              </label>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 text-sm text-ink-700">
+                  <input
+                    type="radio"
+                    checked={trip.packageType === 'all_in'}
+                    onChange={() => setTrip((t) => ({ ...t, packageType: 'all_in' }))}
+                  />
+                  All-In
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-ink-700">
+                  <input
+                    type="radio"
+                    checked={trip.packageType === 'land_arrangement'}
+                    onChange={() => setTrip((t) => ({ ...t, packageType: 'land_arrangement' }))}
+                  />
+                  Land Arrangement Only
+                </label>
+              </div>
+              <p className="mt-1.5 text-xs text-ink-500">
+                {trip.packageType === 'land_arrangement'
+                  ? 'Airfare is excluded from this quotation\u2019s pricing. Any airfare rates entered are kept but not calculated.'
+                  : trip.packageType === 'all_in'
+                    ? 'Airfare is included in this quotation\u2019s pricing.'
+                    : 'Choose one — this determines whether Airfare is included in the pricing.'}
+              </p>
+            </div>
           </div>
         )}
 
@@ -940,8 +1000,18 @@ export function QuotationWizard({
                   Internal only — never appears on the client PDF
                 </p>
 
-                {/* AIRFARE */}
-                <div className="rounded-md border border-sand-200 bg-white p-3">
+                {/* AIRFARE — clearly disabled (not hidden, not deleted)
+                    when this quotation is Land Arrangement Only. Any
+                    rates already entered stay exactly as they are and
+                    reappear active the moment Package Type switches back
+                    to All-In; only the calculation ignores them while
+                    Land Arrangement Only is selected. */}
+                <div
+                  className={clsx(
+                    'rounded-md border border-sand-200 bg-white p-3',
+                    trip.packageType === 'land_arrangement' && 'opacity-60'
+                  )}
+                >
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">Airfare — Rate Per Person</p>
                     <MarkupInput
@@ -951,11 +1021,17 @@ export function QuotationWizard({
                       onEnabledChange={(v) => setTrip((t) => ({ ...t, airfareMarkupEnabled: v }))}
                     />
                   </div>
-                  <p className="mb-2 text-xs text-ink-500">
-                    Enter each guest type's per-person supplier rate — never a group total to divide. The Adult rate
-                    gets the markup above applied automatically; Senior/Child/Infant/PWD are supplier-provided and
-                    used exactly as entered, never derived from the Adult rate.
-                  </p>
+                  {trip.packageType === 'land_arrangement' ? (
+                    <p className="mb-2 rounded-md bg-coral-500/5 px-2 py-1.5 text-xs font-medium text-coral-600">
+                      Excluded — this quotation is Land Arrangement Only. Rates below are kept but not calculated.
+                    </p>
+                  ) : (
+                    <p className="mb-2 text-xs text-ink-500">
+                      Enter each guest type's per-person supplier rate — never a group total to divide. The Adult rate
+                      gets the markup above applied automatically; Senior/Child/Infant/PWD are supplier-provided and
+                      used exactly as entered, never derived from the Adult rate.
+                    </p>
+                  )}
                   <div className="grid grid-cols-5 gap-2">
                     <PriceField label="Adult" value={trip.airfareAdultRate} onChange={(v) => setTrip((t) => ({ ...t, airfareAdultRate: v }))} />
                     <PriceField label="Senior" value={trip.airfareSeniorRate} onChange={(v) => setTrip((t) => ({ ...t, airfareSeniorRate: v }))} />

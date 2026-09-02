@@ -7,7 +7,7 @@ import { updateQuotationPipelineStage, type PipelineStage } from './pipeline';
 
 const VERSION_SELECT = `
   id, version_number, version_label, status, client_name_snapshot, destination,
-  travel_start_date, travel_end_date, valid_until, num_adults, num_children, hotel_name,
+  package_type, travel_start_date, travel_end_date, valid_until, num_adults, num_children, hotel_name,
   num_bedrooms, price_per_person, total_price, currency, notes, sent_at, created_at,
   consultant_id, consultant_name_snapshot,
   num_seniors, num_infants, num_pwd
@@ -324,7 +324,19 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     infant: input.transferInfantRate,
     pwd: input.transferPwdRate,
   };
-  const packagePerPax = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates, otherCostRates);
+  // Land Arrangement Only excludes Airfare from the calculation entirely —
+  // the entered rates are computed exactly as normal (never deleted or
+  // altered) and simply not included in this one sum when that Package
+  // Type is selected. All-In includes them normally. This is the single
+  // shared calculation path used by every write (create, send, revise),
+  // so this exclusion applies everywhere consistently.
+  const packagePerPax = calculatePackagePerPax(
+    input.packageType === 'land_arrangement' ? {} : airfareRates,
+    hotelRates,
+    transferRates,
+    tourRates,
+    otherCostRates
+  );
 
   const { data: agencySettings } = await supabase
     .from('agency_settings')
@@ -590,6 +602,7 @@ export async function updateDraftQuotation(
     .update({
       client_name_snapshot: client.full_name,
       destination: input.destination,
+      package_type: input.packageType,
       travel_start_date: input.travelStartDate,
       travel_end_date: input.travelEndDate,
       valid_until: input.validUntil,
@@ -685,6 +698,7 @@ export async function createDraftQuotation(
         status: 'draft',
         client_name_snapshot: client.full_name,
         destination: input.destination,
+        package_type: input.packageType,
         travel_start_date: input.travelStartDate,
         travel_end_date: input.travelEndDate,
         valid_until: input.validUntil,
@@ -839,6 +853,7 @@ export async function reviseQuotation(
       status: 'draft',
       client_name_snapshot: client?.full_name ?? 'Unknown',
       destination: input.destination,
+      package_type: input.packageType,
       travel_start_date: input.travelStartDate,
       travel_end_date: input.travelEndDate,
       valid_until: input.validUntil,
@@ -1058,6 +1073,7 @@ export async function duplicateQuotation(
     clientId: overrides?.clientId ?? sourceQuotation.client_id,
     packageId: sourceQuotation.package_id ?? '',
     destination: currentVersion.destination,
+    packageType: currentVersion.package_type,
     travelStartDate: overrides?.travelStartDate ?? currentVersion.travel_start_date,
     travelEndDate: overrides?.travelEndDate ?? currentVersion.travel_end_date,
     validUntil: currentVersion.valid_until ?? defaultValidUntil(),

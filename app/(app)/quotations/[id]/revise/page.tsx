@@ -60,6 +60,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
             clientId: quotation.client_id,
             clientLabel: quotation.client?.full_name ?? '',
             destination: currentVersion.destination,
+            packageType: currentVersion.package_type,
             travelStartDate: currentVersion.travel_start_date,
             travelEndDate: currentVersion.travel_end_date,
             validUntil: currentVersion.valid_until ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),

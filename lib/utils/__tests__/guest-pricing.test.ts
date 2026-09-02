@@ -177,6 +177,23 @@ describe('calculateMarkedUpRates — Hotel/Transfer, each guest type independent
 // didn't silently alter anything downstream of the input stage.
 // ============================================================================
 describe('Downstream pricing chain — unchanged since the input-stage rewrite', () => {
+  it('Land Arrangement Only excludes Airfare from Package per PAX by omitting it from the sum, not by a separate flag or field', () => {
+    const airfareRates = { adult: 20000, senior: 18000 };
+    const hotelRates = { adult: 5000, senior: 5000 };
+    const transferRates = { adult: 1000, senior: 1000 };
+    const tourRates = { adult: 500, senior: 500 };
+
+    const allIn = calculatePackagePerPax(airfareRates, hotelRates, transferRates, tourRates);
+    const landArrangementOnly = calculatePackagePerPax({}, hotelRates, transferRates, tourRates);
+
+    // All-In includes the full airfare rate in the sum.
+    expect(allIn.adult).toBe(26500); // 20000 + 5000 + 1000 + 500
+    // Land Arrangement Only excludes exactly the airfare portion — every
+    // other component (hotel, transfer, tours) is completely unaffected.
+    expect(landArrangementOnly.adult).toBe(6500); // 5000 + 1000 + 500
+    expect(allIn.adult - landArrangementOnly.adult).toBe(airfareRates.adult);
+  });
+
   it('Package per PAX includes Other Supplier Costs as a genuine per-guest-type contribution, not just an internal cost total', () => {
     const airfareRates = calculateMarkedUpRates({ adult: 1000 }, 0);
     const hotelRates = calculateMarkedUpRates({ adult: 500 }, 0);

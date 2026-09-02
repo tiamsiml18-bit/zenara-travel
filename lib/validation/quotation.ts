@@ -55,6 +55,13 @@ export const quotationDraftSchema = z
     clientId: z.string().uuid('Select a client.'),
     packageId: z.string().uuid().optional().or(z.literal('')),
     destination: z.string().trim().min(1, 'Destination is required.').max(200),
+    // Required, never defaulted — a Custom Package must never silently
+    // assume All-In. Whether this quotation's price includes Airfare or
+    // not; the underlying rates are always kept regardless of this
+    // selection, only the calculation reacts to it.
+    packageType: z.enum(['all_in', 'land_arrangement'], {
+      errorMap: () => ({ message: 'Choose a Package Type — All-In or Land Arrangement Only.' }),
+    }),
     travelStartDate: z.string().min(1, 'Start date is required.'),
     travelEndDate: z.string().min(1, 'End date is required.'),
     // Real, stored, editable — never computed on the fly at PDF-render time.

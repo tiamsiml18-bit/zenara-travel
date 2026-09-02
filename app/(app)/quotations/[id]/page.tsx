@@ -181,6 +181,10 @@ export default async function QuotationDetailPage({
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <Row label="Destination" value={viewedVersion.destination} />
                 <Row
+                  label="Package Type"
+                  value={viewedVersion.package_type === 'land_arrangement' ? 'Land Arrangement Only' : 'All-In'}
+                />
+                <Row
                   label="Travel dates"
                   value={`${formatDate(viewedVersion.travel_start_date)} – ${formatDate(viewedVersion.travel_end_date)}`}
                 />

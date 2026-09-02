@@ -15,6 +15,7 @@ export interface PackageFormInitialData {
   numNights: number;
   defaultNotes: string;
   isActive: boolean;
+  packageType: 'all_in' | 'land_arrangement';
   itinerary: ItineraryDayDraft[];
   inclusions: string[];
   exclusions: string[];
@@ -86,6 +87,7 @@ function packageFormInputToInitialData(input: PackageFormInput): PackageFormInit
     numNights: input.numNights,
     defaultNotes: input.defaultNotes ?? '',
     isActive: input.isActive,
+    packageType: input.packageType,
     itinerary: input.itinerary.map((day) => ({ ...day, dayDate: day.dayDate ?? '', description: day.description ?? '' })),
     inclusions: input.inclusions,
     exclusions: input.exclusions,
@@ -115,6 +117,7 @@ function PackageFormFields({
   const [numNights, setNumNights] = useState(initialData?.numNights ?? 3);
   const [defaultNotes, setDefaultNotes] = useState(initialData?.defaultNotes ?? '');
   const [isActive, setIsActive] = useState(initialData?.isActive ?? true);
+  const [packageType, setPackageType] = useState<'all_in' | 'land_arrangement'>(initialData?.packageType ?? 'all_in');
   const [itinerary, setItinerary] = useState<ItineraryDayDraft[]>(initialData?.itinerary ?? []);
   const [inclusions, setInclusions] = useState<string[]>(initialData?.inclusions ?? []);
   const [exclusions, setExclusions] = useState<string[]>(initialData?.exclusions ?? []);
@@ -141,6 +144,7 @@ function PackageFormFields({
       numNights,
       defaultNotes,
       isActive,
+      packageType,
       itinerary,
       inclusions,
       exclusions,
@@ -220,6 +224,24 @@ function PackageFormFields({
               className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
           </Field>
+        </div>
+
+        <div className="mt-3">
+          <label className="mb-1.5 block text-sm font-medium text-ink-700">Package type</label>
+          <div className="flex h-[38px] items-center gap-4 rounded-md border border-sand-200 px-3">
+            <label className="flex items-center gap-1.5 text-sm text-ink-700">
+              <input type="radio" checked={packageType === 'all_in'} onChange={() => setPackageType('all_in')} />
+              All-In
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-ink-700">
+              <input type="radio" checked={packageType === 'land_arrangement'} onChange={() => setPackageType('land_arrangement')} />
+              Land Arrangement Only
+            </label>
+          </div>
+          <p className="mt-1 text-xs text-ink-500">
+            When this package is selected in a quotation, the agent's quotation defaults to this type — they can still
+            change it for that specific quotation without affecting this package.
+          </p>
         </div>
 
         <label className="mt-3 flex items-center gap-2 text-sm text-ink-700">

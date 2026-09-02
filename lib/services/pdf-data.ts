@@ -36,7 +36,7 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
   const { data: version, error: vError } = await supabase
     .from('quotation_versions')
     .select(
-      `id, version_label, client_name_snapshot, destination, travel_start_date, travel_end_date, valid_until,
+      `id, version_label, client_name_snapshot, destination, package_type, travel_start_date, travel_end_date, valid_until,
        num_adults, num_children, hotel_name, num_bedrooms, price_per_person, total_price, currency,
        consultant_name_snapshot, num_seniors, num_infants, num_pwd`
     )
@@ -124,6 +124,7 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     validUntil: (version.valid_until as string) ?? null,
     trip: {
       destination: version.destination as string,
+      packageType: version.package_type as 'all_in' | 'land_arrangement',
       travelStartDate: version.travel_start_date as string,
       travelEndDate: version.travel_end_date as string,
       numAdults: version.num_adults as number,

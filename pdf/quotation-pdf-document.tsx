@@ -86,6 +86,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
+  // Package Type -- deliberately its own prominent element, not just
+  // another info-grid field, since misreading All-In vs Land Arrangement
+  // Only is exactly the kind of client confusion this exists to prevent.
+  packageTypeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 8 },
+  packageTypeBadge: {
+    backgroundColor: COLORS.harbor100,
+    color: COLORS.harbor700,
+    fontSize: 10.5,
+    fontWeight: 700,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 3,
+  },
+  packageTypeNote: { fontSize: 9.5, color: COLORS.coral500, fontWeight: 700 },
+
   body: { paddingHorizontal: 32, paddingTop: 4 },
 
   sectionTitle: {
@@ -253,6 +270,12 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
         {/* TOUR PACKAGE TITLE -- prominent, clearly separated from the header */}
         <View style={styles.packageTitleBlock}>
           <Text style={styles.packageTitleText}>{packageTitle}</Text>
+          <View style={styles.packageTypeRow}>
+            <Text style={styles.packageTypeBadge}>
+              {trip.packageType === 'land_arrangement' ? 'Land Arrangement Only' : 'All-In Package'}
+            </Text>
+            {trip.packageType === 'land_arrangement' && <Text style={styles.packageTypeNote}>Airfare not included</Text>}
+          </View>
         </View>
 
         <View style={styles.body}>

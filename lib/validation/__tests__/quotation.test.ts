@@ -5,6 +5,7 @@ const validDraft = {
   clientId: '11111111-1111-1111-1111-111111111111',
   packageId: '',
   destination: 'Hanoi, Vietnam',
+  packageType: 'all_in' as const,
   travelStartDate: '2026-09-01',
   travelEndDate: '2026-09-05',
   validUntil: '2026-09-01',
@@ -123,6 +124,22 @@ describe('quotationDraftSchema — guest-type pricing and required fields', () =
     if (result.success) {
       expect(result.data.numAdults).toBe(3);
     }
+  });
+
+  it('accepts "all_in" and "land_arrangement" as the only two valid Package Type values', () => {
+    expect(quotationDraftSchema.safeParse({ ...validDraft, packageType: 'all_in' }).success).toBe(true);
+    expect(quotationDraftSchema.safeParse({ ...validDraft, packageType: 'land_arrangement' }).success).toBe(true);
+  });
+
+  it('rejects a missing Package Type — a Custom Package must never silently default to All-In', () => {
+    const { packageType, ...withoutPackageType } = validDraft;
+    const result = quotationDraftSchema.safeParse(withoutPackageType);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an invalid Package Type value', () => {
+    const result = quotationDraftSchema.safeParse({ ...validDraft, packageType: 'business_class' });
+    expect(result.success).toBe(false);
   });
 });
 

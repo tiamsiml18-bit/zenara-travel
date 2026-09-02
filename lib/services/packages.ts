@@ -142,6 +142,7 @@ export async function createPackage(supabase: SupabaseClient, input: PackageForm
       num_nights: input.numNights,
       default_notes: input.defaultNotes || null,
       is_active: input.isActive,
+      package_type: input.packageType,
       created_by: actingUserId,
     })
     .select('id')
@@ -180,6 +181,7 @@ export async function updatePackage(
       num_nights: input.numNights,
       default_notes: input.defaultNotes || null,
       is_active: input.isActive,
+      package_type: input.packageType,
     })
     .eq('id', packageId);
   if (error) throw new Error(`Failed to update package: ${error.message}`);

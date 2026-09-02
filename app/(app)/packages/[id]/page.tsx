@@ -32,6 +32,7 @@ export default async function PackageDetailPage({ params }: { params: Promise<{ 
               numNights: pkg.num_nights,
               defaultNotes: pkg.default_notes ?? '',
               isActive: pkg.is_active,
+              packageType: pkg.package_type,
               itinerary,
               inclusions,
               exclusions,
