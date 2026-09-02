@@ -124,16 +124,20 @@ const styles = StyleSheet.create({
 
   // Two-level hierarchy: the day/tour title is its own line and is never a
   // bullet; every activity is its own bulleted, indented line beneath it.
-  dayBlock: { marginBottom: 13 },
+  // DAY N is an "eyebrow" label -- a standard editorial pattern (a small,
+  // bold, letter-spaced marker sitting above a larger headline) -- sized
+  // to actually read as a clear marker while scanning down the page, not
+  // a barely-visible afterthought, and set in the same typeface as the
+  // rest of the document rather than a mismatched monospace font.
+  dayBlock: { marginBottom: 14 },
   dayBadge: {
-    fontSize: 9,
-    fontFamily: 'Courier',
-    fontWeight: 700,
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
     color: COLORS.harbor700,
-    letterSpacing: 0.5,
-    marginBottom: 2,
+    letterSpacing: 1.1,
+    marginBottom: 3,
   },
-  dayTitle: { fontSize: 13, fontWeight: 700, color: COLORS.ink900, marginBottom: 5 },
+  dayTitle: { fontSize: 14.5, fontWeight: 700, color: COLORS.ink900, marginBottom: 5 },
   dayDescription: { fontSize: 10.5, color: COLORS.ink700, marginBottom: 4 },
   activityRow: { flexDirection: 'row', marginBottom: 3.5, paddingLeft: 4 },
   activityBullet: { fontSize: 10, color: COLORS.harbor700, width: 12 },
@@ -373,20 +377,29 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
             </View>
           </View>
 
-          {/* TERMS AND CONDITIONS / PAYMENT INSTRUCTIONS -- each its own
-              wrap={false} block so a paragraph's own heading never
-              separates from its text, but the two blocks can still land on
-              different pages from each other and from the pricing section
-              above if that's where the natural break falls. */}
-          <View wrap={false} style={{ marginTop: 16 }}>
-            <Text style={styles.termsTitle}>Terms and Conditions</Text>
+          {/* TERMS AND CONDITIONS / PAYMENT INSTRUCTIONS -- the heading and
+              body are one continuous Text block, not separate elements
+              inside a wrap={false} View. A wrap={false} wrapper forced the
+              ENTIRE paragraph to be treated as one atomic unit — fine for
+              a short paragraph, but for a genuinely long Terms section
+              (which does happen) it meant the whole thing jumped to a new
+              page the moment it didn't fit in whatever space remained,
+              wasting that remaining space rather than using it. Combining
+              heading + body into one Text lets react-pdf's normal
+              line-by-line text flow carry it across as many pages as it
+              needs, while still guaranteeing the heading is never
+              orphaned from its own first line -- they're the same text
+              node, so they can only ever separate at a genuine line
+              break, never with a boundary landing between them. */}
+          <Text style={{ marginTop: 16 }}>
+            <Text style={styles.termsTitle}>Terms and Conditions{'\n'}</Text>
             <Text style={styles.termsBlock}>{agency.termsAndConditions}</Text>
-          </View>
+          </Text>
           {agency.paymentInstructions && (
-            <View wrap={false} style={{ marginTop: 8 }}>
-              <Text style={styles.termsTitle}>Payment Instructions</Text>
+            <Text style={{ marginTop: 8 }}>
+              <Text style={styles.termsTitle}>Payment Instructions{'\n'}</Text>
               <Text style={styles.termsBlock}>{agency.paymentInstructions}</Text>
-            </View>
+            </Text>
           )}
         </View>
 
