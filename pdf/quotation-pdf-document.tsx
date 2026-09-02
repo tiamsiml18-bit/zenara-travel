@@ -50,26 +50,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 18,
   },
-  headerLogoWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.sand200,
-    backgroundColor: COLORS.sand50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
-    flexShrink: 0,
-  },
-  headerLogo: { width: '100%', height: '100%', objectFit: 'contain' },
+  // No box/border/background around the logo — just the mark itself,
+  // sized to its own natural wide-rectangle aspect ratio (roughly 300:169)
+  // rather than forced into a square, which is what made it look cramped
+  // even before the box existed.
+  headerLogoWrap: { flexShrink: 0 },
+  headerLogo: { width: 76, height: 43, objectFit: 'contain' },
   agencyName: { fontSize: 16, fontWeight: 700, color: COLORS.harbor900, marginBottom: 10 },
 
   // The 8 required fields, 2 per row -- kept to exactly this set per spec
   // ("do not add unnecessary company or client information").
   infoGrid: { flex: 1 },
   infoRow: { flexDirection: 'row', marginBottom: 6 },
-  infoCell: { flex: 1, flexDirection: 'row' },
+  infoCell: { width: '50%', flexDirection: 'row' },
   infoLabel: { fontSize: 10, color: COLORS.ink500, width: 88 },
   infoValue: { fontSize: 10.5, fontWeight: 700, color: COLORS.ink900, flex: 1 },
 
@@ -197,6 +190,23 @@ const styles = StyleSheet.create({
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+/**
+ * Standard international spacing for a Philippine mobile number:
+ * "+63 917 123 4567" rather than however it happens to be stored
+ * ("+639063769898", "0906-376-9898", etc.). Only reformats spacing/
+ * grouping of the actual stored number — never a different number, and
+ * never invents one. Falls back to the raw stored value unchanged for
+ * anything that isn't recognizably a PH mobile number (a landline, or a
+ * different country's format), since guessing at a reformat for a shape
+ * this function doesn't recognize risks garbling a real number.
+ */
+function formatPhoneDisplay(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  const withCountryCode = digits.startsWith('63') ? digits : digits.startsWith('0') ? `63${digits.slice(1)}` : digits;
+  if (withCountryCode.length !== 12 || !withCountryCode.startsWith('63')) return raw;
+  const national = withCountryCode.slice(2);
+  return `+63 ${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6)}`;
 }
 function formatMoney(n: number | null, currency: string) {
   if (n === null || n === undefined) return '—';
@@ -405,7 +415,12 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
 
         <View style={styles.footer} fixed>
           <Text style={styles.footerLine}>
-            {[agency.name, agency.email, agency.phone, agency.whatsapp ? `WhatsApp: ${agency.whatsapp}` : null]
+            {[
+              agency.name,
+              agency.email,
+              agency.phone ? formatPhoneDisplay(agency.phone) : null,
+              agency.whatsapp ? `WhatsApp: ${formatPhoneDisplay(agency.whatsapp)}` : null,
+            ]
               .filter(Boolean)
               .join('   •   ')}
           </Text>
