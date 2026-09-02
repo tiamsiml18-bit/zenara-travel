@@ -62,8 +62,8 @@ const styles = StyleSheet.create({
   // ("do not add unnecessary company or client information").
   infoGrid: { flex: 1 },
   infoRow: { flexDirection: 'row', marginBottom: 6 },
-  infoCell: { width: '50%', flexDirection: 'row' },
-  infoLabel: { fontSize: 10, color: COLORS.ink500, width: 88 },
+  infoCell: { flexDirection: 'row' },
+  infoLabel: { fontSize: 10, color: COLORS.ink500, width: 72 },
   infoValue: { fontSize: 10.5, fontWeight: 700, color: COLORS.ink900, flex: 1 },
 
   headerDivider: { borderBottomWidth: 1, borderBottomColor: COLORS.sand200, marginHorizontal: 32 },
@@ -217,9 +217,9 @@ function formatMoney(n: number | null, currency: string) {
   return `${currency} ${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-function InfoField({ label, value }: { label: string; value: string }) {
+function InfoField({ label, value, width }: { label: string; value: string; width: '60%' | '40%' }) {
   return (
-    <View style={styles.infoCell}>
+    <View style={[styles.infoCell, { width }]}>
       <Text style={styles.infoLabel}>{label}:</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
@@ -262,20 +262,24 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
           <View style={styles.infoGrid}>
             <Text style={styles.agencyName}>{agency.name.toUpperCase()}</Text>
             <View style={styles.infoRow}>
-              <InfoField label="Prepared For" value={client.name} />
-              <InfoField label="Consultant" value={agent?.full_name?.split(' ')[0] ?? '—'} />
+              <InfoField label="Prepared For" value={client.name} width="60%" />
+              <InfoField label="Consultant" value={agent?.full_name?.split(' ')[0] ?? '—'} width="40%" />
             </View>
             <View style={styles.infoRow}>
-              <InfoField label="Tour Package" value={packageTitle} />
-              <InfoField label="Quotation No" value={quotationNumber} />
+              <InfoField label="Tour Package" value={packageTitle} width="60%" />
+              <InfoField label="Quotation No" value={quotationNumber} width="40%" />
             </View>
             <View style={styles.infoRow}>
-              <InfoField label="Validity" value={validUntil ? formatDate(validUntil) : '—'} />
-              <InfoField label="Travel Dates" value={`${formatDate(trip.travelStartDate)} - ${formatDate(trip.travelEndDate)}`} />
+              <InfoField label="Validity" value={validUntil ? formatDate(validUntil) : '—'} width="60%" />
+              <InfoField
+                label="Travel Dates"
+                value={`${formatDate(trip.travelStartDate)} - ${formatDate(trip.travelEndDate)}`}
+                width="40%"
+              />
             </View>
             <View style={styles.infoRow}>
-              <InfoField label="Destination" value={trip.destination} />
-              <InfoField label="Guests" value={guestSummary} />
+              <InfoField label="Destination" value={trip.destination} width="60%" />
+              <InfoField label="Guests" value={guestSummary} width="40%" />
             </View>
           </View>
         </View>
