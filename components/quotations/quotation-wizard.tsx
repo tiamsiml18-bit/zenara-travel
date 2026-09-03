@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
 import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from './itinerary-builder';
 import { TagListInput } from './tag-list-input';
+import { generateSuggestedInclusions, generateSuggestedExclusions } from '@/lib/utils/quotation-inclusions';
 import { CostBreakdownEditor } from './cost-breakdown-editor';
 import { SupplierImportPanel, type AppliedSupplierData } from './supplier-import-panel';
 import {
@@ -700,6 +701,42 @@ export function QuotationWizard({
     }
     setClientId(result.clientId);
     setStep(1);
+  }
+
+  /**
+   * Auto-populates Inclusions/Exclusions the first time the agent reaches
+   * that step, purely from what's actually been entered so far — only
+   * when both lists are still empty, so it never overwrites anything the
+   * agent already typed or a previously-saved quotation's own data (edit/
+   * revise always arrive here with real content already in these lists).
+   */
+  function autoPopulateInclusionsExclusions() {
+    if (inclusions.length > 0 || exclusions.length > 0) return;
+    const hasRate = (v: number | '') => v !== '' && Number(v) > 0;
+    const input = {
+      packageType: trip.packageType,
+      hasAirfare:
+        hasRate(trip.airfareAdultRate) ||
+        hasRate(trip.airfareSeniorRate) ||
+        hasRate(trip.airfareChildRate) ||
+        hasRate(trip.airfareInfantRate) ||
+        hasRate(trip.airfarePwdRate),
+      hasHotel:
+        hasRate(trip.hotelAdultRate) || hasRate(trip.hotelSeniorRate) || hasRate(trip.hotelChildRate) || hasRate(trip.hotelInfantRate) || hasRate(trip.hotelPwdRate),
+      hotelName: trip.hotelName,
+      hasTransfer:
+        hasRate(trip.transferAdultRate) ||
+        hasRate(trip.transferSeniorRate) ||
+        hasRate(trip.transferChildRate) ||
+        hasRate(trip.transferInfantRate) ||
+        hasRate(trip.transferPwdRate) ||
+        additionalTransfer.length > 0,
+      transferLabels: additionalTransfer.map((t) => t.label),
+      tourNames: tourPricing.map((t) => t.tourName),
+      otherCostLabels: costItems.map((c) => c.label),
+    };
+    setInclusions(generateSuggestedInclusions(input));
+    setExclusions(generateSuggestedExclusions(input));
   }
 
   function canAdvance(): boolean {
@@ -1805,7 +1842,11 @@ export function QuotationWizard({
         {step < STEPS.length - 1 ? (
           <button
             type="button"
-            onClick={() => canAdvance() && setStep((s) => s + 1)}
+            onClick={() => {
+              if (!canAdvance()) return;
+              if (step === 3) autoPopulateInclusionsExclusions();
+              setStep((s) => s + 1);
+            }}
             disabled={!canAdvance()}
             className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-40"
           >
