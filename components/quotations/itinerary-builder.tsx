@@ -147,6 +147,22 @@ export function ItineraryBuilder({
     });
   }
 
+  // Swaps two activities' positions within the same day — the activity
+  // itself is never removed and re-added, just moved. This array is a
+  // plain Postgres array column (quotation_itinerary_days.activities /
+  // tours.activities), so whatever order it's in when the day/tour is
+  // saved is exactly the order that persists — no separate "save order"
+  // step needed.
+  function moveActivity(dayIndex: number, activityIndex: number, direction: -1 | 1) {
+    const day = days[dayIndex];
+    if (!day) return;
+    const target = activityIndex + direction;
+    if (target < 0 || target >= day.activities.length) return;
+    const next = [...day.activities];
+    [next[activityIndex], next[target]] = [next[target]!, next[activityIndex]!];
+    updateDay(dayIndex, { activities: next });
+  }
+
   /**
    * Handles both "Add Tour" (a blank day) and "Replace Tour" (a day that
    * already has content) with the same action — selecting anything from the
@@ -291,11 +307,31 @@ export function ItineraryBuilder({
 
           <ul className="mb-2 space-y-1">
             {day.activities.map((activity, aIndex) => (
-              <li key={aIndex} className="flex items-center justify-between rounded bg-sand-50 px-2.5 py-1 text-sm text-ink-700">
+              <li key={aIndex} className="group flex items-center justify-between rounded bg-sand-50 px-2.5 py-1 text-sm text-ink-700">
                 {activity}
-                <button type="button" onClick={() => removeActivity(index, aIndex)} className="text-ink-500 hover:text-coral-500">
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => moveActivity(index, aIndex, -1)}
+                    disabled={aIndex === 0}
+                    className="text-ink-500 hover:text-harbor-600 disabled:opacity-0"
+                    title="Move up"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveActivity(index, aIndex, 1)}
+                    disabled={aIndex === day.activities.length - 1}
+                    className="text-ink-500 hover:text-harbor-600 disabled:opacity-0"
+                    title="Move down"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" onClick={() => removeActivity(index, aIndex)} className="ml-1 text-ink-500 hover:text-coral-500" title="Remove">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

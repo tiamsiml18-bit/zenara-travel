@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Plus, Pencil, Check } from 'lucide-react';
+import { X, Plus, Pencil, Check, ChevronUp, ChevronDown } from 'lucide-react';
 
 export function TagListInput({
   items,
@@ -38,6 +38,20 @@ export function TagListInput({
     setEditingIndex(null);
   }
 
+  // Reordering swaps two array positions in place — the item itself is
+  // never removed and re-added, just moved, so its content is completely
+  // untouched. The existing save path already persists whatever order
+  // this array is in when saved (a plain Postgres array column, or
+  // sort_order recomputed from the array's index at save time), so no
+  // separate "save order" step is needed here.
+  function move(i: number, direction: -1 | 1) {
+    const target = i + direction;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[i], next[target]] = [next[target]!, next[i]!];
+    onChange(next);
+  }
+
   const dot = tone === 'positive' ? 'bg-green-500 dark:bg-green-600' : tone === 'negative' ? 'bg-coral-500' : 'bg-ink-500';
 
   return (
@@ -69,8 +83,26 @@ export function TagListInput({
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
                 {item}
               </span>
-              <span className="flex items-center gap-2 opacity-0 group-hover:opacity-100">
-                <button type="button" onClick={() => startEdit(i)} className="text-ink-500 hover:text-harbor-600" title="Edit">
+              <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  className="text-ink-500 hover:text-harbor-600 disabled:opacity-0"
+                  title="Move up"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === items.length - 1}
+                  className="text-ink-500 hover:text-harbor-600 disabled:opacity-0"
+                  title="Move down"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={() => startEdit(i)} className="ml-1 text-ink-500 hover:text-harbor-600" title="Edit">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
                 <button
