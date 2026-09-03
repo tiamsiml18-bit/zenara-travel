@@ -119,6 +119,9 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     { data: guestPricing },
     { data: guestPricingInternal },
     { data: tourPricingRows },
+    { data: additionalAirfareRows },
+    { data: additionalHotelRows },
+    { data: additionalTransferRows },
   ] = await Promise.all([
     supabase
       .from('quotation_itinerary_days')
@@ -158,6 +161,25 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .from('quotation_tour_pricing')
       .select('source_tour_id, tour_name, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd')
       .eq('quotation_version_id', versionId),
+    // Additional Airfare/Hotel/Transfer sections beyond the default one
+    // (which still lives in quotation_versions' own flat columns) — empty
+    // for every quotation that's never used this feature, which is what
+    // keeps their calculation completely unaffected.
+    supabase
+      .from('quotation_airfare_items')
+      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd, markup_pct, markup_enabled')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
+    supabase
+      .from('quotation_hotel_items')
+      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd, markup_pct, markup_enabled')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
+    supabase
+      .from('quotation_transfer_items')
+      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
   ]);
 
   const supplierCostByType = new Map((guestPricingInternal ?? []).map((g) => [g.guest_type, Number(g.supplier_cost_per_person)]));
@@ -176,6 +198,30 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     ratePwd: t.rate_pwd === null ? null : Number(t.rate_pwd),
   }));
 
+  function mapAdditionalItem(row: {
+    id: string;
+    label: string;
+    rate_senior: number | null;
+    rate_adult: number | null;
+    rate_child: number | null;
+    rate_infant: number | null;
+    rate_pwd: number | null;
+    markup_pct?: number;
+    markup_enabled?: boolean;
+  }) {
+    return {
+      id: row.id,
+      label: row.label,
+      rateSenior: row.rate_senior === null ? null : Number(row.rate_senior),
+      rateAdult: row.rate_adult === null ? null : Number(row.rate_adult),
+      rateChild: row.rate_child === null ? null : Number(row.rate_child),
+      rateInfant: row.rate_infant === null ? null : Number(row.rate_infant),
+      ratePwd: row.rate_pwd === null ? null : Number(row.rate_pwd),
+      ...(row.markup_pct !== undefined ? { markupPct: Number(row.markup_pct) } : {}),
+      ...(row.markup_enabled !== undefined ? { markupEnabled: row.markup_enabled } : {}),
+    };
+  }
+
   return {
     itinerary: itinerary ?? [],
     inclusions: inclusions ?? [],
@@ -191,6 +237,9 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     feeItems: (feeItems ?? []).map((f) => ({ label: f.label, amount: Number(f.amount) })),
     guestRates,
     tourPricing,
+    additionalAirfare: (additionalAirfareRows ?? []).map(mapAdditionalItem),
+    additionalHotel: (additionalHotelRows ?? []).map(mapAdditionalItem),
+    additionalTransfer: (additionalTransferRows ?? []).map(mapAdditionalItem),
   };
 }
 
@@ -285,6 +334,47 @@ function sumOtherCostRates(costItems: QuotationDraftInput['costItems']): GuestRa
 }
 
 /**
+ * Sums additional Airfare/Hotel sections (2, 3, 4...) into one combined
+ * contribution — each section's OWN markup is applied independently
+ * before summing, exactly matching how the single default section works,
+ * just repeated per section rather than assuming there's only one.
+ */
+function sumAdditionalWithMarkup(items: QuotationDraftInput['additionalAirfare']): GuestRates {
+  const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+  for (const item of items) {
+    const marked = calculateMarkedUpRates(
+      {
+        senior: item.rateSenior ?? 0,
+        adult: item.rateAdult ?? 0,
+        child: item.rateChild ?? 0,
+        infant: item.rateInfant ?? 0,
+        pwd: item.ratePwd ?? 0,
+      },
+      item.markupEnabled ? item.markupPct : 0
+    );
+    result.senior = (result.senior || 0) + (marked.senior ?? 0);
+    result.adult = (result.adult || 0) + (marked.adult ?? 0);
+    result.child = (result.child || 0) + (marked.child ?? 0);
+    result.infant = (result.infant || 0) + (marked.infant ?? 0);
+    result.pwd = (result.pwd || 0) + (marked.pwd ?? 0);
+  }
+  return result;
+}
+
+/** Same as sumAdditionalWithMarkup but for Transfer, which has no markup at all — matches the single default Transfer section exactly. */
+function sumAdditionalNoMarkup(items: QuotationDraftInput['additionalTransfer']): GuestRates {
+  const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+  for (const item of items) {
+    result.senior = (result.senior || 0) + (item.rateSenior ?? 0);
+    result.adult = (result.adult || 0) + (item.rateAdult ?? 0);
+    result.child = (result.child || 0) + (item.rateChild ?? 0);
+    result.infant = (result.infant || 0) + (item.rateInfant ?? 0);
+    result.pwd = (result.pwd || 0) + (item.ratePwd ?? 0);
+  }
+  return result;
+}
+
+/**
  * The one function that computes a quotation's actual pricing. Every
  * supplier rate is entered PER PERSON directly by the agent (Airfare,
  * Hotel, Transfer, and each selected Tour) — never a group total the
@@ -324,6 +414,35 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     infant: input.transferInfantRate,
     pwd: input.transferPwdRate,
   };
+  // Additional sections (2, 3, 4...) for a multi-destination itinerary —
+  // each already has its own markup applied inside the sum helper, then
+  // combined with the default section below into one total per category.
+  // Zero additional sections (every existing quotation) means these
+  // simply add zero, leaving the result identical to before this feature.
+  const additionalAirfareTotal = sumAdditionalWithMarkup(input.additionalAirfare);
+  const additionalHotelTotal = sumAdditionalWithMarkup(input.additionalHotel);
+  const additionalTransferTotal = sumAdditionalNoMarkup(input.additionalTransfer);
+  const totalAirfareRates: GuestRates = {
+    senior: (airfareRates.senior ?? 0) + (additionalAirfareTotal.senior ?? 0),
+    adult: (airfareRates.adult ?? 0) + (additionalAirfareTotal.adult ?? 0),
+    child: (airfareRates.child ?? 0) + (additionalAirfareTotal.child ?? 0),
+    infant: (airfareRates.infant ?? 0) + (additionalAirfareTotal.infant ?? 0),
+    pwd: (airfareRates.pwd ?? 0) + (additionalAirfareTotal.pwd ?? 0),
+  };
+  const totalHotelRates: GuestRates = {
+    senior: (hotelRates.senior ?? 0) + (additionalHotelTotal.senior ?? 0),
+    adult: (hotelRates.adult ?? 0) + (additionalHotelTotal.adult ?? 0),
+    child: (hotelRates.child ?? 0) + (additionalHotelTotal.child ?? 0),
+    infant: (hotelRates.infant ?? 0) + (additionalHotelTotal.infant ?? 0),
+    pwd: (hotelRates.pwd ?? 0) + (additionalHotelTotal.pwd ?? 0),
+  };
+  const totalTransferRates: GuestRates = {
+    senior: (transferRates.senior ?? 0) + (additionalTransferTotal.senior ?? 0),
+    adult: (transferRates.adult ?? 0) + (additionalTransferTotal.adult ?? 0),
+    child: (transferRates.child ?? 0) + (additionalTransferTotal.child ?? 0),
+    infant: (transferRates.infant ?? 0) + (additionalTransferTotal.infant ?? 0),
+    pwd: (transferRates.pwd ?? 0) + (additionalTransferTotal.pwd ?? 0),
+  };
   // Land Arrangement Only excludes Airfare from the calculation entirely —
   // the entered rates are computed exactly as normal (never deleted or
   // altered) and simply not included in this one sum when that Package
@@ -331,9 +450,9 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
   // shared calculation path used by every write (create, send, revise),
   // so this exclusion applies everywhere consistently.
   const packagePerPax = calculatePackagePerPax(
-    input.packageType === 'land_arrangement' ? {} : airfareRates,
-    hotelRates,
-    transferRates,
+    input.packageType === 'land_arrangement' ? {} : totalAirfareRates,
+    totalHotelRates,
+    totalTransferRates,
     tourRates,
     otherCostRates
   );
@@ -426,6 +545,62 @@ async function insertVersionChildren(
       { onConflict: 'quotation_version_id,source_tour_id' }
     );
     if (error) throw new Error(`Failed to save tour pricing: ${error.message}`);
+  }
+
+  // Additional Airfare/Hotel/Transfer sections (2, 3, 4...) — plain insert,
+  // not upsert, since these have no natural unique key to upsert against
+  // (unlike Tours' source_tour_id). Always called either on a brand new
+  // version (nothing to delete) or after updateQuotation has already
+  // deleted the old rows for this version first, so a plain insert here
+  // is correct and never risks a duplicate-key error.
+  if (input.additionalAirfare.length > 0) {
+    const { error } = await supabase.from('quotation_airfare_items').insert(
+      input.additionalAirfare.map((a, i) => ({
+        quotation_version_id: versionId,
+        label: a.label,
+        rate_senior: a.rateSenior ?? null,
+        rate_adult: a.rateAdult ?? null,
+        rate_child: a.rateChild ?? null,
+        rate_infant: a.rateInfant ?? null,
+        rate_pwd: a.ratePwd ?? null,
+        markup_pct: a.markupPct,
+        markup_enabled: a.markupEnabled,
+        sort_order: i,
+      }))
+    );
+    if (error) throw new Error(`Failed to save additional airfare: ${error.message}`);
+  }
+  if (input.additionalHotel.length > 0) {
+    const { error } = await supabase.from('quotation_hotel_items').insert(
+      input.additionalHotel.map((h, i) => ({
+        quotation_version_id: versionId,
+        label: h.label,
+        rate_senior: h.rateSenior ?? null,
+        rate_adult: h.rateAdult ?? null,
+        rate_child: h.rateChild ?? null,
+        rate_infant: h.rateInfant ?? null,
+        rate_pwd: h.ratePwd ?? null,
+        markup_pct: h.markupPct,
+        markup_enabled: h.markupEnabled,
+        sort_order: i,
+      }))
+    );
+    if (error) throw new Error(`Failed to save additional hotel: ${error.message}`);
+  }
+  if (input.additionalTransfer.length > 0) {
+    const { error } = await supabase.from('quotation_transfer_items').insert(
+      input.additionalTransfer.map((t, i) => ({
+        quotation_version_id: versionId,
+        label: t.label,
+        rate_senior: t.rateSenior ?? null,
+        rate_adult: t.rateAdult ?? null,
+        rate_child: t.rateChild ?? null,
+        rate_infant: t.rateInfant ?? null,
+        rate_pwd: t.ratePwd ?? null,
+        sort_order: i,
+      }))
+    );
+    if (error) throw new Error(`Failed to save additional transfer: ${error.message}`);
   }
 
   if (input.inclusions.length > 0) {
@@ -645,6 +820,12 @@ export async function updateDraftQuotation(
     // first save was still there when insertVersionChildren tried to
     // insert it again.
     supabase.from('quotation_tour_pricing').delete().eq('quotation_version_id', versionId),
+    // Same reasoning applies to these three — added from the start this
+    // time rather than being found as a bug later, since insertVersionChildren
+    // does a plain insert (not upsert) for all three.
+    supabase.from('quotation_airfare_items').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_hotel_items').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_transfer_items').delete().eq('quotation_version_id', versionId),
   ]);
   await supabase.from('quotation_pricing_internal').delete().eq('quotation_version_id', versionId);
 
@@ -1076,7 +1257,8 @@ export async function duplicateQuotation(
   const { currentVersion } = await getQuotationById(supabase, sourceQuotationId);
   if (!currentVersion) throw new Error('Source quotation has no version to duplicate.');
 
-  const { itinerary, inclusions, exclusions, costItems, feeItems, guestRates } = await getVersionDetail(supabase, currentVersion.id);
+  const { itinerary, inclusions, exclusions, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer } =
+    await getVersionDetail(supabase, currentVersion.id);
   const pricing = await getPricingForVersion(supabase, currentVersion.id);
 
   const { quotation: sourceQuotation } = await getQuotationById(supabase, sourceQuotationId);
@@ -1117,7 +1299,30 @@ export async function duplicateQuotation(
     transferInfantRate: pricing?.transfer_infant_rate ?? 0,
     transferPwdRate: pricing?.transfer_pwd_rate ?? 0,
     transferMarkupPct: pricing?.transfer_markup_pct ?? DEFAULT_TRANSFER_MARKUP_PCT,
-    tourPricing: [],
+    // Was previously hardcoded to [] — a duplicated quotation silently
+    // lost all Tour pricing. Fixed here alongside adding the new
+    // Airfare/Hotel/Transfer additional-section arrays, since this exact
+    // spot needed touching for those anyway.
+    tourPricing: tourPricing.map((t) => ({
+      sourceTourId: t.sourceTourId,
+      tourName: t.tourName,
+      rateSenior: t.rateSenior,
+      rateAdult: t.rateAdult,
+      rateChild: t.rateChild,
+      rateInfant: t.rateInfant,
+      ratePwd: t.ratePwd,
+    })),
+    additionalAirfare: additionalAirfare.map(({ id, markupPct, markupEnabled, ...rest }) => ({
+      ...rest,
+      markupPct: markupPct ?? 0.1,
+      markupEnabled: markupEnabled ?? true,
+    })),
+    additionalHotel: additionalHotel.map(({ id, markupPct, markupEnabled, ...rest }) => ({
+      ...rest,
+      markupPct: markupPct ?? 0.1,
+      markupEnabled: markupEnabled ?? true,
+    })),
+    additionalTransfer: additionalTransfer.map(({ id, ...rest }) => rest),
     paymentMethod: (pricing?.payment_method as 'credit_card' | 'paypal' | 'none') ?? 'credit_card',
     notes: currentVersion.notes ?? '',
     inclusions: inclusions.map((i) => i.item),

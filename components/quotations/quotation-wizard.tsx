@@ -47,6 +47,39 @@ type Source = { id: string; name: string };
 
 const STEPS = ['Client', 'Package', 'Trip details', 'Itinerary', 'Inclusions', 'Review'] as const;
 
+/**
+ * One additional Airfare/Hotel/Transfer section beyond the default (which
+ * stays in the wizard's own flat trip.airfare-prefixed,
+ * trip.hotel-prefixed, and trip.transfer-prefixed fields, completely
+ * untouched by this feature). Each has a client-only `key` for React list
+ * rendering (stable across re-renders even before a row has a real
+ * database id) separate from the actual database `id` (only present once
+ * saved).
+ */
+interface AdditionalRateItemWithMarkup {
+  id?: string;
+  key: string;
+  label: string;
+  rateSenior: number | '';
+  rateAdult: number | '';
+  rateChild: number | '';
+  rateInfant: number | '';
+  ratePwd: number | '';
+  markupPct: number;
+  markupEnabled: boolean;
+}
+/** Same shape, no markup — Transfer has none, matching the single default Transfer section exactly. */
+interface AdditionalRateItem {
+  id?: string;
+  key: string;
+  label: string;
+  rateSenior: number | '';
+  rateAdult: number | '';
+  rateChild: number | '';
+  rateInfant: number | '';
+  ratePwd: number | '';
+}
+
 export interface QuotationWizardInitialData {
   clientId: string;
   clientLabel: string;
@@ -92,6 +125,13 @@ export interface QuotationWizardInitialData {
   transferInfantRate?: number;
   transferPwdRate?: number;
   transferMarkupPct?: number;
+  // Section 1 lives in the flat fields above; these are sections 2, 3,
+  // 4... for a multi-destination itinerary (e.g. Manila -> Hanoi, then
+  // Hanoi -> Manila as a second Airfare section). No `key` here — that's
+  // generated once when the wizard's state initializes from this data.
+  additionalAirfare?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
+  additionalHotel?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
+  additionalTransfer?: Omit<AdditionalRateItem, 'key'>[];
   paymentMethod?: 'credit_card' | 'paypal' | 'none';
   notes: string;
   itinerary: ItineraryDayDraft[];
@@ -232,6 +272,51 @@ export function QuotationWizard({
       ratePwd: t.ratePwd ?? '',
     }))
   );
+  // Additional Airfare/Hotel/Transfer sections (2, 3, 4...) for a
+  // multi-destination itinerary — the default section 1 stays entirely in
+  // trip.airfare*/trip.hotel*/trip.transfer*, completely untouched.
+  let keyCounter = 0;
+  const nextKey = () => `new-${Date.now()}-${keyCounter++}`;
+  const [additionalAirfare, setAdditionalAirfare] = useState<AdditionalRateItemWithMarkup[]>(
+    (initialData?.additionalAirfare ?? []).map((a) => ({
+      id: a.id,
+      key: a.id ?? nextKey(),
+      label: a.label,
+      rateSenior: a.rateSenior ?? '',
+      rateAdult: a.rateAdult ?? '',
+      rateChild: a.rateChild ?? '',
+      rateInfant: a.rateInfant ?? '',
+      ratePwd: a.ratePwd ?? '',
+      markupPct: a.markupPct,
+      markupEnabled: a.markupEnabled,
+    }))
+  );
+  const [additionalHotel, setAdditionalHotel] = useState<AdditionalRateItemWithMarkup[]>(
+    (initialData?.additionalHotel ?? []).map((h) => ({
+      id: h.id,
+      key: h.id ?? nextKey(),
+      label: h.label,
+      rateSenior: h.rateSenior ?? '',
+      rateAdult: h.rateAdult ?? '',
+      rateChild: h.rateChild ?? '',
+      rateInfant: h.rateInfant ?? '',
+      ratePwd: h.ratePwd ?? '',
+      markupPct: h.markupPct,
+      markupEnabled: h.markupEnabled,
+    }))
+  );
+  const [additionalTransfer, setAdditionalTransfer] = useState<AdditionalRateItem[]>(
+    (initialData?.additionalTransfer ?? []).map((t) => ({
+      id: t.id,
+      key: t.id ?? nextKey(),
+      label: t.label,
+      rateSenior: t.rateSenior ?? '',
+      rateAdult: t.rateAdult ?? '',
+      rateChild: t.rateChild ?? '',
+      rateInfant: t.rateInfant ?? '',
+      ratePwd: t.ratePwd ?? '',
+    }))
+  );
   interface OtherCostRow {
     label: string;
     rateSenior: number | '';
@@ -328,10 +413,59 @@ export function QuotationWizard({
   // passing them into the sum. All-In passes them normally. Everything
   // downstream (Bank Fee, Zenara Markup, Final Client Rate) is completely
   // unaffected either way — only this one sum changes.
+  //
+  // Multi-destination support: each additional Airfare/Hotel section gets
+  // its OWN markup applied independently, then all sections (the default
+  // plus every additional one) are summed together per guest type into a
+  // single total before ever reaching calculatePackagePerPax — which
+  // itself is completely untouched, since from its point of view this is
+  // still just one Airfare number, one Hotel number, one Transfer number.
+  function sumAdditionalWithMarkup(items: AdditionalRateItemWithMarkup[]): GuestRates {
+    const total: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+    for (const item of items) {
+      const marked = calculateMarkedUpRates(
+        {
+          senior: numVal(item.rateSenior),
+          adult: numVal(item.rateAdult),
+          child: numVal(item.rateChild),
+          infant: numVal(item.rateInfant),
+          pwd: numVal(item.ratePwd),
+        },
+        item.markupEnabled ? item.markupPct : 0
+      );
+      for (const t of GUEST_TYPES) total[t] = (total[t] ?? 0) + (marked[t] ?? 0);
+    }
+    return total;
+  }
+  function sumAdditionalNoMarkup(items: AdditionalRateItem[]): GuestRates {
+    const total: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+    for (const item of items) {
+      for (const t of GUEST_TYPES) {
+        const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof AdditionalRateItem;
+        total[t] = (total[t] ?? 0) + numVal(item[key] as number | '');
+      }
+    }
+    return total;
+  }
+  const additionalAirfareTotal = sumAdditionalWithMarkup(additionalAirfare);
+  const additionalHotelTotal = sumAdditionalWithMarkup(additionalHotel);
+  const additionalTransferTotal = sumAdditionalNoMarkup(additionalTransfer);
+  const totalAirfareRates: GuestRates = GUEST_TYPES.reduce(
+    (acc, t) => ({ ...acc, [t]: (computedAirfareRates[t] ?? 0) + (additionalAirfareTotal[t] ?? 0) }),
+    {} as GuestRates
+  );
+  const totalHotelRates: GuestRates = GUEST_TYPES.reduce(
+    (acc, t) => ({ ...acc, [t]: (computedHotelRates[t] ?? 0) + (additionalHotelTotal[t] ?? 0) }),
+    {} as GuestRates
+  );
+  const totalTransferRates: GuestRates = GUEST_TYPES.reduce(
+    (acc, t) => ({ ...acc, [t]: (computedTransferRates[t] ?? 0) + (additionalTransferTotal[t] ?? 0) }),
+    {} as GuestRates
+  );
   const computedPackagePerPax = calculatePackagePerPax(
-    trip.packageType === 'land_arrangement' ? {} : computedAirfareRates,
-    computedHotelRates,
-    computedTransferRates,
+    trip.packageType === 'land_arrangement' ? {} : totalAirfareRates,
+    totalHotelRates,
+    totalTransferRates,
     tourClientRateMap,
     otherCostRateMap
   );
@@ -444,6 +578,45 @@ export function QuotationWizard({
 
   function removeTourPricing(sourceTourId: string) {
     setTourPricing((prev) => prev.filter((t) => t.sourceTourId !== sourceTourId));
+  }
+
+  function addAdditionalAirfare() {
+    setAdditionalAirfare((prev) => [
+      ...prev,
+      { key: `new-${Date.now()}-${prev.length}`, label: '', rateSenior: '', rateAdult: '', rateChild: '', rateInfant: '', ratePwd: '', markupPct: 0.1, markupEnabled: true },
+    ]);
+  }
+  function updateAdditionalAirfare(key: string, patch: Partial<AdditionalRateItemWithMarkup>) {
+    setAdditionalAirfare((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+  }
+  function removeAdditionalAirfare(key: string) {
+    setAdditionalAirfare((prev) => prev.filter((a) => a.key !== key));
+  }
+
+  function addAdditionalHotel() {
+    setAdditionalHotel((prev) => [
+      ...prev,
+      { key: `new-${Date.now()}-${prev.length}`, label: '', rateSenior: '', rateAdult: '', rateChild: '', rateInfant: '', ratePwd: '', markupPct: 0.1, markupEnabled: true },
+    ]);
+  }
+  function updateAdditionalHotel(key: string, patch: Partial<AdditionalRateItemWithMarkup>) {
+    setAdditionalHotel((prev) => prev.map((h) => (h.key === key ? { ...h, ...patch } : h)));
+  }
+  function removeAdditionalHotel(key: string) {
+    setAdditionalHotel((prev) => prev.filter((h) => h.key !== key));
+  }
+
+  function addAdditionalTransfer() {
+    setAdditionalTransfer((prev) => [
+      ...prev,
+      { key: `new-${Date.now()}-${prev.length}`, label: '', rateSenior: '', rateAdult: '', rateChild: '', rateInfant: '', ratePwd: '' },
+    ]);
+  }
+  function updateAdditionalTransfer(key: string, patch: Partial<AdditionalRateItem>) {
+    setAdditionalTransfer((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)));
+  }
+  function removeAdditionalTransfer(key: string) {
+    setAdditionalTransfer((prev) => prev.filter((t) => t.key !== key));
   }
 
   function addOtherCostItem() {
@@ -580,6 +753,37 @@ export function QuotationWizard({
       tourPricing: tourPricing.map((t) => ({
         sourceTourId: t.sourceTourId,
         tourName: t.tourName,
+        rateSenior: t.rateSenior === '' ? null : Number(t.rateSenior),
+        rateAdult: t.rateAdult === '' ? null : Number(t.rateAdult),
+        rateChild: t.rateChild === '' ? null : Number(t.rateChild),
+        rateInfant: t.rateInfant === '' ? null : Number(t.rateInfant),
+        ratePwd: t.ratePwd === '' ? null : Number(t.ratePwd),
+      })),
+      additionalAirfare: additionalAirfare.map((a) => ({
+        id: a.id,
+        label: a.label,
+        rateSenior: a.rateSenior === '' ? null : Number(a.rateSenior),
+        rateAdult: a.rateAdult === '' ? null : Number(a.rateAdult),
+        rateChild: a.rateChild === '' ? null : Number(a.rateChild),
+        rateInfant: a.rateInfant === '' ? null : Number(a.rateInfant),
+        ratePwd: a.ratePwd === '' ? null : Number(a.ratePwd),
+        markupPct: a.markupPct,
+        markupEnabled: a.markupEnabled,
+      })),
+      additionalHotel: additionalHotel.map((h) => ({
+        id: h.id,
+        label: h.label,
+        rateSenior: h.rateSenior === '' ? null : Number(h.rateSenior),
+        rateAdult: h.rateAdult === '' ? null : Number(h.rateAdult),
+        rateChild: h.rateChild === '' ? null : Number(h.rateChild),
+        rateInfant: h.rateInfant === '' ? null : Number(h.rateInfant),
+        ratePwd: h.ratePwd === '' ? null : Number(h.ratePwd),
+        markupPct: h.markupPct,
+        markupEnabled: h.markupEnabled,
+      })),
+      additionalTransfer: additionalTransfer.map((t) => ({
+        id: t.id,
+        label: t.label,
         rateSenior: t.rateSenior === '' ? null : Number(t.rateSenior),
         rateAdult: t.rateAdult === '' ? null : Number(t.rateAdult),
         rateChild: t.rateChild === '' ? null : Number(t.rateChild),
@@ -1013,7 +1217,9 @@ export function QuotationWizard({
                   )}
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">Airfare — Rate Per Person</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">
+                      {additionalAirfare.length > 0 ? 'Airfare 1' : 'Airfare'} — Rate Per Person
+                    </p>
                     <MarkupInput
                       value={trip.airfareMarkupPct}
                       onChange={(v) => setTrip((t) => ({ ...t, airfareMarkupPct: v }))}
@@ -1046,10 +1252,68 @@ export function QuotationWizard({
                   <AdjustedRateRow rates={computedAirfareRates} counts={guestCounts} />
                 </div>
 
+                {/* Additional Airfare sections (2, 3, 4...) for a
+                    multi-destination itinerary, e.g. Manila -> Hanoi as
+                    Airfare 1, Hanoi -> Manila as Airfare 2. Each
+                    calculates completely independently, with its own
+                    markup, and is never combined with another section's
+                    rates. */}
+                {additionalAirfare.map((item, i) => (
+                  <div
+                    key={item.key}
+                    className={clsx(
+                      'rounded-md border border-sand-200 bg-surface p-3',
+                      trip.packageType === 'land_arrangement' && 'opacity-60'
+                    )}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <input
+                        value={item.label}
+                        onChange={(e) => updateAdditionalAirfare(item.key, { label: e.target.value })}
+                        placeholder={`Airfare ${i + 2} — e.g. Hanoi \u2192 Manila`}
+                        className="flex-1 rounded-md border border-sand-200 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-ink-700 outline-none ring-harbor-400 focus:ring-2"
+                      />
+                      <MarkupInput
+                        value={item.markupPct}
+                        onChange={(v) => updateAdditionalAirfare(item.key, { markupPct: v })}
+                        enabled={item.markupEnabled}
+                        onEnabledChange={(v) => updateAdditionalAirfare(item.key, { markupEnabled: v })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAdditionalAirfare(item.key)}
+                        className="shrink-0 text-xs text-coral-600 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateAdditionalAirfare(item.key, { rateAdult: v })} />
+                      <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateAdditionalAirfare(item.key, { rateSenior: v })} />
+                      <PriceField label="Child" value={item.rateChild} onChange={(v) => updateAdditionalAirfare(item.key, { rateChild: v })} />
+                      <PriceField
+                        label="Infant/Toddler"
+                        value={item.rateInfant}
+                        onChange={(v) => updateAdditionalAirfare(item.key, { rateInfant: v })}
+                      />
+                      <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalAirfare(item.key, { ratePwd: v })} />
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addAdditionalAirfare}
+                  className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100"
+                >
+                  + Add Another Airfare
+                </button>
+
                 {/* HOTEL */}
                 <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">Hotel — Rate Per Person</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">
+                      {additionalHotel.length > 0 ? 'Hotel 1' : 'Hotel'} — Rate Per Person
+                    </p>
                     <MarkupInput
                       value={trip.hotelMarkupPct}
                       onChange={(v) => setTrip((t) => ({ ...t, hotelMarkupPct: v }))}
@@ -1075,9 +1339,57 @@ export function QuotationWizard({
                   <AdjustedRateRow rates={computedHotelRates} counts={guestCounts} />
                 </div>
 
+                {/* Additional Hotel sections (2, 3, 4...), e.g. Hanoi
+                    Hotel as Hotel 1, Sapa Hotel as Hotel 2. */}
+                {additionalHotel.map((item, i) => (
+                  <div key={item.key} className="rounded-md border border-sand-200 bg-surface p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <input
+                        value={item.label}
+                        onChange={(e) => updateAdditionalHotel(item.key, { label: e.target.value })}
+                        placeholder={`Hotel ${i + 2} — e.g. Sapa Hotel`}
+                        className="flex-1 rounded-md border border-sand-200 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-ink-700 outline-none ring-harbor-400 focus:ring-2"
+                      />
+                      <MarkupInput
+                        value={item.markupPct}
+                        onChange={(v) => updateAdditionalHotel(item.key, { markupPct: v })}
+                        enabled={item.markupEnabled}
+                        onEnabledChange={(v) => updateAdditionalHotel(item.key, { markupEnabled: v })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAdditionalHotel(item.key)}
+                        className="shrink-0 text-xs text-coral-600 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateAdditionalHotel(item.key, { rateAdult: v })} />
+                      <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateAdditionalHotel(item.key, { rateSenior: v })} />
+                      <PriceField label="Child" value={item.rateChild} onChange={(v) => updateAdditionalHotel(item.key, { rateChild: v })} />
+                      <PriceField
+                        label="Infant/Toddler"
+                        value={item.rateInfant}
+                        onChange={(v) => updateAdditionalHotel(item.key, { rateInfant: v })}
+                      />
+                      <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalHotel(item.key, { ratePwd: v })} />
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addAdditionalHotel}
+                  className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100"
+                >
+                  + Add Another Hotel
+                </button>
+
                 {/* TRANSFER — no markup at all, per spec; the entered rate is used exactly as-is. */}
                 <div className="rounded-md border border-sand-200 bg-surface p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Transfer — Rate Per Person</p>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">
+                    {additionalTransfer.length > 0 ? 'Transfer 1' : 'Transfer'} — Rate Per Person
+                  </p>
                   <p className="mb-2 text-xs text-ink-500">
                     Include any tour-specific transfer here too — e.g. a Disneyland ticket plus its roundtrip hotel
                     transfer combine into one per-person Transfer rate for that guest type.
@@ -1099,6 +1411,48 @@ export function QuotationWizard({
                   </div>
                   <AdjustedRateRow rates={computedTransferRates} counts={guestCounts} />
                 </div>
+
+                {/* Additional Transfer sections (2, 3, 4...), e.g. Hanoi
+                    Airport Transfer as Transfer 1, Hanoi-to-Sapa Transfer
+                    as Transfer 2. No markup on any of these, matching the
+                    default Transfer section exactly. */}
+                {additionalTransfer.map((item, i) => (
+                  <div key={item.key} className="rounded-md border border-sand-200 bg-surface p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <input
+                        value={item.label}
+                        onChange={(e) => updateAdditionalTransfer(item.key, { label: e.target.value })}
+                        placeholder={`Transfer ${i + 2} — e.g. Hanoi to Sapa`}
+                        className="flex-1 rounded-md border border-sand-200 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-ink-700 outline-none ring-harbor-400 focus:ring-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAdditionalTransfer(item.key)}
+                        className="shrink-0 text-xs text-coral-600 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateAdditionalTransfer(item.key, { rateAdult: v })} />
+                      <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateAdditionalTransfer(item.key, { rateSenior: v })} />
+                      <PriceField label="Child" value={item.rateChild} onChange={(v) => updateAdditionalTransfer(item.key, { rateChild: v })} />
+                      <PriceField
+                        label="Infant/Toddler"
+                        value={item.rateInfant}
+                        onChange={(v) => updateAdditionalTransfer(item.key, { rateInfant: v })}
+                      />
+                      <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalTransfer(item.key, { ratePwd: v })} />
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addAdditionalTransfer}
+                  className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100"
+                >
+                  + Add Another Transfer
+                </button>
 
                 {/* TOURS — one row per selected Tour, each with its own editable
                     per-person rates for this quotation only. A tour can be

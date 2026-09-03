@@ -50,6 +50,37 @@ export const tourPricingItemSchema = z.object({
   ratePwd: z.coerce.number().min(0).optional().nullable(),
 });
 
+/**
+ * One additional Airfare or Hotel section beyond the default (which still
+ * lives in quotationDraftSchema's own top-level airfare-prefixed and
+ * hotel-prefixed fields) — this schema is only for section 2, 3, 4... A
+ * multi-destination trip (e.g. Manila to Hanoi, then Hanoi to Manila)
+ * needs more than one of these, each with its own independently
+ * calculated rates and markup.
+ */
+export const additionalRateItemWithMarkupSchema = z.object({
+  id: z.string().uuid().optional(),
+  label: z.string().trim().default(''),
+  rateSenior: z.coerce.number().min(0).optional().nullable(),
+  rateAdult: z.coerce.number().min(0).optional().nullable(),
+  rateChild: z.coerce.number().min(0).optional().nullable(),
+  rateInfant: z.coerce.number().min(0).optional().nullable(),
+  ratePwd: z.coerce.number().min(0).optional().nullable(),
+  markupPct: z.coerce.number().min(0).max(1).default(0.1),
+  markupEnabled: z.boolean().default(true),
+});
+
+/** Same shape, minus markup — Transfer has no markup at all, matching the existing single Transfer section exactly. */
+export const additionalRateItemSchema = z.object({
+  id: z.string().uuid().optional(),
+  label: z.string().trim().default(''),
+  rateSenior: z.coerce.number().min(0).optional().nullable(),
+  rateAdult: z.coerce.number().min(0).optional().nullable(),
+  rateChild: z.coerce.number().min(0).optional().nullable(),
+  rateInfant: z.coerce.number().min(0).optional().nullable(),
+  ratePwd: z.coerce.number().min(0).optional().nullable(),
+});
+
 export const quotationDraftSchema = z
   .object({
     clientId: z.string().uuid('Select a client.'),
@@ -120,6 +151,12 @@ export const quotationDraftSchema = z
     // ever writing back to the library. This is the source guestRates'
     // tour contribution above is summed from.
     tourPricing: z.array(tourPricingItemSchema).default([]),
+    // Section 1 for each of these three lives in the fields above
+    // (airfareAdultRate etc.) and is completely untouched by this —
+    // these arrays are only ever sections 2, 3, 4...
+    additionalAirfare: z.array(additionalRateItemWithMarkupSchema).default([]),
+    additionalHotel: z.array(additionalRateItemWithMarkupSchema).default([]),
+    additionalTransfer: z.array(additionalRateItemSchema).default([]),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
     // Which named consultant prepared this quote — see agency_consultants;

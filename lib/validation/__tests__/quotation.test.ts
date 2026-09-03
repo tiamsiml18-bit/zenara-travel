@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { quotationDraftSchema, itineraryDaySchema, guestRateSchema } from '@/lib/validation/quotation';
+import {
+  quotationDraftSchema,
+  itineraryDaySchema,
+  guestRateSchema,
+  additionalRateItemWithMarkupSchema,
+  additionalRateItemSchema,
+} from '@/lib/validation/quotation';
 
 const validDraft = {
   clientId: '11111111-1111-1111-1111-111111111111',
@@ -158,5 +164,65 @@ describe('itineraryDaySchema', () => {
     const result = itineraryDaySchema.safeParse({ dayNumber: 1, title: 'Arrival' });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.activities).toEqual([]);
+  });
+});
+
+describe('additionalRateItemWithMarkupSchema (Airfare/Hotel sections 2, 3, 4...)', () => {
+  it('accepts a fully-filled additional section and defaults markup to 10% enabled, matching the default single-section behavior', () => {
+    const result = additionalRateItemWithMarkupSchema.safeParse({
+      label: 'Hanoi \u2192 Manila',
+      rateAdult: 15000,
+      rateSenior: 14000,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.markupPct).toBe(0.1);
+      expect(result.data.markupEnabled).toBe(true);
+    }
+  });
+
+  it('accepts an empty label — the agent can fill it in later, never blocking the add', () => {
+    const result = additionalRateItemWithMarkupSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a negative rate', () => {
+    const result = additionalRateItemWithMarkupSchema.safeParse({ label: 'Extra leg', rateAdult: -100 });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('additionalRateItemSchema (Transfer sections 2, 3, 4... — no markup)', () => {
+  it('accepts a section with no markup fields at all, matching the default Transfer section which also has none', () => {
+    const result = additionalRateItemSchema.safeParse({ label: 'Hanoi to Sapa', rateAdult: 2000 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect('markupPct' in result.data).toBe(false);
+      expect('markupEnabled' in result.data).toBe(false);
+    }
+  });
+});
+
+describe('quotationDraftSchema — multiple Airfare/Hotel/Transfer sections', () => {
+  it('defaults additionalAirfare/additionalHotel/additionalTransfer to empty arrays — every existing quotation with zero additional sections is completely unaffected', () => {
+    const result = quotationDraftSchema.safeParse(validDraft);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.additionalAirfare).toEqual([]);
+      expect(result.data.additionalHotel).toEqual([]);
+      expect(result.data.additionalTransfer).toEqual([]);
+    }
+  });
+
+  it('accepts multiple independent Airfare sections for a multi-destination itinerary', () => {
+    const result = quotationDraftSchema.safeParse({
+      ...validDraft,
+      additionalAirfare: [
+        { label: 'Manila \u2192 Singapore', rateAdult: 12000 },
+        { label: 'Singapore \u2192 Kuala Lumpur', rateAdult: 8000 },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.additionalAirfare).toHaveLength(2);
   });
 });
