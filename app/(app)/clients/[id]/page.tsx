@@ -67,7 +67,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
                 )}
               </div>
 
-              <dl className="mt-4 space-y-2 border-t border-sand-100 pt-4 text-sm">
+              <dl className="mt-4 grid grid-cols-2 gap-y-2 border-t border-sand-100 pt-4 text-sm">
                 <Row label="Source" value={client.source?.name ?? '—'} />
                 <Row label="Destination" value={client.destination ?? '—'} />
                 <Row

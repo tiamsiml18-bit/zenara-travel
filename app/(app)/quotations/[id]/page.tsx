@@ -260,7 +260,7 @@ export default async function QuotationDetailPage({
                 <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-coral-600">
                   Internal pricing — staff only
                 </h3>
-                <dl className="mt-3 space-y-1.5 text-sm">
+                <dl className="mt-3 grid grid-cols-2 gap-y-1.5 text-sm">
                   <Row label="Supplier cost" value={formatMoney(pricing.supplier_cost)} />
                   <Row label="Markup" value={formatMoney(pricing.markup)} />
                   <Row label="Profit" value={formatMoney(pricing.profit)} />

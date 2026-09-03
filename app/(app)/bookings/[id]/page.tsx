@@ -175,7 +175,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
           <div className="col-span-1 space-y-6">
             <section className="rounded-lg border border-sand-200 bg-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Balance</h3>
-              <dl className="space-y-2 text-sm">
+              <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <Row label="Total package" value={formatMoney(booking.total_amount)} />
                 <Row label="Amount paid" value={formatMoney(totalPaid)} />
                 <Row label="Balance" value={formatMoney(balance)} />
