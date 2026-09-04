@@ -126,13 +126,14 @@ export interface QuotationWizardInitialData {
   transferInfantRate?: number;
   transferPwdRate?: number;
   transferMarkupPct?: number;
+  transferMarkupEnabled?: boolean;
   // Section 1 lives in the flat fields above; these are sections 2, 3,
   // 4... for a multi-destination itinerary (e.g. Manila -> Hanoi, then
   // Hanoi -> Manila as a second Airfare section). No `key` here — that's
   // generated once when the wizard's state initializes from this data.
   additionalAirfare?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
   additionalHotel?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
-  additionalTransfer?: Omit<AdditionalRateItem, 'key'>[];
+  additionalTransfer?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
   paymentMethod?: 'credit_card' | 'paypal' | 'none';
   notes: string;
   itinerary: ItineraryDayDraft[];
@@ -245,6 +246,10 @@ export function QuotationWizard({
     transferInfantRate: (initialData?.transferInfantRate ?? '') as number | '',
     transferPwdRate: (initialData?.transferPwdRate ?? '') as number | '',
     transferMarkupPct: initialData?.transferMarkupPct ?? defaultTransferMarkupPct,
+    // ON by default (matches Airfare/Hotel) — existing quotations always
+    // pass their own saved value through initialData explicitly, so this
+    // default only ever applies to a genuinely new quotation.
+    transferMarkupEnabled: initialData?.transferMarkupEnabled ?? true,
     paymentMethod: initialData?.paymentMethod ?? ('credit_card' as 'credit_card' | 'paypal' | 'none'),
   });
   // Per guest type — client rate AND internal supplier cost, side by side,
@@ -306,7 +311,7 @@ export function QuotationWizard({
       markupEnabled: h.markupEnabled,
     }))
   );
-  const [additionalTransfer, setAdditionalTransfer] = useState<AdditionalRateItem[]>(
+  const [additionalTransfer, setAdditionalTransfer] = useState<AdditionalRateItemWithMarkup[]>(
     (initialData?.additionalTransfer ?? []).map((t) => ({
       id: t.id,
       key: t.id ?? nextKey(),
@@ -316,6 +321,8 @@ export function QuotationWizard({
       rateChild: t.rateChild ?? '',
       rateInfant: t.rateInfant ?? '',
       ratePwd: t.ratePwd ?? '',
+      markupPct: t.markupPct,
+      markupEnabled: t.markupEnabled,
     }))
   );
   interface OtherCostRow {
@@ -400,14 +407,16 @@ export function QuotationWizard({
     },
     {} as Record<GuestType, number>
   );
-  // Transfer has NO markup, per spec — used exactly as entered.
-  const computedTransferRates = {
-    senior: numVal(trip.transferSeniorRate),
-    adult: numVal(trip.transferAdultRate),
-    child: numVal(trip.transferChildRate),
-    infant: numVal(trip.transferInfantRate),
-    pwd: numVal(trip.transferPwdRate),
-  };
+  const computedTransferRates = calculateMarkedUpRates(
+    {
+      senior: numVal(trip.transferSeniorRate),
+      adult: numVal(trip.transferAdultRate),
+      child: numVal(trip.transferChildRate),
+      infant: numVal(trip.transferInfantRate),
+      pwd: numVal(trip.transferPwdRate),
+    },
+    trip.transferMarkupEnabled ? trip.transferMarkupPct : 0
+  );
   // Land Arrangement Only excludes Airfare from the calculation entirely —
   // not by deleting or zeroing the entered rates (those stay exactly as
   // typed, in case the agent switches back to All-In), but by simply not
@@ -438,19 +447,9 @@ export function QuotationWizard({
     }
     return total;
   }
-  function sumAdditionalNoMarkup(items: AdditionalRateItem[]): GuestRates {
-    const total: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
-    for (const item of items) {
-      for (const t of GUEST_TYPES) {
-        const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof AdditionalRateItem;
-        total[t] = (total[t] ?? 0) + numVal(item[key] as number | '');
-      }
-    }
-    return total;
-  }
   const additionalAirfareTotal = sumAdditionalWithMarkup(additionalAirfare);
   const additionalHotelTotal = sumAdditionalWithMarkup(additionalHotel);
-  const additionalTransferTotal = sumAdditionalNoMarkup(additionalTransfer);
+  const additionalTransferTotal = sumAdditionalWithMarkup(additionalTransfer);
   const totalAirfareRates: GuestRates = GUEST_TYPES.reduce(
     (acc, t) => ({ ...acc, [t]: (computedAirfareRates[t] ?? 0) + (additionalAirfareTotal[t] ?? 0) }),
     {} as GuestRates
@@ -610,10 +609,20 @@ export function QuotationWizard({
   function addAdditionalTransfer() {
     setAdditionalTransfer((prev) => [
       ...prev,
-      { key: `new-${Date.now()}-${prev.length}`, label: '', rateSenior: '', rateAdult: '', rateChild: '', rateInfant: '', ratePwd: '' },
+      {
+        key: `new-${Date.now()}-${prev.length}`,
+        label: '',
+        rateSenior: '',
+        rateAdult: '',
+        rateChild: '',
+        rateInfant: '',
+        ratePwd: '',
+        markupPct: 0.1,
+        markupEnabled: true,
+      },
     ]);
   }
-  function updateAdditionalTransfer(key: string, patch: Partial<AdditionalRateItem>) {
+  function updateAdditionalTransfer(key: string, patch: Partial<AdditionalRateItemWithMarkup>) {
     setAdditionalTransfer((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)));
   }
   function removeAdditionalTransfer(key: string) {
@@ -826,6 +835,8 @@ export function QuotationWizard({
         rateChild: t.rateChild === '' ? null : Number(t.rateChild),
         rateInfant: t.rateInfant === '' ? null : Number(t.rateInfant),
         ratePwd: t.ratePwd === '' ? null : Number(t.ratePwd),
+        markupPct: t.markupPct,
+        markupEnabled: t.markupEnabled,
       })),
       airfareAdultRate: numVal(trip.airfareAdultRate),
       airfareSeniorRate: numVal(trip.airfareSeniorRate),
@@ -847,6 +858,7 @@ export function QuotationWizard({
       transferInfantRate: numVal(trip.transferInfantRate),
       transferPwdRate: numVal(trip.transferPwdRate),
       transferMarkupPct: trip.transferMarkupPct,
+      transferMarkupEnabled: trip.transferMarkupEnabled,
       paymentMethod: trip.paymentMethod,
       notes: trip.notes,
       consultantId: trip.consultantId,
@@ -1422,11 +1434,19 @@ export function QuotationWizard({
                   + Add Another Hotel
                 </button>
 
-                {/* TRANSFER — no markup at all, per spec; the entered rate is used exactly as-is. */}
+                {/* TRANSFER */}
                 <div className="rounded-md border border-sand-200 bg-surface p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">
-                    {additionalTransfer.length > 0 ? 'Transfer 1' : 'Transfer'} — Rate Per Person
-                  </p>
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-700">
+                      {additionalTransfer.length > 0 ? 'Transfer 1' : 'Transfer'} — Rate Per Person
+                    </p>
+                    <MarkupInput
+                      value={trip.transferMarkupPct}
+                      onChange={(v) => setTrip((t) => ({ ...t, transferMarkupPct: v }))}
+                      enabled={trip.transferMarkupEnabled}
+                      onEnabledChange={(v) => setTrip((t) => ({ ...t, transferMarkupEnabled: v }))}
+                    />
+                  </div>
                   <p className="mb-2 text-xs text-ink-500">
                     Include any tour-specific transfer here too — e.g. a Disneyland ticket plus its roundtrip hotel
                     transfer combine into one per-person Transfer rate for that guest type.
@@ -1461,6 +1481,12 @@ export function QuotationWizard({
                         onChange={(e) => updateAdditionalTransfer(item.key, { label: e.target.value })}
                         placeholder={`Transfer ${i + 2} — e.g. Hanoi to Sapa`}
                         className="flex-1 rounded-md border border-sand-200 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-ink-700 outline-none ring-harbor-400 focus:ring-2"
+                      />
+                      <MarkupInput
+                        value={item.markupPct}
+                        onChange={(v) => updateAdditionalTransfer(item.key, { markupPct: v })}
+                        enabled={item.markupEnabled}
+                        onEnabledChange={(v) => updateAdditionalTransfer(item.key, { markupEnabled: v })}
                       />
                       <button
                         type="button"
@@ -1938,9 +1964,9 @@ function MarkupInput({
 }: {
   value: number;
   onChange: (v: number) => void;
-  // Optional — Transfer/Tours have no markup at all and don't pass these,
-  // so they keep the plain always-on percentage field. Airfare/Hotel pass
-  // both, making the percentage itself optional per spec.
+  // Optional — Tours have no markup at all and don't pass these, so they
+  // keep the plain always-on percentage field. Airfare/Hotel/Transfer all
+  // pass both, making the percentage itself optional per spec.
   enabled?: boolean;
   onEnabledChange?: (v: boolean) => void;
 }) {

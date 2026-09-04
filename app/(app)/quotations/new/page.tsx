@@ -46,7 +46,7 @@ export default async function NewQuotationPage({
             creditCard: agencySettings?.credit_card_fee_pct ?? 0.029,
             paypal: agencySettings?.paypal_fee_pct ?? 0.039,
           }}
-          defaultTransferMarkupPct={agencySettings?.default_transfer_markup_pct ?? 0.20}
+          defaultTransferMarkupPct={agencySettings?.default_transfer_markup_pct ?? 0.10}
           initialClientId={clientId}
         />
       </main>

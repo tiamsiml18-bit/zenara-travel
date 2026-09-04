@@ -133,7 +133,11 @@ export const quotationDraftSchema = z
     transferChildRate: z.coerce.number().min(0).default(0),
     transferInfantRate: z.coerce.number().min(0).default(0),
     transferPwdRate: z.coerce.number().min(0).default(0),
-    transferMarkupPct: z.coerce.number().min(0).max(1).default(0.2),
+    transferMarkupPct: z.coerce.number().min(0).max(1).default(0.1),
+    // ON by default for new quotations (matching Airfare/Hotel) — existing
+    // quotations always pass their own saved value through explicitly, so
+    // this default only ever applies to a genuinely new quotation.
+    transferMarkupEnabled: z.boolean().default(true),
 
     // Determines which admin-configurable fee % (agency_settings) applies —
     // never a hardcoded percentage in application code.
@@ -156,7 +160,7 @@ export const quotationDraftSchema = z
     // these arrays are only ever sections 2, 3, 4...
     additionalAirfare: z.array(additionalRateItemWithMarkupSchema).default([]),
     additionalHotel: z.array(additionalRateItemWithMarkupSchema).default([]),
-    additionalTransfer: z.array(additionalRateItemSchema).default([]),
+    additionalTransfer: z.array(additionalRateItemWithMarkupSchema).default([]),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
     // Which named consultant prepared this quote — see agency_consultants;

@@ -156,9 +156,9 @@ describe('calculateMarkedUpRates — Hotel/Transfer, each guest type independent
     expect(rates.adult).toBe(11000);
   });
 
-  it('matches the spec Transfer example: PHP 2,000 + 20% = PHP 2,400', () => {
-    const rates = calculateMarkedUpRates({ adult: 2000 }, 0.2);
-    expect(rates.adult).toBe(2400);
+  it('matches the spec Transfer example: PHP 5,000 + 10% = PHP 5,500', () => {
+    const rates = calculateMarkedUpRates({ adult: 5000 }, 0.1);
+    expect(rates.adult).toBe(5500);
   });
 
   it('allows genuinely different per-guest-type rates (Option 2) — a child hotel rate can differ from the adult rate', () => {

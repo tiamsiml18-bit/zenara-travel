@@ -73,7 +73,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
             creditCard: agencySettings?.credit_card_fee_pct ?? 0.029,
             paypal: agencySettings?.paypal_fee_pct ?? 0.039,
           }}
-          defaultTransferMarkupPct={agencySettings?.default_transfer_markup_pct ?? 0.20}
+          defaultTransferMarkupPct={agencySettings?.default_transfer_markup_pct ?? 0.10}
           initialData={{
             clientId: quotation.client_id,
             clientLabel: quotation.client?.full_name ?? '',

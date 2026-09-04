@@ -177,7 +177,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .order('sort_order'),
     supabase
       .from('quotation_transfer_items')
-      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd')
+      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd, markup_pct, markup_enabled')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
   ]);
@@ -251,7 +251,7 @@ export async function getPricingForVersion(supabase: SupabaseClient, versionId: 
       `supplier_cost, markup, selling_price, profit, profit_margin_pct,
        airfare_adult_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate, airfare_markup_pct, airfare_markup_enabled,
        hotel_senior_rate, hotel_adult_rate, hotel_child_rate, hotel_infant_rate, hotel_pwd_rate, hotel_markup_pct, hotel_markup_enabled,
-       transfer_senior_rate, transfer_adult_rate, transfer_child_rate, transfer_infant_rate, transfer_pwd_rate, transfer_markup_pct,
+       transfer_senior_rate, transfer_adult_rate, transfer_child_rate, transfer_infant_rate, transfer_pwd_rate, transfer_markup_pct, transfer_markup_enabled,
        payment_method`
     )
     .eq('quotation_version_id', versionId)
@@ -361,19 +361,6 @@ function sumAdditionalWithMarkup(items: QuotationDraftInput['additionalAirfare']
   return result;
 }
 
-/** Same as sumAdditionalWithMarkup but for Transfer, which has no markup at all — matches the single default Transfer section exactly. */
-function sumAdditionalNoMarkup(items: QuotationDraftInput['additionalTransfer']): GuestRates {
-  const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
-  for (const item of items) {
-    result.senior = (result.senior || 0) + (item.rateSenior ?? 0);
-    result.adult = (result.adult || 0) + (item.rateAdult ?? 0);
-    result.child = (result.child || 0) + (item.rateChild ?? 0);
-    result.infant = (result.infant || 0) + (item.rateInfant ?? 0);
-    result.pwd = (result.pwd || 0) + (item.ratePwd ?? 0);
-  }
-  return result;
-}
-
 /**
  * The one function that computes a quotation's actual pricing. Every
  * supplier rate is entered PER PERSON directly by the agent (Airfare,
@@ -404,16 +391,16 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     { senior: input.hotelSeniorRate, adult: input.hotelAdultRate, child: input.hotelChildRate, infant: input.hotelInfantRate, pwd: input.hotelPwdRate },
     input.hotelMarkupEnabled ? input.hotelMarkupPct : 0
   );
-  // Transfer has NO markup at all, per spec — the entered per-person rate
-  // is used exactly as-is, unlike Airfare/Hotel which each apply their own
-  // editable percentage.
-  const transferRates = {
-    senior: input.transferSeniorRate,
-    adult: input.transferAdultRate,
-    child: input.transferChildRate,
-    infant: input.transferInfantRate,
-    pwd: input.transferPwdRate,
-  };
+  const transferRates = calculateMarkedUpRates(
+    {
+      senior: input.transferSeniorRate,
+      adult: input.transferAdultRate,
+      child: input.transferChildRate,
+      infant: input.transferInfantRate,
+      pwd: input.transferPwdRate,
+    },
+    input.transferMarkupEnabled ? input.transferMarkupPct : 0
+  );
   // Additional sections (2, 3, 4...) for a multi-destination itinerary —
   // each already has its own markup applied inside the sum helper, then
   // combined with the default section below into one total per category.
@@ -421,7 +408,7 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
   // simply add zero, leaving the result identical to before this feature.
   const additionalAirfareTotal = sumAdditionalWithMarkup(input.additionalAirfare);
   const additionalHotelTotal = sumAdditionalWithMarkup(input.additionalHotel);
-  const additionalTransferTotal = sumAdditionalNoMarkup(input.additionalTransfer);
+  const additionalTransferTotal = sumAdditionalWithMarkup(input.additionalTransfer);
   const totalAirfareRates: GuestRates = {
     senior: (airfareRates.senior ?? 0) + (additionalAirfareTotal.senior ?? 0),
     adult: (airfareRates.adult ?? 0) + (additionalAirfareTotal.adult ?? 0),
@@ -597,6 +584,8 @@ async function insertVersionChildren(
         rate_child: t.rateChild ?? null,
         rate_infant: t.rateInfant ?? null,
         rate_pwd: t.ratePwd ?? null,
+        markup_pct: t.markupPct,
+        markup_enabled: t.markupEnabled,
         sort_order: i,
       }))
     );
@@ -712,6 +701,7 @@ async function insertVersionChildren(
     transfer_infant_rate: input.transferInfantRate,
     transfer_pwd_rate: input.transferPwdRate,
     transfer_markup_pct: input.transferMarkupPct,
+    transfer_markup_enabled: input.transferMarkupEnabled,
     payment_method: input.paymentMethod,
   });
   if (pricingError) throw new Error(`Failed to save pricing: ${pricingError.message}`);
@@ -1299,6 +1289,10 @@ export async function duplicateQuotation(
     transferInfantRate: pricing?.transfer_infant_rate ?? 0,
     transferPwdRate: pricing?.transfer_pwd_rate ?? 0,
     transferMarkupPct: pricing?.transfer_markup_pct ?? DEFAULT_TRANSFER_MARKUP_PCT,
+    // Carries forward the SOURCE quotation's actual saved on/off state,
+    // not a fresh default — duplicating should reproduce exactly what
+    // the original quotation had, whether that's on or off.
+    transferMarkupEnabled: pricing?.transfer_markup_enabled ?? true,
     // Was previously hardcoded to [] — a duplicated quotation silently
     // lost all Tour pricing. Fixed here alongside adding the new
     // Airfare/Hotel/Transfer additional-section arrays, since this exact
@@ -1322,7 +1316,11 @@ export async function duplicateQuotation(
       markupPct: markupPct ?? 0.1,
       markupEnabled: markupEnabled ?? true,
     })),
-    additionalTransfer: additionalTransfer.map(({ id, ...rest }) => rest),
+    additionalTransfer: additionalTransfer.map(({ id, markupPct, markupEnabled, ...rest }) => ({
+      ...rest,
+      markupPct: markupPct ?? 0.1,
+      markupEnabled: markupEnabled ?? true,
+    })),
     paymentMethod: (pricing?.payment_method as 'credit_card' | 'paypal' | 'none') ?? 'credit_card',
     notes: currentVersion.notes ?? '',
     inclusions: inclusions.map((i) => i.item),

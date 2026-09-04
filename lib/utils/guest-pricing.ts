@@ -20,7 +20,7 @@ export type GuestType = (typeof GUEST_TYPES)[number];
 /** Default markup percentages — editable per quotation, these are just the starting values a new quotation pre-fills with. */
 export const DEFAULT_AIRFARE_MARKUP_PCT = 0.1;
 export const DEFAULT_HOTEL_MARKUP_PCT = 0.1;
-export const DEFAULT_TRANSFER_MARKUP_PCT = 0.2;
+export const DEFAULT_TRANSFER_MARKUP_PCT = 0.1;
 
 export const GUEST_TYPE_LABELS: Record<GuestType, string> = {
   senior: 'Senior Citizen',
