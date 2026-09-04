@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image, Link } from '@react-pdf/renderer';
 import type { QuotationPdfData } from '@/lib/services/pdf-data';
 import { ZENARA_LOGO_DATA_URI } from './zenara-logo';
 import { GUEST_TYPE_LABELS } from '@/lib/utils/guest-pricing';
@@ -172,6 +172,16 @@ const styles = StyleSheet.create({
 
   termsBlock: { fontSize: 9.5, color: COLORS.ink500, lineHeight: 1.5 },
   termsTitle: { fontSize: 11, fontWeight: 700, color: COLORS.ink700, marginBottom: 4 },
+  termsSectionHeading: {
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: COLORS.harbor700,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  termsLink: { fontSize: 9.5, color: COLORS.harbor700, textDecoration: 'underline' },
+  termsAcknowledgment: { fontSize: 9, color: COLORS.ink500, fontStyle: 'italic', lineHeight: 1.4 },
 
   footer: {
     position: 'absolute',
@@ -405,16 +415,56 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
               orphaned from its own first line -- they're the same text
               node, so they can only ever separate at a genuine line
               break, never with a boundary landing between them. */}
-          <Text style={{ marginTop: 16 }}>
-            <Text style={styles.termsTitle}>Terms and Conditions{'\n'}</Text>
-            <Text style={styles.termsBlock}>{agency.termsAndConditions}</Text>
-          </Text>
-          {agency.paymentInstructions && (
-            <Text style={{ marginTop: 8 }}>
-              <Text style={styles.termsTitle}>Payment Instructions{'\n'}</Text>
-              <Text style={styles.termsBlock}>{agency.paymentInstructions}</Text>
+          {/* TERMS & PAYMENT — a fixed, standardized block per the
+              agency's own spec, not the admin-configurable
+              termsAndConditions/paymentInstructions text (which was long
+              and inconsistent between quotations). Deliberately compact:
+              the full legal terms live at the linked page, not here.
+              Each sub-heading is combined with its own first line into
+              one Text node (same anti-orphan pattern as the rest of this
+              file) so react-pdf's page-break logic can never separate a
+              heading from its own content, while still allowing a break
+              between sub-sections if the block runs long. */}
+          <View style={{ marginTop: 16 }}>
+            <Text style={styles.termsSectionHeading}>Terms &amp; Payment</Text>
+
+            <Text style={{ marginTop: 2 }}>
+              <Text style={styles.termsTitle}>Rates{'\n'}</Text>
+              <Text style={styles.termsBlock}>Rates are subject to availability and may change until booking is confirmed.</Text>
             </Text>
-          )}
+
+            <Text style={{ marginTop: 8 }}>
+              <Text style={styles.termsTitle}>Payment{'\n'}</Text>
+              <Text style={styles.termsBlock}>
+                • 50% non-refundable deposit is required upon booking.{'\n'}• Remaining balance is due at least 14 days before
+                departure.{'\n'}• Bookings made within 14 days of departure require full payment upon confirmation.
+              </Text>
+            </Text>
+
+            <Text style={{ marginTop: 8 }}>
+              <Text style={styles.termsTitle}>Accepted Payment Methods{'\n'}</Text>
+              <Text style={styles.termsBlock}>
+                • GCash/Maya{'\n'}• Bank Transfer{'\n'}• Credit Card
+              </Text>
+            </Text>
+
+            <Text style={{ marginTop: 8 }}>
+              <Text style={styles.termsTitle}>Important{'\n'}</Text>
+              <Text style={styles.termsBlock}>
+                Cancellation, refund, rebooking, and other booking conditions are subject to Zenara Travel and Tours&apos;
+                full Terms and Conditions.
+              </Text>
+            </Text>
+
+            <Link src="https://zenaratravelandtours.com/terms-and-conditions-zenara-travel-tours" style={[styles.termsLink, { marginTop: 4 }]}>
+              View Full Terms and Conditions
+            </Link>
+
+            <Text style={[styles.termsAcknowledgment, { marginTop: 8 }]}>
+              By confirming the booking, the client acknowledges and agrees to Zenara Travel and Tours&apos; full Terms and
+              Conditions.
+            </Text>
+          </View>
         </View>
 
         <View style={styles.footer} fixed>
