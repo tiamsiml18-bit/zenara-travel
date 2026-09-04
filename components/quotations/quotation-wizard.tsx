@@ -1347,6 +1347,19 @@ export function QuotationWizard({
                       />
                       <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalAirfare(item.key, { ratePwd: v })} />
                     </div>
+                    <AdjustedRateRow
+                      rates={calculateMarkedUpRates(
+                        {
+                          senior: numVal(item.rateSenior),
+                          adult: numVal(item.rateAdult),
+                          child: numVal(item.rateChild),
+                          infant: numVal(item.rateInfant),
+                          pwd: numVal(item.ratePwd),
+                        },
+                        item.markupEnabled ? item.markupPct : 0
+                      )}
+                      counts={guestCounts}
+                    />
                   </div>
                 ))}
                 <button
@@ -1424,6 +1437,19 @@ export function QuotationWizard({
                       />
                       <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalHotel(item.key, { ratePwd: v })} />
                     </div>
+                    <AdjustedRateRow
+                      rates={calculateMarkedUpRates(
+                        {
+                          senior: numVal(item.rateSenior),
+                          adult: numVal(item.rateAdult),
+                          child: numVal(item.rateChild),
+                          infant: numVal(item.rateInfant),
+                          pwd: numVal(item.ratePwd),
+                        },
+                        item.markupEnabled ? item.markupPct : 0
+                      )}
+                      counts={guestCounts}
+                    />
                   </div>
                 ))}
                 <button
@@ -1507,6 +1533,19 @@ export function QuotationWizard({
                       />
                       <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalTransfer(item.key, { ratePwd: v })} />
                     </div>
+                    <AdjustedRateRow
+                      rates={calculateMarkedUpRates(
+                        {
+                          senior: numVal(item.rateSenior),
+                          adult: numVal(item.rateAdult),
+                          child: numVal(item.rateChild),
+                          infant: numVal(item.rateInfant),
+                          pwd: numVal(item.ratePwd),
+                        },
+                        item.markupEnabled ? item.markupPct : 0
+                      )}
+                      counts={guestCounts}
+                    />
                   </div>
                 ))}
                 <button
