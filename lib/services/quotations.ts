@@ -160,7 +160,8 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     supabase
       .from('quotation_tour_pricing')
       .select('source_tour_id, tour_name, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd')
-      .eq('quotation_version_id', versionId),
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
     // Additional Airfare/Hotel/Transfer sections beyond the default one
     // (which still lives in quotation_versions' own flat columns) — empty
     // for every quotation that's never used this feature, which is what
@@ -519,7 +520,7 @@ async function insertVersionChildren(
   // step fails safe (overwrites the existing row) instead of throwing.
   if (input.tourPricing.length > 0) {
     const { error } = await supabase.from('quotation_tour_pricing').upsert(
-      input.tourPricing.map((t) => ({
+      input.tourPricing.map((t, i) => ({
         quotation_version_id: versionId,
         source_tour_id: t.sourceTourId || null,
         tour_name: t.tourName,
@@ -528,6 +529,7 @@ async function insertVersionChildren(
         rate_child: t.rateChild ?? null,
         rate_infant: t.rateInfant ?? null,
         rate_pwd: t.ratePwd ?? null,
+        sort_order: i,
       })),
       { onConflict: 'quotation_version_id,source_tour_id' }
     );
