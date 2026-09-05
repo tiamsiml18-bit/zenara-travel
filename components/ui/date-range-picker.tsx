@@ -158,7 +158,7 @@ export function DateRangePicker({
             classNames={{
               months: 'flex gap-6',
               month: 'space-y-3',
-              month_caption: 'flex justify-center pt-1 relative items-center',
+              month_caption: 'flex justify-center pt-1 relative items-center pointer-events-none',
               caption_label: 'text-sm font-semibold text-ink-900',
               nav: 'flex items-center justify-between absolute inset-x-0',
               button_previous:
@@ -169,10 +169,19 @@ export function DateRangePicker({
               weekday: 'w-9 text-center text-[11px] font-medium uppercase tracking-wide text-ink-500',
               week: 'flex mt-1',
               day: 'h-9 w-9 text-center text-sm p-0 relative',
-              day_button: 'h-9 w-9 rounded-full text-ink-900 hover:bg-sand-100 transition-colors',
-              range_start: '[&>button]:bg-harbor-700 [&>button]:text-white [&>button]:hover:bg-harbor-700 rounded-l-full bg-harbor-100',
-              range_end: '[&>button]:bg-harbor-700 [&>button]:text-white [&>button]:hover:bg-harbor-700 rounded-r-full bg-harbor-100',
-              range_middle: 'bg-harbor-100 [&>button]:bg-transparent [&>button]:text-harbor-800 [&>button]:rounded-none',
+              day_button: 'h-9 w-9 rounded-full text-ink-900 hover:bg-sand-100 transition-all duration-150',
+              // Start/end get a visibly larger, bolder circle plus a soft
+              // ring so they read instantly as "the edges of the range"
+              // even when the range spans months or years and the middle
+              // dates aren't all on screen at once. scale-110 + the ring
+              // is what gives the "pop" — transition-all on day_button
+              // above is what makes that pop feel animated rather than
+              // an abrupt snap.
+              range_start:
+                '[&>button]:bg-harbor-700 [&>button]:text-white [&>button]:hover:bg-harbor-700 [&>button]:scale-110 [&>button]:font-bold [&>button]:ring-2 [&>button]:ring-harbor-300 [&>button]:ring-offset-2 rounded-l-full bg-harbor-100 z-10',
+              range_end:
+                '[&>button]:bg-harbor-700 [&>button]:text-white [&>button]:hover:bg-harbor-700 [&>button]:scale-110 [&>button]:font-bold [&>button]:ring-2 [&>button]:ring-harbor-300 [&>button]:ring-offset-2 rounded-r-full bg-harbor-100 z-10',
+              range_middle: 'bg-harbor-100 [&>button]:bg-transparent [&>button]:text-harbor-800 [&>button]:rounded-none [&>button]:font-normal',
               selected: '',
               today: '[&>button]:border [&>button]:border-harbor-400',
               outside: '[&>button]:text-ink-500/40',
