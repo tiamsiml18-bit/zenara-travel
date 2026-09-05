@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
 import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from './itinerary-builder';
 import { TagListInput } from './tag-list-input';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { generateSuggestedInclusions, generateSuggestedExclusions } from '@/lib/utils/quotation-inclusions';
 import { CostBreakdownEditor } from './cost-breakdown-editor';
 import { SupplierImportPanel, type AppliedSupplierData } from './supplier-import-panel';
@@ -1153,33 +1154,11 @@ export function QuotationWizard({
               value={trip.destination}
               onChange={(v) => setTrip((t) => ({ ...t, destination: v }))}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <LabeledInput
-                label="Travel start date"
-                type="date"
-                value={trip.travelStartDate}
-                onChange={(v) =>
-                  setTrip((t) => ({
-                    ...t,
-                    travelStartDate: v,
-                    // A blank native date input always opens its calendar
-                    // on today's month, no matter what — that's the actual
-                    // bug, not something React can override directly. The
-                    // fix is pre-filling the end date to the start date
-                    // whenever it's still empty, so its calendar opens
-                    // already sitting on the right month. Never touches an
-                    // end date the agent already set.
-                    travelEndDate: t.travelEndDate === '' ? v : t.travelEndDate,
-                  }))
-                }
-              />
-              <LabeledInput
-                label="Travel end date"
-                type="date"
-                value={trip.travelEndDate}
-                onChange={(v) => setTrip((t) => ({ ...t, travelEndDate: v }))}
-              />
-            </div>
+            <DateRangePicker
+              startDate={trip.travelStartDate}
+              endDate={trip.travelEndDate}
+              onChange={({ startDate, endDate }) => setTrip((t) => ({ ...t, travelStartDate: startDate, travelEndDate: endDate }))}
+            />
             <LabeledInput
               label="Quotation valid until"
               type="date"
