@@ -2037,10 +2037,19 @@ function MarkupInput({
 /** The read-only "here's what each guest type actually pays after markup" row shown below every Airfare/Hotel/Transfer entry block. */
 function AdjustedRateRow({ rates, counts }: { rates: GuestRates; counts: GuestCounts }) {
   const types = activeGuestTypes(counts);
+  // A guest type's final rate shows if EITHER that guest type has an
+  // active count in the quotation's overall guest numbers, OR a rate was
+  // actually entered for it in this specific block -- an agent who takes
+  // the time to type in a Senior rate should see its marked-up result
+  // reflected here, not have it silently hidden just because the
+  // quotation's current guest count doesn't yet include a Senior. Same
+  // rule for every block (Primary and every Additional section), so
+  // there's no inconsistency between them.
+  const shown = new Set([...types, ...GUEST_TYPE_DISPLAY_ORDER.filter((t) => (rates[t] || 0) > 0)]);
   return (
     <div className="mt-3 grid grid-cols-5 gap-2 rounded-md bg-sand-50 px-2 py-2">
       {GUEST_TYPE_DISPLAY_ORDER.map((t) =>
-        types.includes(t) ? (
+        shown.has(t) ? (
           <div key={t} className="text-center">
             <p className="text-[10px] uppercase tracking-wide text-ink-500">{GUEST_TYPE_LABELS[t]}</p>
             <p className="font-ticket text-xs font-semibold text-ink-900">

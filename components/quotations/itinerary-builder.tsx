@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, ChevronUp, ChevronDown, X, Sparkles } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, X, Sparkles, GripVertical } from 'lucide-react';
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { FREE_TIME_OPTIONS } from '@/lib/utils/free-time-options';
 import { computeDayDate } from '@/lib/utils/itinerary-dates';
 
@@ -64,6 +67,10 @@ export function ItineraryBuilder({
   travelStartDate?: string;
 }) {
   const [activityDraft, setActivityDraft] = useState<Record<number, string>>({});
+  // Small drag threshold, matching the pipeline Kanban board's existing
+  // pattern — without it, a plain click on the activity text can get
+  // misread as the start of a drag on touch devices.
+  const activitySensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   // Destination-first filtering for the tour dropdown, per day — selecting
   // a destination narrows the Tour dropdown to only that destination's
   // tours, per spec ("first select the Destination... show only Boracay
@@ -147,20 +154,28 @@ export function ItineraryBuilder({
     });
   }
 
-  // Swaps two activities' positions within the same day — the activity
-  // itself is never removed and re-added, just moved. This array is a
-  // plain Postgres array column (quotation_itinerary_days.activities /
+  // Drag-and-drop reorder within the same day — the activity itself is
+  // never removed and re-added, just moved (arrayMove creates a new
+  // array with the item relocated, same content). This array is a plain
+  // Postgres array column (quotation_itinerary_days.activities /
   // tours.activities), so whatever order it's in when the day/tour is
   // saved is exactly the order that persists — no separate "save order"
   // step needed.
-  function moveActivity(dayIndex: number, activityIndex: number, direction: -1 | 1) {
+  function reorderActivities(dayIndex: number, oldIndex: number, newIndex: number) {
     const day = days[dayIndex];
-    if (!day) return;
-    const target = activityIndex + direction;
-    if (target < 0 || target >= day.activities.length) return;
-    const next = [...day.activities];
-    [next[activityIndex], next[target]] = [next[target]!, next[activityIndex]!];
-    updateDay(dayIndex, { activities: next });
+    if (!day || oldIndex === newIndex) return;
+    updateDay(dayIndex, { activities: arrayMove(day.activities, oldIndex, newIndex) });
+  }
+  function handleActivityDragEnd(dayIndex: number) {
+    return (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const day = days[dayIndex];
+      if (!day) return;
+      const oldIndex = Number(String(active.id).split('-').pop());
+      const newIndex = Number(String(over.id).split('-').pop());
+      reorderActivities(dayIndex, oldIndex, newIndex);
+    };
   }
 
   /**
@@ -305,36 +320,23 @@ export function ItineraryBuilder({
             className="mb-3 w-full rounded-md border border-sand-200 px-3 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2"
           />
 
-          <ul className="mb-2 space-y-1">
-            {day.activities.map((activity, aIndex) => (
-              <li key={aIndex} className="group flex items-center justify-between rounded bg-sand-50 px-2.5 py-1 text-sm text-ink-700">
-                {activity}
-                <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                  <button
-                    type="button"
-                    onClick={() => moveActivity(index, aIndex, -1)}
-                    disabled={aIndex === 0}
-                    className="text-ink-500 hover:text-harbor-600 disabled:opacity-0"
-                    title="Move up"
-                  >
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveActivity(index, aIndex, 1)}
-                    disabled={aIndex === day.activities.length - 1}
-                    className="text-ink-500 hover:text-harbor-600 disabled:opacity-0"
-                    title="Move down"
-                  >
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-                  <button type="button" onClick={() => removeActivity(index, aIndex)} className="ml-1 text-ink-500 hover:text-coral-500" title="Remove">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <DndContext sensors={activitySensors} onDragEnd={handleActivityDragEnd(index)}>
+            <SortableContext
+              items={day.activities.map((_, aIndex) => `activity-${index}-${aIndex}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="mb-2 space-y-1">
+                {day.activities.map((activity, aIndex) => (
+                  <SortableActivityItem
+                    key={`activity-${index}-${aIndex}`}
+                    id={`activity-${index}-${aIndex}`}
+                    activity={activity}
+                    onRemove={() => removeActivity(index, aIndex)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
 
           <div className="flex gap-2">
             <input
@@ -368,6 +370,49 @@ export function ItineraryBuilder({
         <Plus className="h-4 w-4" /> Add day
       </button>
     </div>
+  );
+}
+
+/**
+ * One draggable activity row. dnd-kit's useSortable must be called from
+ * its own component per item (not inside a parent's .map() callback), so
+ * this exists purely to host that hook — the actual row rendering (text,
+ * remove button) is unchanged from before, just with a drag handle added
+ * and the old Move Up/Down buttons removed.
+ */
+function SortableActivityItem({
+  id,
+  activity,
+  onRemove,
+}: {
+  id: string;
+  activity: string;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="group flex items-center justify-between rounded bg-sand-50 px-2.5 py-1 text-sm text-ink-700"
+    >
+      <span className="flex items-center gap-1.5">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-ink-400 hover:text-ink-600 active:cursor-grabbing"
+          title="Drag to reorder"
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        {activity}
+      </span>
+      <button type="button" onClick={onRemove} className="text-ink-500 opacity-0 hover:text-coral-500 group-hover:opacity-100" title="Remove">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </li>
   );
 }
 
