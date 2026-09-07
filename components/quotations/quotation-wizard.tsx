@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
+import { ChevronDown } from 'lucide-react';
 import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from './itinerary-builder';
 import { TagListInput } from './tag-list-input';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -208,6 +209,7 @@ export function QuotationWizard({
   quotationId,
   nextVersionLabel,
   initialData,
+  onCancel,
 }: {
   clients: Client[];
   packages: PackageOption[];
@@ -226,6 +228,12 @@ export function QuotationWizard({
   quotationId?: string;
   nextVersionLabel?: string;
   initialData?: QuotationWizardInitialData;
+  // Only used by the single-page edit/revise layout's Cancel button —
+  // the step-by-step create wizard has no such button. Defaults to
+  // returning to the quotation's own detail page, matching what Cancel
+  // has always meant here: leave without creating an unwanted revision
+  // or losing the original.
+  onCancel?: () => void;
 }) {
   const router = useRouter();
   // Revising skips the client/package steps entirely — the client and
@@ -983,9 +991,99 @@ export function QuotationWizard({
     return true;
   }
 
-  async function handleSubmit() {
-    setError(null);
-    const input: QuotationDraftInput = {
+  // Single-page edit/revise autosave. Deliberately never fires on the very
+  // first render (isFirstRender ref) — on mount the built input exactly
+  // matches what's already saved (it came from that same saved data), so
+  // saving it again would be a wasted write and, for `revise` mode
+  // specifically, would create a brand-new draft revision the instant the
+  // agent opens the page even if they immediately click Cancel without
+  // changing anything. Only actual edits after that point trigger a save.
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // Per-section expand/collapse state for the single-page edit/revise
+  // layout — collapsed by default isn't used here (everything opens
+  // expanded on load, since the whole point is "all existing information
+  // is already populated" being immediately visible), but each section
+  // can still be independently toggled, and Expand All/Collapse All set
+  // every key at once.
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({
+    tripDetails: true,
+    airfare: true,
+    hotel: true,
+    transfer: true,
+    tours: true,
+    otherCosts: true,
+    itinerary: true,
+    inclusions: true,
+  });
+  function setAllSectionsOpen(open: boolean) {
+    setSectionOpen((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, open])));
+  }
+  function toggleSection(key: string) {
+    setSectionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+  // Tracks whether THIS revise session has already created its draft
+  // revision — the very first autosave in `revise` mode must call
+  // reviseQuotationAction (which creates a new quotation_versions row);
+  // every save after that must call updateDraftQuotationAction instead
+  // (in-place update of that same new draft), or every autosave would
+  // create yet another revision.
+  const hasCreatedRevisionRef = useRef(false);
+  // The snapshot autosave should treat as "nothing to save yet" —
+  // initialized lazily to whatever was loaded, NOT via a simple
+  // "first render" boolean flag. A boolean flag is fragile against
+  // React Strict Mode's development-only double-invoke of effects
+  // (mount → cleanup → mount again), which would consume a plain
+  // "have I run once" guard on the throwaway first invocation and
+  // incorrectly treat the real mount as "already past the first
+  // render". Comparing against an actual baseline snapshot instead
+  // means autosave only ever fires when the draft genuinely differs
+  // from what's already saved, regardless of how many times this
+  // effect happens to run.
+  const baselineSnapshotRef = useRef<string | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSinglePageMode = mode === 'edit' || mode === 'revise';
+
+  useEffect(() => {
+    if (!isSinglePageMode || !quotationId) return;
+    const snapshot = JSON.stringify(buildDraftInput());
+    if (baselineSnapshotRef.current === null) {
+      baselineSnapshotRef.current = snapshot;
+      return;
+    }
+    if (snapshot === baselineSnapshotRef.current) return;
+    baselineSnapshotRef.current = snapshot;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setSaveStatus('saving');
+    autosaveTimerRef.current = setTimeout(async () => {
+      const input = buildDraftInput();
+      const result =
+        mode === 'revise' && !hasCreatedRevisionRef.current
+          ? await reviseQuotationAction(quotationId, input)
+          : await updateDraftQuotationAction(quotationId, input);
+      if (result.ok) {
+        if (mode === 'revise') hasCreatedRevisionRef.current = true;
+        setSaveStatus('saved');
+      } else {
+        setSaveStatus('error');
+        setError(result.error);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 1500);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+    // Deliberately a broad dependency — this effect exists purely to
+    // detect "did the draft the agent would save right now change from
+    // last time", and every field that could change lives inside
+    // buildDraftInput(). Listing each one individually would be hundreds
+    // of entries and easy to silently miss one when a new field is added
+    // later (exactly the bug class already found once in the edit/revise
+    // pages' initial-data loading).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(buildDraftInput())]);
+
+  function buildDraftInput(): QuotationDraftInput {
+    return {
       clientId,
       packageId: packageMode === 'existing' ? packageId : '',
       destination: trip.destination,
@@ -1096,6 +1194,11 @@ export function QuotationWizard({
       feeItems,
       markup: trip.markup === '' ? 0 : Number(trip.markup),
     };
+  }
+
+  async function handleSubmit() {
+    setError(null);
+    const input: QuotationDraftInput = buildDraftInput();
 
     // A single confirmation for the whole revision, with a short summary of
     // what actually changed — not a popup per field. Normal draft saves
@@ -1141,7 +1244,34 @@ export function QuotationWizard({
   return (
     <div className="max-w-3xl">
       {dialog}
-      {/* Step indicator */}
+      {isSinglePageMode && (
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm text-ink-500">
+            {saveStatus === 'saving' && 'Saving…'}
+            {saveStatus === 'saved' && <span className="text-harbor-700">Saved ✓</span>}
+            {saveStatus === 'error' && <span className="text-coral-600">Save failed — see error below</span>}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAllSectionsOpen(true)}
+              className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100"
+            >
+              Expand All
+            </button>
+            <button
+              type="button"
+              onClick={() => setAllSectionsOpen(false)}
+              className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100"
+            >
+              Collapse All
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Step indicator — only for the step-by-step create-new wizard; the
+          single-page edit/revise layout below never shows this. */}
+      {!isSinglePageMode && (
       <ol className="mb-8 flex items-center">
         {steps.map((label, localIndex) => {
           const i = localIndex + stepOffset;
@@ -1169,6 +1299,7 @@ export function QuotationWizard({
           );
         })}
       </ol>
+      )}
 
       {error && (
         <div className="mb-4 rounded-md border border-coral-500/30 bg-coral-500/5 px-3 py-2 text-sm text-coral-600">
@@ -1177,7 +1308,8 @@ export function QuotationWizard({
       )}
 
       <div className="rounded-lg border border-sand-200 bg-surface p-6">
-        {step === 0 && (
+        {(isSinglePageMode || step === 0) && (() => {
+          const stepContent = (
           <div>
             <div className="mb-4 flex gap-2">
               <TabButton active={clientMode === 'existing'} onClick={() => setClientMode('existing')}>
@@ -1260,9 +1392,18 @@ export function QuotationWizard({
               </div>
             )}
           </div>
-        )}
+          );
+          return isSinglePageMode ? (
+            <CollapsibleSection title="Client" open={sectionOpen.tripDetails ?? true} onToggle={() => toggleSection('tripDetails')}>
+              {stepContent}
+            </CollapsibleSection>
+          ) : (
+            stepContent
+          );
+        })()}
 
-        {step === 1 && (
+        {(isSinglePageMode || step === 1) && (() => {
+          const stepContent = (
           <div>
             <div className="mb-4 flex gap-2">
               <TabButton active={packageMode === 'existing'} onClick={() => setPackageMode('existing')}>
@@ -1346,9 +1487,18 @@ export function QuotationWizard({
               </p>
             </div>
           </div>
-        )}
+          );
+          return isSinglePageMode ? (
+            <CollapsibleSection title="Package" open={sectionOpen.tripDetails ?? true} onToggle={() => toggleSection('tripDetails')}>
+              {stepContent}
+            </CollapsibleSection>
+          ) : (
+            stepContent
+          );
+        })()}
 
-        {step === 2 && (
+        {(isSinglePageMode || step === 2) && (() => {
+          const stepContent = (
           <div className="space-y-4">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Prepared by</label>
@@ -2031,9 +2181,18 @@ export function QuotationWizard({
               />
             </div>
           </div>
-        )}
+          );
+          return isSinglePageMode ? (
+            <CollapsibleSection title="Trip Details & Pricing" open={sectionOpen.tripDetails ?? true} onToggle={() => toggleSection('tripDetails')}>
+              {stepContent}
+            </CollapsibleSection>
+          ) : (
+            stepContent
+          );
+        })()}
 
-        {step === 3 && (
+        {(isSinglePageMode || step === 3) && (() => {
+          const stepContent = (
           <ItineraryBuilder
             days={itinerary}
             onChange={setItinerary}
@@ -2041,9 +2200,18 @@ export function QuotationWizard({
             onTourSelected={handleTourSelected}
             travelStartDate={trip.travelStartDate}
           />
-        )}
+          );
+          return isSinglePageMode ? (
+            <CollapsibleSection title="Itinerary" open={sectionOpen.itinerary ?? true} onToggle={() => toggleSection('itinerary')}>
+              {stepContent}
+            </CollapsibleSection>
+          ) : (
+            stepContent
+          );
+        })()}
 
-        {step === 4 && (
+        {(isSinglePageMode || step === 4) && (() => {
+          const stepContent = (
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="mb-2 text-sm font-medium text-ink-900">Inclusions</p>
@@ -2054,13 +2222,23 @@ export function QuotationWizard({
               <TagListInput items={exclusions} onChange={setExclusions} placeholder="Add an exclusion…" tone="negative" />
             </div>
           </div>
-        )}
+          );
+          return isSinglePageMode ? (
+            <CollapsibleSection title="Inclusions" open={sectionOpen.inclusions ?? true} onToggle={() => toggleSection('inclusions')}>
+              {stepContent}
+            </CollapsibleSection>
+          ) : (
+            stepContent
+          );
+        })()}
 
-        {step === 5 && (
+        {(isSinglePageMode || step === 5) && (
           <div className="space-y-4 text-sm">
+            {!isSinglePageMode && (
             <p className="text-ink-500">
               Review below, then save as a draft. You can edit or send it from the quotation page.
             </p>
+            )}
             <ReviewRow label="Destination" value={trip.destination} />
             <ReviewRow label="Travel dates" value={`${trip.travelStartDate} – ${trip.travelEndDate}`} />
             <ReviewRow
@@ -2082,6 +2260,25 @@ export function QuotationWizard({
         )}
       </div>
 
+      {isSinglePageMode ? (
+        <div className="mt-4 flex justify-between">
+          <button
+            type="button"
+            onClick={() => (onCancel ? onCancel() : router.push(quotationId ? `/quotations/${quotationId}` : '/quotations'))}
+            className="rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isPending}
+            className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-60"
+          >
+            {isPending ? 'Saving…' : mode === 'revise' ? 'Save revision' : 'Save changes'}
+          </button>
+        </div>
+      ) : (
       <div className="mt-4 flex justify-between">
         <button
           type="button"
@@ -2112,10 +2309,11 @@ export function QuotationWizard({
             disabled={isPending}
             className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-60"
           >
-            {isPending ? 'Saving…' : mode === 'revise' ? 'Save revision' : mode === 'edit' ? 'Save changes' : 'Save draft'}
+            {isPending ? 'Saving…' : 'Save draft'}
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -2177,6 +2375,40 @@ function ProfitPreview({
           {Math.round(margin)}%
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A collapsible container used only in the single-page edit/revise layout
+ * (never in the step-by-step create-new wizard, which is untouched).
+ * Purely a visual wrapper — it never unmounts its children when
+ * collapsed (just hides them with CSS), so nothing inside ever loses
+ * state, and validation/calculations that read from other sections keep
+ * working exactly as before regardless of which sections are open.
+ */
+function CollapsibleSection({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-sand-200 bg-surface">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold uppercase tracking-wide text-ink-900">{title}</span>
+        <ChevronDown className={clsx('h-4 w-4 text-ink-500 transition-transform', open && 'rotate-180')} />
+      </button>
+      <div className={clsx('space-y-4 border-t border-sand-100 px-4 py-4', open ? 'block' : 'hidden')}>{children}</div>
     </div>
   );
 }

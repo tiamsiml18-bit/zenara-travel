@@ -23,7 +23,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
     redirect(`/quotations/${id}`);
   }
 
-  const [{ itinerary, inclusions, exclusions, costItems, feeItems, guestRates }, pricing, packages, sources, consultants, tours, agencySettings] =
+  const [{ itinerary, inclusions, exclusions, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer }, pricing, packages, sources, consultants, tours, agencySettings] =
     await Promise.all([
       getVersionDetail(supabase, currentVersion.id),
       getPricingForVersion(supabase, currentVersion.id),
@@ -78,18 +78,35 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
             airfareInfantRate: pricing?.airfare_infant_rate ?? 0,
             airfarePwdRate: pricing?.airfare_pwd_rate ?? 0,
             airfareMarkupPct: pricing?.airfare_markup_pct ?? 0.1,
+            airfareMarkupEnabled: pricing?.airfare_markup_enabled ?? true,
             hotelSeniorRate: pricing?.hotel_senior_rate ?? 0,
             hotelAdultRate: pricing?.hotel_adult_rate ?? 0,
             hotelChildRate: pricing?.hotel_child_rate ?? 0,
             hotelInfantRate: pricing?.hotel_infant_rate ?? 0,
             hotelPwdRate: pricing?.hotel_pwd_rate ?? 0,
+            hotelTotalAmount: pricing?.hotel_total_amount ?? 0,
             hotelMarkupPct: pricing?.hotel_markup_pct ?? 0.1,
+            hotelMarkupEnabled: pricing?.hotel_markup_enabled ?? true,
             transferSeniorRate: pricing?.transfer_senior_rate ?? 0,
             transferAdultRate: pricing?.transfer_adult_rate ?? 0,
             transferChildRate: pricing?.transfer_child_rate ?? 0,
             transferInfantRate: pricing?.transfer_infant_rate ?? 0,
             transferPwdRate: pricing?.transfer_pwd_rate ?? 0,
-            transferMarkupPct: pricing?.transfer_markup_pct ?? 0.2,
+            transferTotalAmount: pricing?.transfer_total_amount ?? 0,
+            transferMarkupPct: pricing?.transfer_markup_pct ?? 0.1,
+            transferMarkupEnabled: pricing?.transfer_markup_enabled ?? true,
+            additionalAirfare: additionalAirfare.map(({ markupPct, markupEnabled, rateSenior, rateAdult, rateChild, rateInfant, ratePwd, ...rest }) => ({
+              ...rest,
+              rateSenior: rateSenior ?? ('' as const),
+              rateAdult: rateAdult ?? ('' as const),
+              rateChild: rateChild ?? ('' as const),
+              rateInfant: rateInfant ?? ('' as const),
+              ratePwd: ratePwd ?? ('' as const),
+              markupPct: markupPct ?? 0.1,
+              markupEnabled: markupEnabled ?? true,
+            })),
+            additionalHotel,
+            additionalTransfer,
             paymentMethod: (pricing?.payment_method as 'credit_card' | 'paypal' | 'none') ?? 'credit_card',
             notes: currentVersion.notes ?? '',
             itinerary: itinerary.map((d) => ({
@@ -104,6 +121,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
             exclusions: exclusions.map((e) => e.item),
             costItems,
             feeItems,
+            tourPricing,
             supplierCost: pricing?.supplier_cost ?? 0,
             markup: pricing?.markup ?? 0,
             consultantId: currentVersion.consultant_id ?? '',
