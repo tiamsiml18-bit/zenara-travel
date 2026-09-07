@@ -57,7 +57,7 @@ export async function addPayment(supabase: SupabaseClient, input: PaymentInput, 
     await supabase.from('client_activities').insert({
       client_id: result.clientId,
       activity_type: 'payment_added',
-      description: `Payment of PHP ${input.amount.toLocaleString('en-PH')} recorded via ${input.method}.`,
+      description: `Payment of PHP ${Math.round(input.amount).toLocaleString('en-PH')} recorded via ${input.method}.`,
       user_id: actingUserId,
     });
 

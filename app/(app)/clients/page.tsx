@@ -15,7 +15,7 @@ function formatDate(d?: string | null) {
 }
 function formatMoney(n?: number | null) {
   if (n === null || n === undefined) return '—';
-  return `PHP ${n.toLocaleString('en-PH', { minimumFractionDigits: 0 })}`;
+  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
 }
 
 export default async function ClientsPage({

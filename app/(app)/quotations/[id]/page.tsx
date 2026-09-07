@@ -22,7 +22,7 @@ function formatDate(d?: string | null) {
 }
 function formatMoney(n?: number | null) {
   if (n === null || n === undefined) return '—';
-  return `PHP ${Number(n).toLocaleString('en-PH')}`;
+  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
 }
 
 export default async function QuotationDetailPage({
@@ -264,7 +264,7 @@ export default async function QuotationDetailPage({
                   <Row label="Supplier cost" value={formatMoney(pricing.supplier_cost)} />
                   <Row label="Markup" value={formatMoney(pricing.markup)} />
                   <Row label="Profit" value={formatMoney(pricing.profit)} />
-                  <Row label="Margin" value={`${pricing.profit_margin_pct}%`} />
+                  <Row label="Margin" value={`${Math.round(pricing.profit_margin_pct)}%`} />
                 </dl>
               </section>
             )}

@@ -25,7 +25,7 @@ function formatDate(d?: string | null) {
 }
 function formatMoney(n?: number | null) {
   if (n === null || n === undefined) return '—';
-  return `PHP ${Number(n).toLocaleString('en-PH')}`;
+  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
 }
 
 export default async function QuotationsPage({

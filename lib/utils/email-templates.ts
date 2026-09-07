@@ -71,7 +71,7 @@ export function generatePaymentReminderEmail(params: {
 }): EmailDraft {
   const dest = titleCase(params.destination);
   const dueDateFormatted = formatValidUntil(params.dueDate);
-  const balanceFormatted = `PHP ${params.remainingBalance.toLocaleString('en-PH')}`;
+  const balanceFormatted = `PHP ${Math.round(params.remainingBalance).toLocaleString('en-PH')}`;
 
   return {
     subject: `A quick reminder about your ${dest} trip`,

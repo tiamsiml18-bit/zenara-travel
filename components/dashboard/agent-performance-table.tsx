@@ -11,7 +11,7 @@ export interface AgentPerformanceRow {
 }
 
 function formatMoney(n: number) {
-  return `PHP ${Number(n).toLocaleString('en-PH')}`;
+  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
 }
 
 export function AgentPerformanceTable({ rows }: { rows: AgentPerformanceRow[] }) {
@@ -42,7 +42,7 @@ export function AgentPerformanceTable({ rows }: { rows: AgentPerformanceRow[] })
               <td className="font-ticket px-4 py-3 text-right text-ink-900">{formatMoney(r.confirmed_sales_value)}</td>
               <td className="px-4 py-3 text-right">
                 <span className="font-ticket rounded-full bg-harbor-100 px-2 py-0.5 text-xs font-medium text-harbor-700">
-                  {r.conversion_rate_pct}%
+                  {Math.round(r.conversion_rate_pct)}%
                 </span>
               </td>
             </tr>

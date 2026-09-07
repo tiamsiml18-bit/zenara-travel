@@ -133,7 +133,7 @@ export function CostBreakdownEditor({
 
       <div className="mt-3 flex justify-between border-t border-coral-500/20 pt-2 text-sm">
         <span className="font-medium text-ink-700">{totalLabel}</span>
-        <span className="font-ticket font-semibold text-ink-900">PHP {total.toLocaleString('en-PH')}</span>
+        <span className="font-ticket font-semibold text-ink-900">PHP {Math.round(total).toLocaleString('en-PH')}</span>
       </div>
     </div>
   );

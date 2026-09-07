@@ -1022,7 +1022,7 @@ export function QuotationWizard({
       add('Travel start', initialData.travelStartDate, trip.travelStartDate);
       add('Travel end', initialData.travelEndDate, trip.travelEndDate);
       add('Hotel', initialData.hotelName || '—', trip.hotelName || '—');
-      add('Total price', `PHP ${initialTotalPrice.toLocaleString('en-PH')}`, `PHP ${computedTotalPrice.toLocaleString('en-PH')}`);
+      add('Total price', `PHP ${Math.round(initialTotalPrice).toLocaleString('en-PH')}`, `PHP ${Math.round(computedTotalPrice).toLocaleString('en-PH')}`);
       add('Itinerary days', String(initialData.itinerary?.length ?? 0), String(itinerary.length));
       add('Inclusions', String(initialData.inclusions?.length ?? 0), String(inclusions.length));
       add('Exclusions', String(initialData.exclusions?.length ?? 0), String(exclusions.length));
@@ -1745,7 +1745,7 @@ export function QuotationWizard({
                           .map((t) => (
                             <div key={t} className="flex items-center justify-between text-xs text-ink-700">
                               <span>{GUEST_TYPE_LABELS[t]} — all Tours combined</span>
-                              <span className="font-ticket">PHP {tourClientRateMap[t].toLocaleString('en-PH')} / person</span>
+                              <span className="font-ticket">PHP {Math.round(tourClientRateMap[t]).toLocaleString('en-PH')} / person</span>
                             </div>
                           ))}
                       </div>
@@ -1819,8 +1819,8 @@ export function QuotationWizard({
                 <div className="rounded-md border border-sand-200 bg-surface p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-700">Bank Fee</p>
                   <p className="mb-2 text-xs text-ink-500">
-                    The fee percentage is set by the payment method — Credit Card {(feePercentages.creditCard * 100).toFixed(1)}%,
-                    PayPal {(feePercentages.paypal * 100).toFixed(1)}%, or No Fee. Calculated on Package Per PAX, before the
+                    The fee percentage is set by the payment method — Credit Card {Math.round(feePercentages.creditCard * 100)}%,
+                    PayPal {Math.round(feePercentages.paypal * 100)}%, or No Fee. Calculated on Package Per PAX, before the
                     Zenara Markup is added.
                   </p>
                   <label className="mb-1.5 block text-xs font-medium text-ink-700">Payment Method</label>
@@ -1829,8 +1829,8 @@ export function QuotationWizard({
                     onChange={(e) => setTrip((t) => ({ ...t, paymentMethod: e.target.value as typeof trip.paymentMethod }))}
                     className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
                   >
-                    <option value="credit_card">Credit Card ({(feePercentages.creditCard * 100).toFixed(1)}%)</option>
-                    <option value="paypal">PayPal ({(feePercentages.paypal * 100).toFixed(1)}%)</option>
+                    <option value="credit_card">Credit Card ({Math.round(feePercentages.creditCard * 100)}%)</option>
+                    <option value="paypal">PayPal ({Math.round(feePercentages.paypal * 100)}%)</option>
                     <option value="none">No Fee (0%)</option>
                   </select>
                   <p className="mb-1 mt-3 text-xs text-ink-500">Bank fee per person</p>
@@ -1854,19 +1854,19 @@ export function QuotationWizard({
                   <div>
                     <p className="text-xs text-ink-500">Total Supplier Cost</p>
                     <p className="font-ticket text-sm font-semibold text-ink-900">
-                      PHP {computedTotalSupplierCost.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                      PHP {Math.round(computedTotalSupplierCost).toLocaleString('en-PH')}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-ink-500">Profit</p>
                     <p className={`font-ticket text-sm font-semibold ${computedProfit < 0 ? 'text-coral-600' : 'text-ink-900'}`}>
-                      PHP {computedProfit.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                      PHP {Math.round(computedProfit).toLocaleString('en-PH')}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-ink-500">Margin</p>
                     <p className={`font-ticket text-sm font-semibold ${computedMarginPct < 0 ? 'text-coral-600' : 'text-ink-900'}`}>
-                      {computedMarginPct.toFixed(2)}%
+                      {Math.round(computedMarginPct)}%
                     </p>
                   </div>
                 </div>
@@ -1899,10 +1899,10 @@ export function QuotationWizard({
                           {GUEST_TYPE_LABELS[guestType]} <span className="text-ink-500">×{count}</span>
                         </span>
                         <span className="font-ticket text-sm text-ink-700">
-                          PHP {rate.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                          PHP {Math.round(rate).toLocaleString('en-PH')}
                         </span>
                         <span className="font-ticket w-28 shrink-0 text-right text-sm text-ink-700">
-                          PHP {(rate * count).toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                          PHP {Math.round((rate * count)).toLocaleString('en-PH')}
                         </span>
                       </div>
                     );
@@ -1913,7 +1913,7 @@ export function QuotationWizard({
               <div className="mt-4 flex items-center justify-between rounded-md bg-sand-50 px-3 py-2.5">
                 <span className="text-sm font-medium text-ink-700">Total package price</span>
                 <span className="font-ticket text-lg font-semibold text-ink-900">
-                  PHP {computedTotalPrice.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                  PHP {Math.round(computedTotalPrice).toLocaleString('en-PH')}
                 </span>
               </div>
 
@@ -1991,7 +1991,7 @@ export function QuotationWizard({
             <ReviewRow label="Hotel" value={`${trip.hotelName || '—'} (${trip.numBedrooms} bedrooms)`} />
             <ReviewRow label="Itinerary days" value={String(itinerary.length)} />
             <ReviewRow label="Inclusions / Exclusions" value={`${inclusions.length} / ${exclusions.length}`} />
-            <ReviewRow label="Total price" value={`PHP ${computedTotalPrice.toLocaleString('en-PH')}`} />
+            <ReviewRow label="Total price" value={`PHP ${Math.round(computedTotalPrice).toLocaleString('en-PH')}`} />
           </div>
         )}
       </div>
@@ -2073,22 +2073,22 @@ function ProfitPreview({
     <div className="mt-4 grid grid-cols-4 gap-3 border-t border-coral-500/20 pt-4 text-center text-xs">
       <div>
         <p className="text-ink-500">Cost</p>
-        <p className="font-ticket mt-0.5 font-semibold text-ink-900">PHP {supplierCost.toLocaleString('en-PH')}</p>
+        <p className="font-ticket mt-0.5 font-semibold text-ink-900">PHP {Math.round(supplierCost).toLocaleString('en-PH')}</p>
       </div>
       <div>
         <p className="text-ink-500">Markup</p>
-        <p className="font-ticket mt-0.5 font-semibold text-ink-900">PHP {markup.toLocaleString('en-PH')}</p>
+        <p className="font-ticket mt-0.5 font-semibold text-ink-900">PHP {Math.round(markup).toLocaleString('en-PH')}</p>
       </div>
       <div>
         <p className="text-ink-500">Profit</p>
         <p className={`font-ticket mt-0.5 font-semibold ${profit < 0 ? 'text-coral-600' : 'text-harbor-700'}`}>
-          PHP {profit.toLocaleString('en-PH')}
+          PHP {Math.round(profit).toLocaleString('en-PH')}
         </p>
       </div>
       <div>
         <p className="text-ink-500">Margin</p>
         <p className={`font-ticket mt-0.5 font-semibold ${margin < 0 ? 'text-coral-600' : 'text-harbor-700'}`}>
-          {margin}%
+          {Math.round(margin)}%
         </p>
       </div>
     </div>
@@ -2155,7 +2155,7 @@ function AdjustedRateRow({ rates, counts }: { rates: GuestRates; counts: GuestCo
           <div key={t} className="text-center">
             <p className="text-[10px] uppercase tracking-wide text-ink-500">{GUEST_TYPE_LABELS[t]}</p>
             <p className="font-ticket text-xs font-semibold text-ink-900">
-              PHP {(rates[t] || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+              PHP {Math.round(rates[t] || 0).toLocaleString('en-PH')}
             </p>
           </div>
         ) : (
@@ -2196,7 +2196,7 @@ function SummaryBar({
           <div key={t} className="text-center">
             <p className="text-[10px] uppercase tracking-wide text-sand-50/70">{GUEST_TYPE_LABELS[t]}</p>
             <p className="font-ticket text-sm font-semibold text-sand-50">
-              PHP {(rates[t] || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+              PHP {Math.round(rates[t] || 0).toLocaleString('en-PH')}
             </p>
           </div>
         ))}
