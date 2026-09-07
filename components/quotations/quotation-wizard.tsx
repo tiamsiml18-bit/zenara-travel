@@ -1011,6 +1011,8 @@ export function QuotationWizard({
   // can still be independently toggled, and Expand All/Collapse All set
   // every key at once.
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({
+    client: true,
+    package: true,
     tripDetails: true,
     airfare: true,
     hotel: true,
@@ -1420,7 +1422,7 @@ export function QuotationWizard({
           </div>
           );
           return isSinglePageMode ? (
-            <CollapsibleSection title="Client" open={sectionOpen.tripDetails ?? true} onToggle={() => toggleSection('tripDetails')}>
+            <CollapsibleSection title="Client" open={sectionOpen.client ?? true} onToggle={() => toggleSection('client')}>
               {stepContent}
             </CollapsibleSection>
           ) : (
@@ -1515,7 +1517,7 @@ export function QuotationWizard({
           </div>
           );
           return isSinglePageMode ? (
-            <CollapsibleSection title="Package" open={sectionOpen.tripDetails ?? true} onToggle={() => toggleSection('tripDetails')}>
+            <CollapsibleSection title="Package" open={sectionOpen.package ?? true} onToggle={() => toggleSection('package')}>
               {stepContent}
             </CollapsibleSection>
           ) : (
