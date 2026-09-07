@@ -248,6 +248,11 @@ export function QuotationWizard({
   const [clientMode, setClientMode] = useState<'existing' | 'new'>('existing');
   const [clientFilter, setClientFilter] = useState('');
   const [clientId, setClientId] = useState(initialData?.clientId ?? initialClientId ?? '');
+  // Whenever a client is already selected (editing/revising an existing
+  // quotation, or creating one pre-filled from a client's own page), show
+  // that client's name plainly instead of the search box — the search +
+  // list UI only appears once the agent explicitly asks to change it.
+  const [isChangingClient, setIsChangingClient] = useState(false);
   const [newClient, setNewClient] = useState({ fullName: '', mobileNumber: '', email: '', sourceId: '' });
 
   // Step 2
@@ -1321,6 +1326,23 @@ export function QuotationWizard({
             </div>
 
             {clientMode === 'existing' ? (
+              clientId && !isChangingClient ? (
+                <div className="rounded-md border border-sand-200 bg-sand-50 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-ink-500">Existing client</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-ink-900">
+                      {clients.find((c) => c.id === clientId)?.full_name || initialData?.clientLabel || 'Selected client'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsChangingClient(true)}
+                      className="shrink-0 text-xs font-medium text-harbor-700 hover:underline"
+                    >
+                      Change
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div>
                 <input
                   value={clientFilter}
@@ -1333,7 +1355,10 @@ export function QuotationWizard({
                     <button
                       key={c.id}
                       type="button"
-                      onClick={() => setClientId(c.id)}
+                      onClick={() => {
+                        setClientId(c.id);
+                        setIsChangingClient(false);
+                      }}
                       className={clsx(
                         'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-sand-50',
                         clientId === c.id && 'bg-harbor-50'
@@ -1348,6 +1373,7 @@ export function QuotationWizard({
                   )}
                 </div>
               </div>
+              )
             ) : (
               <div className="space-y-3">
                 <LabeledInput
