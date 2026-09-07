@@ -60,4 +60,12 @@ describe('calculateHotelRatesFromTotal — the actual formula the quotation wiza
     expect(rates.adult).toBe(679);
     expect(Number.isInteger(rates.adult)).toBe(true);
   });
+
+  it('matches the Transfer spec example exactly: PHP 1,500 total + 10% markup, 2 paying guests → PHP 825 each — this same shared formula now also drives the Transfer section, not just Hotel', () => {
+    const rates = calculateHotelRatesFromTotal(1500, 0.1, true, { numAdults: 2, numSeniors: 0, numChildren: 0, numPwd: 0 });
+    expect(rates.adult).toBe(825);
+    expect(rates.senior).toBe(0);
+    expect(rates.child).toBe(0);
+    expect(rates.pwd).toBe(0);
+  });
 });

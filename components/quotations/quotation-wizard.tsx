@@ -106,6 +106,19 @@ interface AdditionalHotelItem {
   rateChild: number | '';
   ratePwd: number | '';
 }
+/** Identical shape to AdditionalHotelItem — Transfer's additional sections now follow the same total-amount-split model as Hotel's. */
+interface AdditionalTransferItem {
+  id?: string;
+  key: string;
+  label: string;
+  totalAmount: number | '';
+  markupPct: number;
+  markupEnabled: boolean;
+  rateAdult: number | '';
+  rateSenior: number | '';
+  rateChild: number | '';
+  ratePwd: number | '';
+}
 
 export interface QuotationWizardInitialData {
   clientId: string;
@@ -157,6 +170,10 @@ export interface QuotationWizardInitialData {
   transferChildRate?: number;
   transferInfantRate?: number;
   transferPwdRate?: number;
+  // New Transfer pricing model, mirroring Hotel — one total amount split
+  // evenly across paying guests. The 5 fields above remain for
+  // backward-compatible display of legacy data saved before this change.
+  transferTotalAmount?: number;
   transferMarkupPct?: number;
   transferMarkupEnabled?: boolean;
   // Section 1 lives in the flat fields above; these are sections 2, 3,
@@ -165,7 +182,7 @@ export interface QuotationWizardInitialData {
   // generated once when the wizard's state initializes from this data.
   additionalAirfare?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
   additionalHotel?: Omit<AdditionalHotelItem, 'key'>[];
-  additionalTransfer?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
+  additionalTransfer?: Omit<AdditionalTransferItem, 'key'>[];
   paymentMethod?: 'credit_card' | 'paypal' | 'none';
   notes: string;
   itinerary: ItineraryDayDraft[];
@@ -294,6 +311,23 @@ export function QuotationWizard({
     transferChildRate: (initialData?.transferChildRate ?? '') as number | '',
     transferInfantRate: (initialData?.transferInfantRate ?? '') as number | '',
     transferPwdRate: (initialData?.transferPwdRate ?? '') as number | '',
+    // New Transfer pricing model. Backward-compat: an existing quotation
+    // saved before this change has transferTotalAmount = 0 but a real
+    // transferAdultRate — reconstructing a total from that old per-person
+    // rate × this quotation's own paying-guest count preserves exactly
+    // the price the agent previously saw, rather than silently showing
+    // "Total Transfer Amount: 0" and zeroing out their transfer pricing
+    // the moment they reopen it. Only kicks in for genuinely legacy
+    // data — once transferTotalAmount itself is saved (even as 0, meaning
+    // the agent cleared it on purpose), it's trusted as-is.
+    transferTotalAmount: ((): number | '' => {
+      if (initialData?.transferTotalAmount) return initialData.transferTotalAmount;
+      const legacyRate = initialData?.transferAdultRate;
+      if (!legacyRate) return '';
+      const payingGuests =
+        (initialData?.numAdults ?? 0) + (initialData?.numSeniors ?? 0) + (initialData?.numChildren ?? 0) + (initialData?.numPwd ?? 0);
+      return payingGuests > 0 ? legacyRate * payingGuests : '';
+    })(),
     transferMarkupPct: initialData?.transferMarkupPct ?? defaultTransferMarkupPct,
     // ON by default (matches Airfare/Hotel) — existing quotations always
     // pass their own saved value through initialData explicitly, so this
@@ -360,15 +394,15 @@ export function QuotationWizard({
       markupEnabled: h.markupEnabled,
     }))
   );
-  const [additionalTransfer, setAdditionalTransfer] = useState<AdditionalRateItemWithMarkup[]>(
+  const [additionalTransfer, setAdditionalTransfer] = useState<AdditionalTransferItem[]>(
     (initialData?.additionalTransfer ?? []).map((t) => ({
       id: t.id,
       key: t.id ?? nextKey(),
       label: t.label,
-      rateSenior: t.rateSenior ?? '',
+      totalAmount: t.totalAmount ?? '',
       rateAdult: t.rateAdult ?? '',
+      rateSenior: t.rateSenior ?? '',
       rateChild: t.rateChild ?? '',
-      rateInfant: t.rateInfant ?? '',
       ratePwd: t.ratePwd ?? '',
       markupPct: t.markupPct,
       markupEnabled: t.markupEnabled,
@@ -461,16 +495,20 @@ export function QuotationWizard({
     },
     {} as Record<GuestType, number>
   );
-  const computedTransferRates = calculateMarkedUpRates(
-    {
-      senior: numVal(trip.transferSeniorRate),
-      adult: numVal(trip.transferAdultRate),
-      child: numVal(trip.transferChildRate),
-      infant: numVal(trip.transferInfantRate),
-      pwd: numVal(trip.transferPwdRate),
-    },
-    trip.transferMarkupEnabled ? trip.transferMarkupPct : 0
-  );
+  // Transfer's rates (trip.transferAdultRate etc) are auto-calculated by
+  // a useEffect from transferTotalAmount/markup/guest counts, but
+  // directly editable — they're already the FINAL per-person rate
+  // (markup included), so they're used here exactly as entered, matching
+  // the server-side computeFullPricing exactly and mirroring Hotel's
+  // identical fix above. Never recomputed here, so a manual edit is
+  // reflected in the live preview immediately, not silently overridden.
+  const computedTransferRates: GuestRates = {
+    senior: numVal(trip.transferSeniorRate),
+    adult: numVal(trip.transferAdultRate),
+    child: numVal(trip.transferChildRate),
+    infant: 0,
+    pwd: numVal(trip.transferPwdRate),
+  };
   // Land Arrangement Only excludes Airfare from the calculation entirely —
   // not by deleting or zeroing the entered rates (those stay exactly as
   // typed, in case the agent switches back to All-In), but by simply not
@@ -513,7 +551,7 @@ export function QuotationWizard({
     return total;
   }
   const additionalHotelTotal = sumHotelAdditionalWithMarkup(additionalHotel);
-  const additionalTransferTotal = sumAdditionalWithMarkup(additionalTransfer);
+  const additionalTransferTotal = sumHotelAdditionalWithMarkup(additionalTransfer);
   const totalAirfareRates: GuestRates = GUEST_TYPES.reduce(
     (acc, t) => ({ ...acc, [t]: (computedAirfareRates[t] ?? 0) + (additionalAirfareTotal[t] ?? 0) }),
     {} as GuestRates
@@ -738,23 +776,71 @@ export function QuotationWizard({
     additionalHotel.map((h) => `${h.key}:${h.totalAmount}:${h.markupPct}:${h.markupEnabled}`).join('|'),
   ]);
 
+  /**
+   * Same auto-calculate-but-editable behavior as Hotel's, applied to the
+   * primary Transfer section — uses the exact same shared
+   * calculateHotelRatesFromTotal formula (a total split evenly across
+   * paying guests, Infant/Toddler always excluded), since the formula
+   * itself has nothing Hotel-specific about it.
+   */
+  useEffect(() => {
+    const rates = calculateHotelRatesFromTotal(numVal(trip.transferTotalAmount), trip.transferMarkupPct, trip.transferMarkupEnabled, {
+      numAdults: trip.numAdults,
+      numSeniors: trip.numSeniors,
+      numChildren: trip.numChildren,
+      numPwd: trip.numPwd,
+    });
+    setTrip((t) => ({
+      ...t,
+      transferAdultRate: rates.adult,
+      transferSeniorRate: rates.senior,
+      transferChildRate: rates.child,
+      transferPwdRate: rates.pwd,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.transferTotalAmount, trip.transferMarkupPct, trip.transferMarkupEnabled, trip.numAdults, trip.numSeniors, trip.numChildren, trip.numPwd]);
+
+  /**
+   * Same auto-calculate-but-editable behavior as above, per additional
+   * Transfer section — each item's rates depend on ITS OWN totalAmount
+   * and markup, but the SAME shared paying-guest counts. A manual edit
+   * on one Transfer item's Child rate never affects another item's Child
+   * rate.
+   */
+  useEffect(() => {
+    const guests = { numAdults: trip.numAdults, numSeniors: trip.numSeniors, numChildren: trip.numChildren, numPwd: trip.numPwd };
+    setAdditionalTransfer((prev) =>
+      prev.map((t) => {
+        const rates = calculateHotelRatesFromTotal(numVal(t.totalAmount), t.markupPct, t.markupEnabled, guests);
+        return { ...t, rateAdult: rates.adult, rateSenior: rates.senior, rateChild: rates.child, ratePwd: rates.pwd };
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    trip.numAdults,
+    trip.numSeniors,
+    trip.numChildren,
+    trip.numPwd,
+    additionalTransfer.map((t) => `${t.key}:${t.totalAmount}:${t.markupPct}:${t.markupEnabled}`).join('|'),
+  ]);
+
   function addAdditionalTransfer() {
     setAdditionalTransfer((prev) => [
       ...prev,
       {
         key: `new-${Date.now()}-${prev.length}`,
         label: '',
-        rateSenior: '',
+        totalAmount: '',
         rateAdult: '',
+        rateSenior: '',
         rateChild: '',
-        rateInfant: '',
         ratePwd: '',
         markupPct: 0.1,
         markupEnabled: true,
       },
     ]);
   }
-  function updateAdditionalTransfer(key: string, patch: Partial<AdditionalRateItemWithMarkup>) {
+  function updateAdditionalTransfer(key: string, patch: Partial<AdditionalTransferItem>) {
     setAdditionalTransfer((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)));
   }
   function removeAdditionalTransfer(key: string) {
@@ -962,11 +1048,11 @@ export function QuotationWizard({
       additionalTransfer: additionalTransfer.map((t) => ({
         id: t.id,
         label: t.label,
-        rateSenior: t.rateSenior === '' ? null : Number(t.rateSenior),
-        rateAdult: t.rateAdult === '' ? null : Number(t.rateAdult),
-        rateChild: t.rateChild === '' ? null : Number(t.rateChild),
-        rateInfant: t.rateInfant === '' ? null : Number(t.rateInfant),
-        ratePwd: t.ratePwd === '' ? null : Number(t.ratePwd),
+        totalAmount: numVal(t.totalAmount),
+        rateAdult: numVal(t.rateAdult),
+        rateSenior: numVal(t.rateSenior),
+        rateChild: numVal(t.rateChild),
+        ratePwd: numVal(t.ratePwd),
         markupPct: t.markupPct,
         markupEnabled: t.markupEnabled,
       })),
@@ -990,6 +1076,7 @@ export function QuotationWizard({
       transferChildRate: numVal(trip.transferChildRate),
       transferInfantRate: numVal(trip.transferInfantRate),
       transferPwdRate: numVal(trip.transferPwdRate),
+      transferTotalAmount: numVal(trip.transferTotalAmount),
       transferMarkupPct: trip.transferMarkupPct,
       transferMarkupEnabled: trip.transferMarkupEnabled,
       paymentMethod: trip.paymentMethod,
@@ -1576,10 +1663,21 @@ export function QuotationWizard({
                     />
                   </div>
                   <p className="mb-2 text-xs text-ink-500">
-                    Include any tour-specific transfer here too — e.g. a Disneyland ticket plus its roundtrip hotel
-                    transfer combine into one per-person Transfer rate for that guest type.
+                    Enter the total travel/transfer amount for the whole booking — include any tour-specific transfer
+                    here too. Markup is applied to the total, then split evenly across paying guests (Adult, Senior,
+                    Child, PWD) — Infant/Toddler is always free and never counted.
                   </p>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="max-w-xs">
+                    <PriceField
+                      label="Total Travel/Transfer Amount"
+                      value={trip.transferTotalAmount}
+                      onChange={(v) => setTrip((t) => ({ ...t, transferTotalAmount: v }))}
+                    />
+                  </div>
+                  <p className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-ink-500">
+                    Auto-calculated — editable if you need to override a specific rate
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
                     <PriceField label="Adult" value={trip.transferAdultRate} onChange={(v) => setTrip((t) => ({ ...t, transferAdultRate: v }))} />
                     <PriceField
                       label="Senior"
@@ -1587,20 +1685,15 @@ export function QuotationWizard({
                       onChange={(v) => setTrip((t) => ({ ...t, transferSeniorRate: v }))}
                     />
                     <PriceField label="Child" value={trip.transferChildRate} onChange={(v) => setTrip((t) => ({ ...t, transferChildRate: v }))} />
-                    <PriceField
-                      label="Infant/Toddler"
-                      value={trip.transferInfantRate}
-                      onChange={(v) => setTrip((t) => ({ ...t, transferInfantRate: v }))}
-                    />
                     <PriceField label="PWD" value={trip.transferPwdRate} onChange={(v) => setTrip((t) => ({ ...t, transferPwdRate: v }))} />
                   </div>
-                  <AdjustedRateRow rates={computedTransferRates} counts={guestCounts} />
+                  <p className="mt-2 text-xs text-ink-500">Infant/Toddler: FREE</p>
                 </div>
 
                 {/* Additional Transfer sections (2, 3, 4...), e.g. Hanoi
                     Airport Transfer as Transfer 1, Hanoi-to-Sapa Transfer
-                    as Transfer 2. No markup on any of these, matching the
-                    default Transfer section exactly. */}
+                    as Transfer 2. Same total-amount-split model as
+                    Hotel's additional sections. */}
                 {additionalTransfer.map((item, i) => (
                   <div key={item.key} className="rounded-md border border-sand-200 bg-surface p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -1624,30 +1717,23 @@ export function QuotationWizard({
                         Remove
                       </button>
                     </div>
-                    <div className="grid grid-cols-5 gap-2">
+                    <div className="max-w-xs">
+                      <PriceField
+                        label="Total Travel/Transfer Amount"
+                        value={item.totalAmount}
+                        onChange={(v) => updateAdditionalTransfer(item.key, { totalAmount: v })}
+                      />
+                    </div>
+                    <p className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-ink-500">
+                      Auto-calculated — editable if you need to override a specific rate
+                    </p>
+                    <div className="grid grid-cols-4 gap-2">
                       <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateAdditionalTransfer(item.key, { rateAdult: v })} />
                       <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateAdditionalTransfer(item.key, { rateSenior: v })} />
                       <PriceField label="Child" value={item.rateChild} onChange={(v) => updateAdditionalTransfer(item.key, { rateChild: v })} />
-                      <PriceField
-                        label="Infant/Toddler"
-                        value={item.rateInfant}
-                        onChange={(v) => updateAdditionalTransfer(item.key, { rateInfant: v })}
-                      />
                       <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalTransfer(item.key, { ratePwd: v })} />
                     </div>
-                    <AdjustedRateRow
-                      rates={calculateMarkedUpRates(
-                        {
-                          senior: numVal(item.rateSenior),
-                          adult: numVal(item.rateAdult),
-                          child: numVal(item.rateChild),
-                          infant: numVal(item.rateInfant),
-                          pwd: numVal(item.ratePwd),
-                        },
-                        item.markupEnabled ? item.markupPct : 0
-                      )}
-                      counts={guestCounts}
-                    />
+                    <p className="mt-2 text-xs text-ink-500">Infant/Toddler: FREE</p>
                   </div>
                 ))}
                 <button

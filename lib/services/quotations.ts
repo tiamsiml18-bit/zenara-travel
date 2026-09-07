@@ -178,7 +178,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .order('sort_order'),
     supabase
       .from('quotation_transfer_items')
-      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd, markup_pct, markup_enabled')
+      .select('id, label, total_amount, rate_senior, rate_adult, rate_child, rate_pwd, markup_pct, markup_enabled')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
   ]);
@@ -250,6 +250,33 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     };
   }
 
+  // Transfer's additional sections use the same total-amount model as
+  // Hotel's — identical shape, separate function purely so a future
+  // change to one doesn't accidentally affect the other.
+  function mapTransferAdditionalItem(row: {
+    id: string;
+    label: string;
+    total_amount: number;
+    rate_senior: number;
+    rate_adult: number;
+    rate_child: number;
+    rate_pwd: number;
+    markup_pct: number;
+    markup_enabled: boolean;
+  }) {
+    return {
+      id: row.id,
+      label: row.label,
+      totalAmount: Number(row.total_amount),
+      rateSenior: Number(row.rate_senior),
+      rateAdult: Number(row.rate_adult),
+      rateChild: Number(row.rate_child),
+      ratePwd: Number(row.rate_pwd),
+      markupPct: Number(row.markup_pct),
+      markupEnabled: row.markup_enabled,
+    };
+  }
+
   return {
     itinerary: itinerary ?? [],
     inclusions: inclusions ?? [],
@@ -267,7 +294,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     tourPricing,
     additionalAirfare: (additionalAirfareRows ?? []).map(mapAdditionalItem),
     additionalHotel: (additionalHotelRows ?? []).map(mapHotelAdditionalItem),
-    additionalTransfer: (additionalTransferRows ?? []).map(mapAdditionalItem),
+    additionalTransfer: (additionalTransferRows ?? []).map(mapTransferAdditionalItem),
   };
 }
 
@@ -279,7 +306,7 @@ export async function getPricingForVersion(supabase: SupabaseClient, versionId: 
       `supplier_cost, markup, selling_price, profit, profit_margin_pct,
        airfare_adult_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate, airfare_markup_pct, airfare_markup_enabled,
        hotel_senior_rate, hotel_adult_rate, hotel_child_rate, hotel_infant_rate, hotel_pwd_rate, hotel_markup_pct, hotel_markup_enabled, hotel_total_amount,
-       transfer_senior_rate, transfer_adult_rate, transfer_child_rate, transfer_infant_rate, transfer_pwd_rate, transfer_markup_pct, transfer_markup_enabled,
+       transfer_senior_rate, transfer_adult_rate, transfer_child_rate, transfer_infant_rate, transfer_pwd_rate, transfer_markup_pct, transfer_markup_enabled, transfer_total_amount,
        payment_method`
     )
     .eq('quotation_version_id', versionId)
@@ -386,6 +413,18 @@ function sumHotelAdditionalWithMarkup(items: QuotationDraftInput['additionalHote
   return result;
 }
 
+/** Same as sumHotelAdditionalWithMarkup — Transfer's additional sections now use the same already-final-rate model as Hotel's. */
+function sumTransferAdditionalWithMarkup(items: QuotationDraftInput['additionalTransfer']): GuestRates {
+  const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+  for (const item of items) {
+    result.senior = (result.senior || 0) + (item.rateSenior ?? 0);
+    result.adult = (result.adult || 0) + (item.rateAdult ?? 0);
+    result.child = (result.child || 0) + (item.rateChild ?? 0);
+    result.pwd = (result.pwd || 0) + (item.ratePwd ?? 0);
+  }
+  return result;
+}
+
 function sumAdditionalWithMarkup(items: QuotationDraftInput['additionalAirfare']): GuestRates {
   const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
   for (const item of items) {
@@ -448,16 +487,20 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     infant: 0,
     pwd: input.hotelPwdRate,
   };
-  const transferRates = calculateMarkedUpRates(
-    {
-      senior: input.transferSeniorRate,
-      adult: input.transferAdultRate,
-      child: input.transferChildRate,
-      infant: input.transferInfantRate,
-      pwd: input.transferPwdRate,
-    },
-    input.transferMarkupEnabled ? input.transferMarkupPct : 0
-  );
+  // Transfer's rates are now auto-calculated (from transferTotalAmount
+  // split across paying guests, with markup already applied) but
+  // directly editable by the agent — same pattern as Hotel above and
+  // Tour pricing: the submitted rate is already the FINAL per-person
+  // charge, used as-is here rather than run through
+  // calculateMarkedUpRates a second time, which would double-apply
+  // markup on top of whatever the wizard already baked in.
+  const transferRates: GuestRates = {
+    senior: input.transferSeniorRate,
+    adult: input.transferAdultRate,
+    child: input.transferChildRate,
+    infant: 0,
+    pwd: input.transferPwdRate,
+  };
   // Additional sections (2, 3, 4...) for a multi-destination itinerary —
   // each already has its own markup applied inside the sum helper, then
   // combined with the default section below into one total per category.
@@ -465,7 +508,7 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
   // simply add zero, leaving the result identical to before this feature.
   const additionalAirfareTotal = sumAdditionalWithMarkup(input.additionalAirfare);
   const additionalHotelTotal = sumHotelAdditionalWithMarkup(input.additionalHotel);
-  const additionalTransferTotal = sumAdditionalWithMarkup(input.additionalTransfer);
+  const additionalTransferTotal = sumTransferAdditionalWithMarkup(input.additionalTransfer);
   const totalAirfareRates: GuestRates = {
     senior: (airfareRates.senior ?? 0) + (additionalAirfareTotal.senior ?? 0),
     adult: (airfareRates.adult ?? 0) + (additionalAirfareTotal.adult ?? 0),
@@ -642,11 +685,17 @@ async function insertVersionChildren(
       input.additionalTransfer.map((t, i) => ({
         quotation_version_id: versionId,
         label: t.label,
-        rate_senior: t.rateSenior ?? null,
-        rate_adult: t.rateAdult ?? null,
-        rate_child: t.rateChild ?? null,
-        rate_infant: t.rateInfant ?? null,
-        rate_pwd: t.ratePwd ?? null,
+        // Trusted directly from the submitted value (auto-calculated by
+        // the wizard, but manually editable) — not recomputed
+        // server-side, so a manual per-item edit is never silently
+        // overwritten. No rate_infant — Infant/Toddler is never a
+        // paying guest and has no rate field at all.
+        rate_senior: t.rateSenior,
+        rate_adult: t.rateAdult,
+        rate_child: t.rateChild,
+        rate_infant: 0,
+        rate_pwd: t.ratePwd,
+        total_amount: t.totalAmount,
         markup_pct: t.markupPct,
         markup_enabled: t.markupEnabled,
         sort_order: i,
@@ -770,6 +819,7 @@ async function insertVersionChildren(
     transfer_child_rate: input.transferChildRate,
     transfer_infant_rate: input.transferInfantRate,
     transfer_pwd_rate: input.transferPwdRate,
+    transfer_total_amount: input.transferTotalAmount,
     transfer_markup_pct: input.transferMarkupPct,
     transfer_markup_enabled: input.transferMarkupEnabled,
     payment_method: input.paymentMethod,
@@ -1359,6 +1409,7 @@ export async function duplicateQuotation(
     transferChildRate: pricing?.transfer_child_rate ?? 0,
     transferInfantRate: pricing?.transfer_infant_rate ?? 0,
     transferPwdRate: pricing?.transfer_pwd_rate ?? 0,
+    transferTotalAmount: pricing?.transfer_total_amount ?? 0,
     transferMarkupPct: pricing?.transfer_markup_pct ?? DEFAULT_TRANSFER_MARKUP_PCT,
     // Carries forward the SOURCE quotation's actual saved on/off state,
     // not a fresh default — duplicating should reproduce exactly what

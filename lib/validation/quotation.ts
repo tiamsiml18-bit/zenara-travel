@@ -106,6 +106,19 @@ export const hotelAdditionalItemSchema = z.object({
   ratePwd: z.coerce.number().min(0).default(0),
 });
 
+/** Same shape as hotelAdditionalItemSchema — Transfer's additional sections (2, 3, 4...) now follow the identical total-amount-split model as Hotel's. */
+export const transferAdditionalItemSchema = z.object({
+  id: z.string().uuid().optional(),
+  label: z.string().trim().default(''),
+  totalAmount: z.coerce.number().min(0).default(0),
+  markupPct: z.coerce.number().min(0).max(1).default(0.1),
+  markupEnabled: z.boolean().default(true),
+  rateAdult: z.coerce.number().min(0).default(0),
+  rateSenior: z.coerce.number().min(0).default(0),
+  rateChild: z.coerce.number().min(0).default(0),
+  ratePwd: z.coerce.number().min(0).default(0),
+});
+
 export const quotationDraftSchema = z
   .object({
     clientId: z.string().uuid('Select a client.'),
@@ -166,6 +179,13 @@ export const quotationDraftSchema = z
     transferChildRate: z.coerce.number().min(0).default(0),
     transferInfantRate: z.coerce.number().min(0).default(0),
     transferPwdRate: z.coerce.number().min(0).default(0),
+    // New Transfer pricing model, mirroring Hotel: the agent enters ONE
+    // total transfer amount instead of 5 separate per-guest-type rates.
+    // transferSeniorRate/transferAdultRate/etc above remain the actual
+    // per-person rates used everywhere downstream (calculations, PDF) —
+    // auto-calculated from this total, but directly editable, exactly
+    // like Hotel.
+    transferTotalAmount: z.coerce.number().min(0).default(0),
     transferMarkupPct: z.coerce.number().min(0).max(1).default(0.1),
     // ON by default for new quotations (matching Airfare/Hotel) — existing
     // quotations always pass their own saved value through explicitly, so
@@ -193,7 +213,7 @@ export const quotationDraftSchema = z
     // these arrays are only ever sections 2, 3, 4...
     additionalAirfare: z.array(additionalRateItemWithMarkupSchema).default([]),
     additionalHotel: z.array(hotelAdditionalItemSchema).default([]),
-    additionalTransfer: z.array(additionalRateItemWithMarkupSchema).default([]),
+    additionalTransfer: z.array(transferAdditionalItemSchema).default([]),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
     // Which named consultant prepared this quote — see agency_consultants;
