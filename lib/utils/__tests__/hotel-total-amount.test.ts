@@ -54,4 +54,10 @@ describe('calculateHotelRatesFromTotal — the actual formula the quotation wiza
     expect(rates.child).toBe(5000);
     expect(rates.pwd).toBe(5000);
   });
+
+  it('rounds to the nearest whole peso, not cents — matches a real reported case: PHP 1,234 total + 10% markup ÷ 2 paying guests = PHP 678.70, which must display as PHP 679, not PHP 678.7', () => {
+    const rates = calculateHotelRatesFromTotal(1234, 0.1, true, { numAdults: 2, numSeniors: 0, numChildren: 0, numPwd: 0 });
+    expect(rates.adult).toBe(679);
+    expect(Number.isInteger(rates.adult)).toBe(true);
+  });
 });

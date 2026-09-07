@@ -120,11 +120,11 @@ export function calculateHotelRatesFromTotal(
 ): { adult: number; senior: number; child: number; pwd: number } {
   const payingGuests = guests.numAdults + guests.numSeniors + guests.numChildren + guests.numPwd;
   const finalAmount = totalAmount * (markupEnabled ? 1 + markupPct : 1);
-  // Rounded to cents — floating-point multiplication/division on currency
-  // values otherwise produces artifacts like 7700.000000000001, which
-  // would display as an ugly, confusing decimal in the rate input fields
-  // rather than a clean PHP 7,700.
-  const perPerson = payingGuests > 0 ? Math.round((finalAmount / payingGuests) * 100) / 100 : 0;
+  // Rounded to the nearest whole peso — this value lands directly in an
+  // editable rate input field, so unlike a read-only display there's no
+  // separate formatting step to round at; the value itself must already
+  // be a whole number for the field to show one.
+  const perPerson = payingGuests > 0 ? Math.round(finalAmount / payingGuests) : 0;
   return {
     adult: guests.numAdults > 0 ? perPerson : 0,
     senior: guests.numSeniors > 0 ? perPerson : 0,
