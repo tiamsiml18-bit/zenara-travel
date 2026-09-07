@@ -81,6 +81,21 @@ interface AdditionalRateItem {
   rateInfant: number | '';
   ratePwd: number | '';
 }
+/**
+ * One additional Hotel section (2, 3, 4...) under the new total-amount
+ * pricing model — a single total plus markup, split evenly across paying
+ * guests, same as the primary Hotel section. A different shape from
+ * AdditionalRateItemWithMarkup (still used by Airfare's additional
+ * sections, untouched by this change).
+ */
+interface AdditionalHotelItem {
+  id?: string;
+  key: string;
+  label: string;
+  totalAmount: number | '';
+  markupPct: number;
+  markupEnabled: boolean;
+}
 
 export interface QuotationWizardInitialData {
   clientId: string;
@@ -119,6 +134,12 @@ export interface QuotationWizardInitialData {
   hotelChildRate?: number;
   hotelInfantRate?: number;
   hotelPwdRate?: number;
+  // New Hotel pricing model — the agent enters ONE total amount and the
+  // per-person rate for Adult/Senior/Child/PWD is derived by splitting
+  // evenly across paying guests (Infant/Toddler always free). The 5
+  // fields above remain for backward-compatible display of legacy data
+  // saved before this change.
+  hotelTotalAmount?: number;
   hotelMarkupPct?: number;
   hotelMarkupEnabled?: boolean;
   transferSeniorRate?: number;
@@ -133,7 +154,7 @@ export interface QuotationWizardInitialData {
   // Hanoi -> Manila as a second Airfare section). No `key` here — that's
   // generated once when the wizard's state initializes from this data.
   additionalAirfare?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
-  additionalHotel?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
+  additionalHotel?: Omit<AdditionalHotelItem, 'key'>[];
   additionalTransfer?: Omit<AdditionalRateItemWithMarkup, 'key'>[];
   paymentMethod?: 'credit_card' | 'paypal' | 'none';
   notes: string;
@@ -239,6 +260,23 @@ export function QuotationWizard({
     hotelChildRate: (initialData?.hotelChildRate ?? '') as number | '',
     hotelInfantRate: (initialData?.hotelInfantRate ?? '') as number | '',
     hotelPwdRate: (initialData?.hotelPwdRate ?? '') as number | '',
+    // New Hotel pricing model. Backward-compat: an existing quotation
+    // saved before this change has hotelTotalAmount = 0 but a real
+    // hotelAdultRate — reconstructing a total from that old per-person
+    // rate × this quotation's own paying-guest count preserves exactly
+    // the price the agent previously saw, rather than silently showing
+    // "Total Hotel Amount: 0" and zeroing out their hotel pricing the
+    // moment they reopen it. Only kicks in for genuinely legacy data —
+    // once hotelTotalAmount itself is saved (even as 0, meaning the
+    // agent cleared it on purpose), it's trusted as-is.
+    hotelTotalAmount: ((): number | '' => {
+      if (initialData?.hotelTotalAmount) return initialData.hotelTotalAmount;
+      const legacyRate = initialData?.hotelAdultRate;
+      if (!legacyRate) return '';
+      const payingGuests =
+        (initialData?.numAdults ?? 0) + (initialData?.numSeniors ?? 0) + (initialData?.numChildren ?? 0) + (initialData?.numPwd ?? 0);
+      return payingGuests > 0 ? legacyRate * payingGuests : '';
+    })(),
     hotelMarkupPct: initialData?.hotelMarkupPct ?? DEFAULT_HOTEL_MARKUP_PCT,
     hotelMarkupEnabled: initialData?.hotelMarkupEnabled ?? true,
     transferSeniorRate: (initialData?.transferSeniorRate ?? '') as number | '',
@@ -298,16 +336,12 @@ export function QuotationWizard({
       markupEnabled: a.markupEnabled,
     }))
   );
-  const [additionalHotel, setAdditionalHotel] = useState<AdditionalRateItemWithMarkup[]>(
+  const [additionalHotel, setAdditionalHotel] = useState<AdditionalHotelItem[]>(
     (initialData?.additionalHotel ?? []).map((h) => ({
       id: h.id,
       key: h.id ?? nextKey(),
       label: h.label,
-      rateSenior: h.rateSenior ?? '',
-      rateAdult: h.rateAdult ?? '',
-      rateChild: h.rateChild ?? '',
-      rateInfant: h.rateInfant ?? '',
-      ratePwd: h.ratePwd ?? '',
+      totalAmount: h.totalAmount ?? '',
       markupPct: h.markupPct,
       markupEnabled: h.markupEnabled,
     }))
@@ -390,14 +424,16 @@ export function QuotationWizard({
     },
     trip.airfareMarkupEnabled ? trip.airfareMarkupPct : 0
   );
+  // Hotel's per-person base rate is derived from hotelTotalAmount split
+  // across paying guests (Adult/Senior/Child/PWD; Infant/Toddler always
+  // free, never counted) — not independently entered per guest type like
+  // Airfare/Transfer. Deliberately kept as a base (pre-markup) value so
+  // calculateMarkedUpRates below applies markup exactly once, identical
+  // to how every other rate on this page already works.
+  const payingGuestCount = guestCounts.adult + guestCounts.senior + guestCounts.child + guestCounts.pwd;
+  const hotelPerPersonBase = payingGuestCount > 0 ? numVal(trip.hotelTotalAmount) / payingGuestCount : 0;
   const computedHotelRates = calculateMarkedUpRates(
-    {
-      senior: numVal(trip.hotelSeniorRate),
-      adult: numVal(trip.hotelAdultRate),
-      child: numVal(trip.hotelChildRate),
-      infant: numVal(trip.hotelInfantRate),
-      pwd: numVal(trip.hotelPwdRate),
-    },
+    { senior: hotelPerPersonBase, adult: hotelPerPersonBase, child: hotelPerPersonBase, infant: 0, pwd: hotelPerPersonBase },
     trip.hotelMarkupEnabled ? trip.hotelMarkupPct : 0
   );
   const otherCostRateMap = GUEST_TYPES.reduce(
@@ -449,7 +485,19 @@ export function QuotationWizard({
     return total;
   }
   const additionalAirfareTotal = sumAdditionalWithMarkup(additionalAirfare);
-  const additionalHotelTotal = sumAdditionalWithMarkup(additionalHotel);
+  function sumHotelAdditionalWithMarkup(items: AdditionalHotelItem[]): GuestRates {
+    const total: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+    for (const item of items) {
+      const perPersonBase = payingGuestCount > 0 ? numVal(item.totalAmount) / payingGuestCount : 0;
+      const marked = calculateMarkedUpRates(
+        { senior: perPersonBase, adult: perPersonBase, child: perPersonBase, infant: 0, pwd: perPersonBase },
+        item.markupEnabled ? item.markupPct : 0
+      );
+      for (const t of GUEST_TYPES) total[t] = (total[t] ?? 0) + (marked[t] ?? 0);
+    }
+    return total;
+  }
+  const additionalHotelTotal = sumHotelAdditionalWithMarkup(additionalHotel);
   const additionalTransferTotal = sumAdditionalWithMarkup(additionalTransfer);
   const totalAirfareRates: GuestRates = GUEST_TYPES.reduce(
     (acc, t) => ({ ...acc, [t]: (computedAirfareRates[t] ?? 0) + (additionalAirfareTotal[t] ?? 0) }),
@@ -595,12 +643,9 @@ export function QuotationWizard({
   }
 
   function addAdditionalHotel() {
-    setAdditionalHotel((prev) => [
-      ...prev,
-      { key: `new-${Date.now()}-${prev.length}`, label: '', rateSenior: '', rateAdult: '', rateChild: '', rateInfant: '', ratePwd: '', markupPct: 0.1, markupEnabled: true },
-    ]);
+    setAdditionalHotel((prev) => [...prev, { key: `new-${Date.now()}-${prev.length}`, label: '', totalAmount: '', markupPct: 0.1, markupEnabled: true }]);
   }
-  function updateAdditionalHotel(key: string, patch: Partial<AdditionalRateItemWithMarkup>) {
+  function updateAdditionalHotel(key: string, patch: Partial<AdditionalHotelItem>) {
     setAdditionalHotel((prev) => prev.map((h) => (h.key === key ? { ...h, ...patch } : h)));
   }
   function removeAdditionalHotel(key: string) {
@@ -820,11 +865,7 @@ export function QuotationWizard({
       additionalHotel: additionalHotel.map((h) => ({
         id: h.id,
         label: h.label,
-        rateSenior: h.rateSenior === '' ? null : Number(h.rateSenior),
-        rateAdult: h.rateAdult === '' ? null : Number(h.rateAdult),
-        rateChild: h.rateChild === '' ? null : Number(h.rateChild),
-        rateInfant: h.rateInfant === '' ? null : Number(h.rateInfant),
-        ratePwd: h.ratePwd === '' ? null : Number(h.ratePwd),
+        totalAmount: numVal(h.totalAmount),
         markupPct: h.markupPct,
         markupEnabled: h.markupEnabled,
       })),
@@ -851,6 +892,7 @@ export function QuotationWizard({
       hotelChildRate: numVal(trip.hotelChildRate),
       hotelInfantRate: numVal(trip.hotelInfantRate),
       hotelPwdRate: numVal(trip.hotelPwdRate),
+      hotelTotalAmount: numVal(trip.hotelTotalAmount),
       hotelMarkupPct: trip.hotelMarkupPct,
       hotelMarkupEnabled: trip.hotelMarkupEnabled,
       transferSeniorRate: numVal(trip.transferSeniorRate),
@@ -1363,19 +1405,12 @@ export function QuotationWizard({
                     />
                   </div>
                   <p className="mb-2 text-xs text-ink-500">
-                    Enter the per-person rate for each guest type. If every guest type pays the same, enter the same
-                    amount in each field — if a supplier charges children or infants differently, enter their actual rate.
+                    Enter the total hotel amount for the whole booking. Markup is applied to the total, then split
+                    evenly across paying guests (Adult, Senior, Child, PWD) — Infant/Toddler is always free and never
+                    counted.
                   </p>
-                  <div className="grid grid-cols-5 gap-2">
-                    <PriceField label="Adult" value={trip.hotelAdultRate} onChange={(v) => setTrip((t) => ({ ...t, hotelAdultRate: v }))} />
-                    <PriceField label="Senior" value={trip.hotelSeniorRate} onChange={(v) => setTrip((t) => ({ ...t, hotelSeniorRate: v }))} />
-                    <PriceField label="Child" value={trip.hotelChildRate} onChange={(v) => setTrip((t) => ({ ...t, hotelChildRate: v }))} />
-                    <PriceField
-                      label="Infant/Toddler"
-                      value={trip.hotelInfantRate}
-                      onChange={(v) => setTrip((t) => ({ ...t, hotelInfantRate: v }))}
-                    />
-                    <PriceField label="PWD" value={trip.hotelPwdRate} onChange={(v) => setTrip((t) => ({ ...t, hotelPwdRate: v }))} />
+                  <div className="max-w-xs">
+                    <PriceField label="Total Hotel Amount" value={trip.hotelTotalAmount} onChange={(v) => setTrip((t) => ({ ...t, hotelTotalAmount: v }))} />
                   </div>
                   <AdjustedRateRow rates={computedHotelRates} counts={guestCounts} />
                 </div>
@@ -1405,28 +1440,17 @@ export function QuotationWizard({
                         Remove
                       </button>
                     </div>
-                    <div className="grid grid-cols-5 gap-2">
-                      <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateAdditionalHotel(item.key, { rateAdult: v })} />
-                      <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateAdditionalHotel(item.key, { rateSenior: v })} />
-                      <PriceField label="Child" value={item.rateChild} onChange={(v) => updateAdditionalHotel(item.key, { rateChild: v })} />
-                      <PriceField
-                        label="Infant/Toddler"
-                        value={item.rateInfant}
-                        onChange={(v) => updateAdditionalHotel(item.key, { rateInfant: v })}
-                      />
-                      <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalHotel(item.key, { ratePwd: v })} />
+                    <div className="max-w-xs">
+                      <PriceField label="Total Hotel Amount" value={item.totalAmount} onChange={(v) => updateAdditionalHotel(item.key, { totalAmount: v })} />
                     </div>
                     <AdjustedRateRow
-                      rates={calculateMarkedUpRates(
-                        {
-                          senior: numVal(item.rateSenior),
-                          adult: numVal(item.rateAdult),
-                          child: numVal(item.rateChild),
-                          infant: numVal(item.rateInfant),
-                          pwd: numVal(item.ratePwd),
-                        },
-                        item.markupEnabled ? item.markupPct : 0
-                      )}
+                      rates={(() => {
+                        const perPersonBase = payingGuestCount > 0 ? numVal(item.totalAmount) / payingGuestCount : 0;
+                        return calculateMarkedUpRates(
+                          { senior: perPersonBase, adult: perPersonBase, child: perPersonBase, infant: 0, pwd: perPersonBase },
+                          item.markupEnabled ? item.markupPct : 0
+                        );
+                      })()}
                       counts={guestCounts}
                     />
                   </div>

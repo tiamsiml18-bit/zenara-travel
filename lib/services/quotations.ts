@@ -173,7 +173,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .order('sort_order'),
     supabase
       .from('quotation_hotel_items')
-      .select('id, label, rate_senior, rate_adult, rate_child, rate_infant, rate_pwd, markup_pct, markup_enabled')
+      .select('id, label, total_amount, markup_pct, markup_enabled')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
     supabase
@@ -223,6 +223,19 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     };
   }
 
+  // Hotel's additional sections use the new total-amount model — a
+  // separate mapping shape from Airfare/Transfer's mapAdditionalItem,
+  // which still collect 5 independent per-guest-type rates unchanged.
+  function mapHotelAdditionalItem(row: { id: string; label: string; total_amount: number; markup_pct: number; markup_enabled: boolean }) {
+    return {
+      id: row.id,
+      label: row.label,
+      totalAmount: Number(row.total_amount),
+      markupPct: Number(row.markup_pct),
+      markupEnabled: row.markup_enabled,
+    };
+  }
+
   return {
     itinerary: itinerary ?? [],
     inclusions: inclusions ?? [],
@@ -239,7 +252,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     guestRates,
     tourPricing,
     additionalAirfare: (additionalAirfareRows ?? []).map(mapAdditionalItem),
-    additionalHotel: (additionalHotelRows ?? []).map(mapAdditionalItem),
+    additionalHotel: (additionalHotelRows ?? []).map(mapHotelAdditionalItem),
     additionalTransfer: (additionalTransferRows ?? []).map(mapAdditionalItem),
   };
 }
@@ -251,7 +264,7 @@ export async function getPricingForVersion(supabase: SupabaseClient, versionId: 
     .select(
       `supplier_cost, markup, selling_price, profit, profit_margin_pct,
        airfare_adult_rate, airfare_senior_rate, airfare_child_rate, airfare_infant_rate, airfare_pwd_rate, airfare_markup_pct, airfare_markup_enabled,
-       hotel_senior_rate, hotel_adult_rate, hotel_child_rate, hotel_infant_rate, hotel_pwd_rate, hotel_markup_pct, hotel_markup_enabled,
+       hotel_senior_rate, hotel_adult_rate, hotel_child_rate, hotel_infant_rate, hotel_pwd_rate, hotel_markup_pct, hotel_markup_enabled, hotel_total_amount,
        transfer_senior_rate, transfer_adult_rate, transfer_child_rate, transfer_infant_rate, transfer_pwd_rate, transfer_markup_pct, transfer_markup_enabled,
        payment_method`
     )
@@ -340,6 +353,51 @@ function sumOtherCostRates(costItems: QuotationDraftInput['costItems']): GuestRa
  * before summing, exactly matching how the single default section works,
  * just repeated per section rather than assuming there's only one.
  */
+/**
+ * Splits a Hotel total amount evenly across paying guests (Adult, Senior,
+ * Child, PWD) to get a single per-person BASE rate — deliberately
+ * pre-markup, not the final rate. Markup gets applied exactly once,
+ * later, by the same calculateMarkedUpRates pipeline every other rate
+ * already goes through — dividing before or after applying a percentage
+ * markup gives the identical final result (markup is a linear scalar),
+ * so this is mathematically equivalent to "Total × (1+markup) ÷ guests"
+ * without needing any change to how markup itself gets applied
+ * downstream. Infant/Toddler is deliberately excluded from the guest
+ * count (always free) and gets 0 regardless of the total amount.
+ */
+export function computeHotelPerPersonBaseRate(totalAmount: number, payingGuests: { numAdults: number; numSeniors: number; numChildren: number; numPwd: number }): number {
+  const guests = payingGuests.numAdults + payingGuests.numSeniors + payingGuests.numChildren + payingGuests.numPwd;
+  if (guests <= 0) return 0;
+  return totalAmount / guests;
+}
+
+/**
+ * Sums additional Hotel sections (2, 3, 4...) into one combined
+ * contribution — each section splits its OWN total amount across the
+ * SAME paying-guest count (guest counts are shared across the whole
+ * quotation, not per hotel block) and applies its OWN markup
+ * independently, matching how the primary Hotel section works.
+ */
+function sumHotelAdditionalWithMarkup(
+  items: QuotationDraftInput['additionalHotel'],
+  payingGuests: { numAdults: number; numSeniors: number; numChildren: number; numPwd: number }
+): GuestRates {
+  const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
+  for (const item of items) {
+    const perPersonBase = computeHotelPerPersonBaseRate(item.totalAmount, payingGuests);
+    const marked = calculateMarkedUpRates(
+      { senior: perPersonBase, adult: perPersonBase, child: perPersonBase, infant: 0, pwd: perPersonBase },
+      item.markupEnabled ? item.markupPct : 0
+    );
+    result.senior = (result.senior || 0) + (marked.senior ?? 0);
+    result.adult = (result.adult || 0) + (marked.adult ?? 0);
+    result.child = (result.child || 0) + (marked.child ?? 0);
+    result.infant = (result.infant || 0) + (marked.infant ?? 0);
+    result.pwd = (result.pwd || 0) + (marked.pwd ?? 0);
+  }
+  return result;
+}
+
 function sumAdditionalWithMarkup(items: QuotationDraftInput['additionalAirfare']): GuestRates {
   const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
   for (const item of items) {
@@ -388,8 +446,12 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     },
     input.airfareMarkupEnabled ? input.airfareMarkupPct : 0
   );
+  // Hotel's per-person base rate is derived from hotelTotalAmount split
+  // across paying guests (Adult/Senior/Child/PWD; Infant always free) —
+  // not independently agent-entered per guest type like Airfare/Transfer.
+  const hotelPerPersonBase = computeHotelPerPersonBaseRate(input.hotelTotalAmount, input);
   const hotelRates = calculateMarkedUpRates(
-    { senior: input.hotelSeniorRate, adult: input.hotelAdultRate, child: input.hotelChildRate, infant: input.hotelInfantRate, pwd: input.hotelPwdRate },
+    { senior: hotelPerPersonBase, adult: hotelPerPersonBase, child: hotelPerPersonBase, infant: 0, pwd: hotelPerPersonBase },
     input.hotelMarkupEnabled ? input.hotelMarkupPct : 0
   );
   const transferRates = calculateMarkedUpRates(
@@ -408,7 +470,7 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
   // Zero additional sections (every existing quotation) means these
   // simply add zero, leaving the result identical to before this feature.
   const additionalAirfareTotal = sumAdditionalWithMarkup(input.additionalAirfare);
-  const additionalHotelTotal = sumAdditionalWithMarkup(input.additionalHotel);
+  const additionalHotelTotal = sumHotelAdditionalWithMarkup(input.additionalHotel, input);
   const additionalTransferTotal = sumAdditionalWithMarkup(input.additionalTransfer);
   const totalAirfareRates: GuestRates = {
     senior: (airfareRates.senior ?? 0) + (additionalAirfareTotal.senior ?? 0),
@@ -561,18 +623,22 @@ async function insertVersionChildren(
   }
   if (input.additionalHotel.length > 0) {
     const { error } = await supabase.from('quotation_hotel_items').insert(
-      input.additionalHotel.map((h, i) => ({
-        quotation_version_id: versionId,
-        label: h.label,
-        rate_senior: h.rateSenior ?? null,
-        rate_adult: h.rateAdult ?? null,
-        rate_child: h.rateChild ?? null,
-        rate_infant: h.rateInfant ?? null,
-        rate_pwd: h.ratePwd ?? null,
-        markup_pct: h.markupPct,
-        markup_enabled: h.markupEnabled,
-        sort_order: i,
-      }))
+      input.additionalHotel.map((h, i) => {
+        const perPersonBase = computeHotelPerPersonBaseRate(h.totalAmount, input);
+        return {
+          quotation_version_id: versionId,
+          label: h.label,
+          rate_senior: perPersonBase,
+          rate_adult: perPersonBase,
+          rate_child: perPersonBase,
+          rate_infant: 0,
+          rate_pwd: perPersonBase,
+          total_amount: h.totalAmount,
+          markup_pct: h.markupPct,
+          markup_enabled: h.markupEnabled,
+          sort_order: i,
+        };
+      })
     );
     if (error) throw new Error(`Failed to save additional hotel: ${error.message}`);
   }
@@ -690,11 +756,16 @@ async function insertVersionChildren(
     airfare_pwd_rate: input.airfarePwdRate,
     airfare_markup_pct: input.airfareMarkupPct,
     airfare_markup_enabled: input.airfareMarkupEnabled,
-    hotel_senior_rate: input.hotelSeniorRate,
-    hotel_adult_rate: input.hotelAdultRate,
-    hotel_child_rate: input.hotelChildRate,
-    hotel_infant_rate: input.hotelInfantRate,
-    hotel_pwd_rate: input.hotelPwdRate,
+    // Derived from hotelTotalAmount, not trusted directly from the
+    // client — the total amount and current guest counts are the actual
+    // source of truth; these 5 columns are always a computed split (base,
+    // pre-markup), never independently agent-entered.
+    hotel_senior_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
+    hotel_adult_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
+    hotel_child_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
+    hotel_infant_rate: 0,
+    hotel_pwd_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
+    hotel_total_amount: input.hotelTotalAmount,
     hotel_markup_pct: input.hotelMarkupPct,
     hotel_markup_enabled: input.hotelMarkupEnabled,
     transfer_senior_rate: input.transferSeniorRate,
@@ -1283,6 +1354,7 @@ export async function duplicateQuotation(
     hotelChildRate: pricing?.hotel_child_rate ?? 0,
     hotelInfantRate: pricing?.hotel_infant_rate ?? 0,
     hotelPwdRate: pricing?.hotel_pwd_rate ?? 0,
+    hotelTotalAmount: pricing?.hotel_total_amount ?? 0,
     hotelMarkupPct: pricing?.hotel_markup_pct ?? DEFAULT_HOTEL_MARKUP_PCT,
     hotelMarkupEnabled: pricing?.hotel_markup_enabled ?? true,
     transferSeniorRate: pricing?.transfer_senior_rate ?? 0,
@@ -1313,11 +1385,7 @@ export async function duplicateQuotation(
       markupPct: markupPct ?? 0.1,
       markupEnabled: markupEnabled ?? true,
     })),
-    additionalHotel: additionalHotel.map(({ id, markupPct, markupEnabled, ...rest }) => ({
-      ...rest,
-      markupPct: markupPct ?? 0.1,
-      markupEnabled: markupEnabled ?? true,
-    })),
+    additionalHotel: additionalHotel.map(({ id, ...rest }) => rest),
     additionalTransfer: additionalTransfer.map(({ id, markupPct, markupEnabled, ...rest }) => ({
       ...rest,
       markupPct: markupPct ?? 0.1,

@@ -81,6 +81,22 @@ export const additionalRateItemSchema = z.object({
   ratePwd: z.coerce.number().min(0).optional().nullable(),
 });
 
+/**
+ * One additional Hotel section (2, 3, 4...) under the new total-amount
+ * pricing model — a single total plus markup, split evenly across paying
+ * guests, same as the primary Hotel section. Deliberately a different
+ * shape from additionalRateItemWithMarkupSchema (used by Airfare's
+ * additional sections, which are untouched by this change and still
+ * collect 5 independent per-guest-type rates).
+ */
+export const hotelAdditionalItemSchema = z.object({
+  id: z.string().uuid().optional(),
+  label: z.string().trim().default(''),
+  totalAmount: z.coerce.number().min(0).default(0),
+  markupPct: z.coerce.number().min(0).max(1).default(0.1),
+  markupEnabled: z.boolean().default(true),
+});
+
 export const quotationDraftSchema = z
   .object({
     clientId: z.string().uuid('Select a client.'),
@@ -125,6 +141,14 @@ export const quotationDraftSchema = z
     hotelChildRate: z.coerce.number().min(0).default(0),
     hotelInfantRate: z.coerce.number().min(0).default(0),
     hotelPwdRate: z.coerce.number().min(0).default(0),
+    // New Hotel pricing model: the agent enters ONE total hotel amount
+    // (the supplier cost for the whole booking) instead of 5 separate
+    // per-guest-type rates. hotelSeniorRate/hotelAdultRate/etc above
+    // remain the actual per-person rates used everywhere downstream
+    // (calculations, PDF) -- they're now computed FROM this total amount
+    // split across paying guests, rather than typed in directly, so no
+    // other code needs to change.
+    hotelTotalAmount: z.coerce.number().min(0).default(0),
     hotelMarkupPct: z.coerce.number().min(0).max(1).default(0.1),
     hotelMarkupEnabled: z.boolean().default(true),
 
@@ -159,7 +183,7 @@ export const quotationDraftSchema = z
     // (airfareAdultRate etc.) and is completely untouched by this —
     // these arrays are only ever sections 2, 3, 4...
     additionalAirfare: z.array(additionalRateItemWithMarkupSchema).default([]),
-    additionalHotel: z.array(additionalRateItemWithMarkupSchema).default([]),
+    additionalHotel: z.array(hotelAdditionalItemSchema).default([]),
     additionalTransfer: z.array(additionalRateItemWithMarkupSchema).default([]),
     notes: z.string().trim().max(4000).optional().or(z.literal('')),
 
