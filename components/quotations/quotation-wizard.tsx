@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
 import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from './itinerary-builder';
@@ -33,6 +33,7 @@ import {
   calculateBankFee,
   calculateAdjustedPackage,
   calculateFinalRatePerPax,
+  calculateHotelRatesFromTotal,
   DEFAULT_AIRFARE_MARKUP_PCT,
   DEFAULT_HOTEL_MARKUP_PCT,
 } from '@/lib/utils/guest-pricing';
@@ -95,6 +96,15 @@ interface AdditionalHotelItem {
   totalAmount: number | '';
   markupPct: number;
   markupEnabled: boolean;
+  // Auto-calculated from totalAmount/markup/guest counts, but directly
+  // editable — a manual edit persists until totalAmount, markup, or that
+  // specific guest type's quantity changes again, at which point it's
+  // recalculated fresh. No rateInfant — Infant/Toddler is never a paying
+  // guest and never gets a rate field at all.
+  rateAdult: number | '';
+  rateSenior: number | '';
+  rateChild: number | '';
+  ratePwd: number | '';
 }
 
 export interface QuotationWizardInitialData {
@@ -342,6 +352,10 @@ export function QuotationWizard({
       key: h.id ?? nextKey(),
       label: h.label,
       totalAmount: h.totalAmount ?? '',
+      rateAdult: h.rateAdult ?? '',
+      rateSenior: h.rateSenior ?? '',
+      rateChild: h.rateChild ?? '',
+      ratePwd: h.ratePwd ?? '',
       markupPct: h.markupPct,
       markupEnabled: h.markupEnabled,
     }))
@@ -424,18 +438,21 @@ export function QuotationWizard({
     },
     trip.airfareMarkupEnabled ? trip.airfareMarkupPct : 0
   );
-  // Hotel's per-person base rate is derived from hotelTotalAmount split
-  // across paying guests (Adult/Senior/Child/PWD; Infant/Toddler always
-  // free, never counted) — not independently entered per guest type like
-  // Airfare/Transfer. Deliberately kept as a base (pre-markup) value so
-  // calculateMarkedUpRates below applies markup exactly once, identical
-  // to how every other rate on this page already works.
+  // Hotel's rates (trip.hotelAdultRate etc) are auto-calculated by a
+  // useEffect from hotelTotalAmount/markup/guest counts, but directly
+  // editable — they're already the FINAL per-person rate (markup
+  // included), so they're used here exactly as entered, matching the
+  // server-side computeFullPricing exactly. Never recomputed here, so a
+  // manual edit is reflected in the live preview immediately, not
+  // silently overridden.
   const payingGuestCount = guestCounts.adult + guestCounts.senior + guestCounts.child + guestCounts.pwd;
-  const hotelPerPersonBase = payingGuestCount > 0 ? numVal(trip.hotelTotalAmount) / payingGuestCount : 0;
-  const computedHotelRates = calculateMarkedUpRates(
-    { senior: hotelPerPersonBase, adult: hotelPerPersonBase, child: hotelPerPersonBase, infant: 0, pwd: hotelPerPersonBase },
-    trip.hotelMarkupEnabled ? trip.hotelMarkupPct : 0
-  );
+  const computedHotelRates: GuestRates = {
+    senior: numVal(trip.hotelSeniorRate),
+    adult: numVal(trip.hotelAdultRate),
+    child: numVal(trip.hotelChildRate),
+    infant: 0,
+    pwd: numVal(trip.hotelPwdRate),
+  };
   const otherCostRateMap = GUEST_TYPES.reduce(
     (acc, t) => {
       const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof OtherCostRow;
@@ -488,12 +505,10 @@ export function QuotationWizard({
   function sumHotelAdditionalWithMarkup(items: AdditionalHotelItem[]): GuestRates {
     const total: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
     for (const item of items) {
-      const perPersonBase = payingGuestCount > 0 ? numVal(item.totalAmount) / payingGuestCount : 0;
-      const marked = calculateMarkedUpRates(
-        { senior: perPersonBase, adult: perPersonBase, child: perPersonBase, infant: 0, pwd: perPersonBase },
-        item.markupEnabled ? item.markupPct : 0
-      );
-      for (const t of GUEST_TYPES) total[t] = (total[t] ?? 0) + (marked[t] ?? 0);
+      total.senior = (total.senior ?? 0) + numVal(item.rateSenior);
+      total.adult = (total.adult ?? 0) + numVal(item.rateAdult);
+      total.child = (total.child ?? 0) + numVal(item.rateChild);
+      total.pwd = (total.pwd ?? 0) + numVal(item.ratePwd);
     }
     return total;
   }
@@ -643,7 +658,10 @@ export function QuotationWizard({
   }
 
   function addAdditionalHotel() {
-    setAdditionalHotel((prev) => [...prev, { key: `new-${Date.now()}-${prev.length}`, label: '', totalAmount: '', markupPct: 0.1, markupEnabled: true }]);
+    setAdditionalHotel((prev) => [
+      ...prev,
+      { key: `new-${Date.now()}-${prev.length}`, label: '', totalAmount: '', rateAdult: '', rateSenior: '', rateChild: '', ratePwd: '', markupPct: 0.1, markupEnabled: true },
+    ]);
   }
   function updateAdditionalHotel(key: string, patch: Partial<AdditionalHotelItem>) {
     setAdditionalHotel((prev) => prev.map((h) => (h.key === key ? { ...h, ...patch } : h)));
@@ -651,6 +669,74 @@ export function QuotationWizard({
   function removeAdditionalHotel(key: string) {
     setAdditionalHotel((prev) => prev.filter((h) => h.key !== key));
   }
+
+  /**
+   * Auto-calculates the primary Hotel section's per-person rates
+   * whenever Total Hotel Amount, markup, or a paying guest type's
+   * quantity changes — and ONLY then. Between those changes, the four
+   * rate fields are freely, directly editable, and this effect simply
+   * doesn't re-run (its dependency array hasn't changed), so a manual
+   * edit is never touched. The moment any dependency below changes
+   * again, the affected rates recalculate fresh, intentionally
+   * replacing whatever was there before (including a prior manual
+   * edit) — matching "recalculate when the total, markup, or guest
+   * counts change" while still "never immediately overwrite a manual
+   * edit" the rest of the time.
+   *
+   * A guest type with zero quantity always gets rate 0, never the
+   * shared per-person split value, even though mathematically the
+   * split itself doesn't depend on which types are zero — this is
+   * purely about what the agent sees in a category nobody is paying
+   * for.
+   */
+  useEffect(() => {
+    const rates = calculateHotelRatesFromTotal(numVal(trip.hotelTotalAmount), trip.hotelMarkupPct, trip.hotelMarkupEnabled, {
+      numAdults: trip.numAdults,
+      numSeniors: trip.numSeniors,
+      numChildren: trip.numChildren,
+      numPwd: trip.numPwd,
+    });
+    setTrip((t) => ({
+      ...t,
+      hotelAdultRate: rates.adult,
+      hotelSeniorRate: rates.senior,
+      hotelChildRate: rates.child,
+      hotelPwdRate: rates.pwd,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.hotelTotalAmount, trip.hotelMarkupPct, trip.hotelMarkupEnabled, trip.numAdults, trip.numSeniors, trip.numChildren, trip.numPwd]);
+
+  /**
+   * Same auto-calculate-but-editable behavior as above, per additional
+   * Hotel section — each hotel's rates depend on ITS OWN totalAmount and
+   * markup, but the SAME shared paying-guest counts from the Guests
+   * section. A manual edit on one hotel's Child rate, for example, never
+   * affects another hotel's Child rate, since each item's rates are
+   * only recalculated from that same item's own totalAmount/markup
+   * changing (guest-count changes recalculate every hotel, since the
+   * guest count is genuinely shared).
+   */
+  useEffect(() => {
+    const guests = { numAdults: trip.numAdults, numSeniors: trip.numSeniors, numChildren: trip.numChildren, numPwd: trip.numPwd };
+    setAdditionalHotel((prev) =>
+      prev.map((h) => {
+        const rates = calculateHotelRatesFromTotal(numVal(h.totalAmount), h.markupPct, h.markupEnabled, guests);
+        return { ...h, rateAdult: rates.adult, rateSenior: rates.senior, rateChild: rates.child, ratePwd: rates.pwd };
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    trip.numAdults,
+    trip.numSeniors,
+    trip.numChildren,
+    trip.numPwd,
+    // Each item's own totalAmount/markup — joined into one stable string
+    // so the effect only re-runs when one of THESE specific values
+    // actually changes, not on every render (an array/object of items
+    // would be a new reference every render and defeat the point of a
+    // dependency array).
+    additionalHotel.map((h) => `${h.key}:${h.totalAmount}:${h.markupPct}:${h.markupEnabled}`).join('|'),
+  ]);
 
   function addAdditionalTransfer() {
     setAdditionalTransfer((prev) => [
@@ -866,6 +952,10 @@ export function QuotationWizard({
         id: h.id,
         label: h.label,
         totalAmount: numVal(h.totalAmount),
+        rateAdult: numVal(h.rateAdult),
+        rateSenior: numVal(h.rateSenior),
+        rateChild: numVal(h.rateChild),
+        ratePwd: numVal(h.ratePwd),
         markupPct: h.markupPct,
         markupEnabled: h.markupEnabled,
       })),
@@ -1412,7 +1502,16 @@ export function QuotationWizard({
                   <div className="max-w-xs">
                     <PriceField label="Total Hotel Amount" value={trip.hotelTotalAmount} onChange={(v) => setTrip((t) => ({ ...t, hotelTotalAmount: v }))} />
                   </div>
-                  <AdjustedRateRow rates={computedHotelRates} counts={guestCounts} />
+                  <p className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-ink-500">
+                    Auto-calculated — editable if you need to override a specific rate
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
+                    <PriceField label="Adult" value={trip.hotelAdultRate} onChange={(v) => setTrip((t) => ({ ...t, hotelAdultRate: v }))} />
+                    <PriceField label="Senior" value={trip.hotelSeniorRate} onChange={(v) => setTrip((t) => ({ ...t, hotelSeniorRate: v }))} />
+                    <PriceField label="Child" value={trip.hotelChildRate} onChange={(v) => setTrip((t) => ({ ...t, hotelChildRate: v }))} />
+                    <PriceField label="PWD" value={trip.hotelPwdRate} onChange={(v) => setTrip((t) => ({ ...t, hotelPwdRate: v }))} />
+                  </div>
+                  <p className="mt-2 text-xs text-ink-500">Infant/Toddler: FREE</p>
                 </div>
 
                 {/* Additional Hotel sections (2, 3, 4...), e.g. Hanoi
@@ -1443,16 +1542,16 @@ export function QuotationWizard({
                     <div className="max-w-xs">
                       <PriceField label="Total Hotel Amount" value={item.totalAmount} onChange={(v) => updateAdditionalHotel(item.key, { totalAmount: v })} />
                     </div>
-                    <AdjustedRateRow
-                      rates={(() => {
-                        const perPersonBase = payingGuestCount > 0 ? numVal(item.totalAmount) / payingGuestCount : 0;
-                        return calculateMarkedUpRates(
-                          { senior: perPersonBase, adult: perPersonBase, child: perPersonBase, infant: 0, pwd: perPersonBase },
-                          item.markupEnabled ? item.markupPct : 0
-                        );
-                      })()}
-                      counts={guestCounts}
-                    />
+                    <p className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-ink-500">
+                      Auto-calculated — editable if you need to override a specific rate
+                    </p>
+                    <div className="grid grid-cols-4 gap-2">
+                      <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateAdditionalHotel(item.key, { rateAdult: v })} />
+                      <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateAdditionalHotel(item.key, { rateSenior: v })} />
+                      <PriceField label="Child" value={item.rateChild} onChange={(v) => updateAdditionalHotel(item.key, { rateChild: v })} />
+                      <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalHotel(item.key, { ratePwd: v })} />
+                    </div>
+                    <p className="mt-2 text-xs text-ink-500">Infant/Toddler: FREE</p>
                   </div>
                 ))}
                 <button

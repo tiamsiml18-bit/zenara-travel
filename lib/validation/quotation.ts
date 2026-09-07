@@ -95,6 +95,15 @@ export const hotelAdditionalItemSchema = z.object({
   totalAmount: z.coerce.number().min(0).default(0),
   markupPct: z.coerce.number().min(0).max(1).default(0.1),
   markupEnabled: z.boolean().default(true),
+  // Auto-calculated from totalAmount/markup/paying-guest-count, but
+  // directly editable by the agent — the submitted value here is
+  // trusted as the actual final per-person rate, not recomputed
+  // server-side, so a manual edit is never silently overwritten.
+  // Infant/Toddler has no rate field at all — never a paying guest.
+  rateAdult: z.coerce.number().min(0).default(0),
+  rateSenior: z.coerce.number().min(0).default(0),
+  rateChild: z.coerce.number().min(0).default(0),
+  ratePwd: z.coerce.number().min(0).default(0),
 });
 
 export const quotationDraftSchema = z

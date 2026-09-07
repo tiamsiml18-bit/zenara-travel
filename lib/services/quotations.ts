@@ -173,7 +173,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .order('sort_order'),
     supabase
       .from('quotation_hotel_items')
-      .select('id, label, total_amount, markup_pct, markup_enabled')
+      .select('id, label, total_amount, rate_senior, rate_adult, rate_child, rate_pwd, markup_pct, markup_enabled')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
     supabase
@@ -226,11 +226,25 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
   // Hotel's additional sections use the new total-amount model — a
   // separate mapping shape from Airfare/Transfer's mapAdditionalItem,
   // which still collect 5 independent per-guest-type rates unchanged.
-  function mapHotelAdditionalItem(row: { id: string; label: string; total_amount: number; markup_pct: number; markup_enabled: boolean }) {
+  function mapHotelAdditionalItem(row: {
+    id: string;
+    label: string;
+    total_amount: number;
+    rate_senior: number;
+    rate_adult: number;
+    rate_child: number;
+    rate_pwd: number;
+    markup_pct: number;
+    markup_enabled: boolean;
+  }) {
     return {
       id: row.id,
       label: row.label,
       totalAmount: Number(row.total_amount),
+      rateSenior: Number(row.rate_senior),
+      rateAdult: Number(row.rate_adult),
+      rateChild: Number(row.rate_child),
+      ratePwd: Number(row.rate_pwd),
       markupPct: Number(row.markup_pct),
       markupEnabled: row.markup_enabled,
     };
@@ -354,46 +368,20 @@ function sumOtherCostRates(costItems: QuotationDraftInput['costItems']): GuestRa
  * just repeated per section rather than assuming there's only one.
  */
 /**
- * Splits a Hotel total amount evenly across paying guests (Adult, Senior,
- * Child, PWD) to get a single per-person BASE rate — deliberately
- * pre-markup, not the final rate. Markup gets applied exactly once,
- * later, by the same calculateMarkedUpRates pipeline every other rate
- * already goes through — dividing before or after applying a percentage
- * markup gives the identical final result (markup is a linear scalar),
- * so this is mathematically equivalent to "Total × (1+markup) ÷ guests"
- * without needing any change to how markup itself gets applied
- * downstream. Infant/Toddler is deliberately excluded from the guest
- * count (always free) and gets 0 regardless of the total amount.
- */
-export function computeHotelPerPersonBaseRate(totalAmount: number, payingGuests: { numAdults: number; numSeniors: number; numChildren: number; numPwd: number }): number {
-  const guests = payingGuests.numAdults + payingGuests.numSeniors + payingGuests.numChildren + payingGuests.numPwd;
-  if (guests <= 0) return 0;
-  return totalAmount / guests;
-}
-
-/**
  * Sums additional Hotel sections (2, 3, 4...) into one combined
- * contribution — each section splits its OWN total amount across the
- * SAME paying-guest count (guest counts are shared across the whole
- * quotation, not per hotel block) and applies its OWN markup
- * independently, matching how the primary Hotel section works.
+ * contribution. Each item's rateAdult/rateSenior/rateChild/ratePwd is
+ * already the final per-person rate (auto-calculated by the wizard from
+ * that item's own totalAmount/markup, but directly editable) — trusted
+ * as-is here, not recomputed, so a manual edit on one hotel is never
+ * silently overwritten and never affects another hotel's rates.
  */
-function sumHotelAdditionalWithMarkup(
-  items: QuotationDraftInput['additionalHotel'],
-  payingGuests: { numAdults: number; numSeniors: number; numChildren: number; numPwd: number }
-): GuestRates {
+function sumHotelAdditionalWithMarkup(items: QuotationDraftInput['additionalHotel']): GuestRates {
   const result: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
   for (const item of items) {
-    const perPersonBase = computeHotelPerPersonBaseRate(item.totalAmount, payingGuests);
-    const marked = calculateMarkedUpRates(
-      { senior: perPersonBase, adult: perPersonBase, child: perPersonBase, infant: 0, pwd: perPersonBase },
-      item.markupEnabled ? item.markupPct : 0
-    );
-    result.senior = (result.senior || 0) + (marked.senior ?? 0);
-    result.adult = (result.adult || 0) + (marked.adult ?? 0);
-    result.child = (result.child || 0) + (marked.child ?? 0);
-    result.infant = (result.infant || 0) + (marked.infant ?? 0);
-    result.pwd = (result.pwd || 0) + (marked.pwd ?? 0);
+    result.senior = (result.senior || 0) + (item.rateSenior ?? 0);
+    result.adult = (result.adult || 0) + (item.rateAdult ?? 0);
+    result.child = (result.child || 0) + (item.rateChild ?? 0);
+    result.pwd = (result.pwd || 0) + (item.ratePwd ?? 0);
   }
   return result;
 }
@@ -446,14 +434,20 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
     },
     input.airfareMarkupEnabled ? input.airfareMarkupPct : 0
   );
-  // Hotel's per-person base rate is derived from hotelTotalAmount split
-  // across paying guests (Adult/Senior/Child/PWD; Infant always free) —
-  // not independently agent-entered per guest type like Airfare/Transfer.
-  const hotelPerPersonBase = computeHotelPerPersonBaseRate(input.hotelTotalAmount, input);
-  const hotelRates = calculateMarkedUpRates(
-    { senior: hotelPerPersonBase, adult: hotelPerPersonBase, child: hotelPerPersonBase, infant: 0, pwd: hotelPerPersonBase },
-    input.hotelMarkupEnabled ? input.hotelMarkupPct : 0
-  );
+  // Hotel's rates are now auto-calculated (from hotelTotalAmount split
+  // across paying guests, with markup already applied) but directly
+  // editable by the agent — same pattern as Tour pricing (sumTourRates
+  // below): the submitted rate is already the FINAL per-person charge,
+  // so it's used as-is here rather than run through
+  // calculateMarkedUpRates a second time, which would double-apply
+  // markup on top of whatever the wizard already baked in.
+  const hotelRates: GuestRates = {
+    senior: input.hotelSeniorRate,
+    adult: input.hotelAdultRate,
+    child: input.hotelChildRate,
+    infant: 0,
+    pwd: input.hotelPwdRate,
+  };
   const transferRates = calculateMarkedUpRates(
     {
       senior: input.transferSeniorRate,
@@ -470,7 +464,7 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
   // Zero additional sections (every existing quotation) means these
   // simply add zero, leaving the result identical to before this feature.
   const additionalAirfareTotal = sumAdditionalWithMarkup(input.additionalAirfare);
-  const additionalHotelTotal = sumHotelAdditionalWithMarkup(input.additionalHotel, input);
+  const additionalHotelTotal = sumHotelAdditionalWithMarkup(input.additionalHotel);
   const additionalTransferTotal = sumAdditionalWithMarkup(input.additionalTransfer);
   const totalAirfareRates: GuestRates = {
     senior: (airfareRates.senior ?? 0) + (additionalAirfareTotal.senior ?? 0),
@@ -623,22 +617,23 @@ async function insertVersionChildren(
   }
   if (input.additionalHotel.length > 0) {
     const { error } = await supabase.from('quotation_hotel_items').insert(
-      input.additionalHotel.map((h, i) => {
-        const perPersonBase = computeHotelPerPersonBaseRate(h.totalAmount, input);
-        return {
-          quotation_version_id: versionId,
-          label: h.label,
-          rate_senior: perPersonBase,
-          rate_adult: perPersonBase,
-          rate_child: perPersonBase,
-          rate_infant: 0,
-          rate_pwd: perPersonBase,
-          total_amount: h.totalAmount,
-          markup_pct: h.markupPct,
-          markup_enabled: h.markupEnabled,
-          sort_order: i,
-        };
-      })
+      input.additionalHotel.map((h, i) => ({
+        quotation_version_id: versionId,
+        label: h.label,
+        // Trusted directly from the submitted value (auto-calculated by
+        // the wizard, but manually editable) — not recomputed
+        // server-side, so a manual per-hotel edit is never silently
+        // overwritten.
+        rate_senior: h.rateSenior,
+        rate_adult: h.rateAdult,
+        rate_child: h.rateChild,
+        rate_infant: 0,
+        rate_pwd: h.ratePwd,
+        total_amount: h.totalAmount,
+        markup_pct: h.markupPct,
+        markup_enabled: h.markupEnabled,
+        sort_order: i,
+      }))
     );
     if (error) throw new Error(`Failed to save additional hotel: ${error.message}`);
   }
@@ -756,15 +751,17 @@ async function insertVersionChildren(
     airfare_pwd_rate: input.airfarePwdRate,
     airfare_markup_pct: input.airfareMarkupPct,
     airfare_markup_enabled: input.airfareMarkupEnabled,
-    // Derived from hotelTotalAmount, not trusted directly from the
-    // client — the total amount and current guest counts are the actual
-    // source of truth; these 5 columns are always a computed split (base,
-    // pre-markup), never independently agent-entered.
-    hotel_senior_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
-    hotel_adult_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
-    hotel_child_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
+    // The wizard now auto-calculates these from hotelTotalAmount but
+    // allows direct manual editing (persisting until totalAmount, markup,
+    // or that guest type's quantity changes again) — the submitted value
+    // is trusted directly here, matching how Airfare/Transfer already
+    // work, rather than being recomputed and silently overriding an
+    // agent's intentional manual edit.
+    hotel_senior_rate: input.hotelSeniorRate,
+    hotel_adult_rate: input.hotelAdultRate,
+    hotel_child_rate: input.hotelChildRate,
     hotel_infant_rate: 0,
-    hotel_pwd_rate: computeHotelPerPersonBaseRate(input.hotelTotalAmount, input),
+    hotel_pwd_rate: input.hotelPwdRate,
     hotel_total_amount: input.hotelTotalAmount,
     hotel_markup_pct: input.hotelMarkupPct,
     hotel_markup_enabled: input.hotelMarkupEnabled,

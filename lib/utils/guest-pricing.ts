@@ -91,6 +91,48 @@ export function calculateMarkedUpRates(rates: GuestRates, markupPct: number): Gu
   return result;
 }
 
+export interface HotelPayingGuestCounts {
+  numAdults: number;
+  numSeniors: number;
+  numChildren: number;
+  numPwd: number;
+}
+
+/**
+ * The actual Hotel total-amount split logic — used live by the
+ * quotation wizard's auto-recalculation effect, and directly verified
+ * here by tests, so there's one real source of truth for this formula
+ * rather than a server-side copy that could silently drift from what
+ * the UI actually does.
+ *
+ * Total Hotel Amount × (1 + markup, if enabled) ÷ paying guests
+ * (Adults + Seniors + Children + PWD — Infant/Toddler is never counted
+ * and never gets a rate) = one shared final per-person rate for every
+ * paying guest type. A guest type with zero quantity always gets 0,
+ * never the shared rate, even though the split itself doesn't depend on
+ * which specific types are zero.
+ */
+export function calculateHotelRatesFromTotal(
+  totalAmount: number,
+  markupPct: number,
+  markupEnabled: boolean,
+  guests: HotelPayingGuestCounts
+): { adult: number; senior: number; child: number; pwd: number } {
+  const payingGuests = guests.numAdults + guests.numSeniors + guests.numChildren + guests.numPwd;
+  const finalAmount = totalAmount * (markupEnabled ? 1 + markupPct : 1);
+  // Rounded to cents — floating-point multiplication/division on currency
+  // values otherwise produces artifacts like 7700.000000000001, which
+  // would display as an ugly, confusing decimal in the rate input fields
+  // rather than a clean PHP 7,700.
+  const perPerson = payingGuests > 0 ? Math.round((finalAmount / payingGuests) * 100) / 100 : 0;
+  return {
+    adult: guests.numAdults > 0 ? perPerson : 0,
+    senior: guests.numSeniors > 0 ? perPerson : 0,
+    child: guests.numChildren > 0 ? perPerson : 0,
+    pwd: guests.numPwd > 0 ? perPerson : 0,
+  };
+}
+
 /** Package per PAX = Airfare + Hotel + Transfer + every selected Tour's rate, per guest type. Unchanged formula — only what feeds into it changed. */
 /** Package per PAX = Airfare + Hotel + Transfer + Tours + Other Supplier Costs, per guest type. Unchanged formula shape — only what feeds into it changed as new categories were added. */
 export function calculatePackagePerPax(
