@@ -298,9 +298,7 @@ export function SalesTable({ rows }: { rows: SalesRow[] }) {
               <th className="px-3 py-2 text-right">Refund</th>
               <th className="px-3 py-2 text-right">Total Cost</th>
               <th className="px-3 py-2 text-right">Net Profit</th>
-              <th className="px-3 py-2">Cost Source</th>
               <th className="px-3 py-2">Next Payment Due</th>
-              <th className="px-3 py-2">Agent</th>
               <th className="px-3 py-2">Remarks</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
@@ -363,20 +361,12 @@ export function SalesTable({ rows }: { rows: SalesRow[] }) {
                   <td className={`px-3 py-2 text-right font-ticket font-semibold ${r.netProfit < 0 ? 'text-coral-600' : 'text-harbor-700'}`}>
                     {formatMoney(r.netProfit)}
                   </td>
-                  <td className="px-3 py-2">
-                    {r.dataSource === 'crm' && r.bookingId ? (
-                      <CostSourceSelect bookingId={r.bookingId} value={r.costSource ?? 'manual'} />
-                    ) : (
-                      <span className="text-xs text-ink-500">Manual</span>
-                    )}
-                  </td>
                   <td className="px-3 py-2 text-ink-500">{r.paymentStatus === 'paid' ? '—' : formatDate(r.paymentDueDate)}</td>
-                  <td className="px-3 py-2 text-ink-500">{r.agentName}</td>
                   <td className="px-3 py-2">
                     <RemarksCell row={r} value={r.remarks} />
                   </td>
                   <td className="px-3 py-2">
-                    <div className="flex gap-2 whitespace-nowrap">
+                    <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
                       {r.dataSource === 'crm' && r.quotationId && (
                         <Link href={`/expenses?quotationId=${r.quotationId}`} className="text-xs font-medium text-harbor-700 hover:underline">
                           View Expenses
