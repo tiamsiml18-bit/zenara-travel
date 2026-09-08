@@ -5,7 +5,18 @@ import { createClient as createSupabaseServerClient } from '@/lib/supabase/serve
 import { requireUser } from '@/lib/auth/session';
 import * as expensesService from '@/lib/services/expenses';
 import * as salesService from '@/lib/services/sales';
-import { expenseSchema, type ExpenseInput, creditCardSchema, type CreditCardInput, costSourceUpdateSchema, type CostSourceUpdateInput } from '@/lib/validation/expenses';
+import {
+  expenseSchema,
+  type ExpenseInput,
+  creditCardSchema,
+  type CreditCardInput,
+  costSourceUpdateSchema,
+  type CostSourceUpdateInput,
+  recurringExpenseSchema,
+  type RecurringExpenseInput,
+  recurringStatusUpdateSchema,
+  type RecurringStatusUpdateInput,
+} from '@/lib/validation/expenses';
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -97,5 +108,39 @@ export async function updateCostSourceAction(input: CostSourceUpdateInput): Prom
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to switch cost source.' };
+  }
+}
+
+// ============================================================================
+// Recurring Expenses
+// ============================================================================
+
+export async function upsertRecurringExpenseAction(input: RecurringExpenseInput): Promise<ActionResult<{ id: string }>> {
+  const user = await requireUser();
+  const parsed = recurringExpenseSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid recurring expense details.' };
+
+  const supabase = await createSupabaseServerClient();
+  try {
+    const result = await expensesService.upsertRecurringSchedule(supabase, parsed.data, user.id);
+    revalidatePath('/expenses');
+    return { ok: true, data: result };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to save recurring expense.' };
+  }
+}
+
+export async function updateRecurringStatusAction(input: RecurringStatusUpdateInput): Promise<ActionResult> {
+  await requireUser();
+  const parsed = recurringStatusUpdateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Invalid status.' };
+
+  const supabase = await createSupabaseServerClient();
+  try {
+    await expensesService.updateRecurringStatus(supabase, parsed.data.id, parsed.data.status);
+    revalidatePath('/expenses');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to update status.' };
   }
 }

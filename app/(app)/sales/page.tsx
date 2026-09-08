@@ -131,6 +131,21 @@ export default async function SalesPage({
     return qs ? `/sales?${qs}` : '/sales';
   }
 
+  // Export always follows the currently selected filters (spec: "must
+  // respect the filters currently selected") — the same query string the
+  // page itself is using, just against the export routes instead. Export
+  // is scoped to CRM Sales (the columns/fields the spec's export section
+  // describes), so `source` itself is never part of the export query.
+  function buildExportHref(kind: 'pdf' | 'excel') {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (k === 'source' || !v) continue;
+      sp.set(k, v);
+    }
+    const qs = sp.toString();
+    return `/api/sales/export/${kind}${qs ? `?${qs}` : ''}`;
+  }
+
   // Historical rows with their own explicit due date, not yet paid,
   // merged into the same Upcoming Payments list the CRM side already
   // produces -- per spec, never included unless that date was actually
@@ -168,6 +183,12 @@ export default async function SalesPage({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <SalesSourceToggle current={source} buildHref={buildHref} />
           <div className="flex gap-2">
+            <a href={buildExportHref('pdf')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
+              Export PDF
+            </a>
+            <a href={buildExportHref('excel')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
+              Export Excel
+            </a>
             <AddHistoricalSaleButton />
             <Link href="/sales/import" className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
               Import Historical Sales

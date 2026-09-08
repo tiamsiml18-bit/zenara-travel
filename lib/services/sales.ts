@@ -276,6 +276,9 @@ export async function listUpcomingPayments(supabase: SupabaseClient) {
     .sort((a, b) => (a.paymentDueDate < b.paymentDueDate ? -1 : a.paymentDueDate > b.paymentDueDate ? 1 : 0));
 }
 
+/** One row of listSalesRecords' return shape — named and exported so other modules (e.g. report export) can reference it without repeating the Awaited<ReturnType<...>> pattern. */
+export type SalesRecord = Awaited<ReturnType<typeof listSalesRecords>>[number];
+
 export function getSalesSummary(rows: Awaited<ReturnType<typeof listSalesRecords>>) {
   const today = new Date().toISOString().slice(0, 10);
   return {

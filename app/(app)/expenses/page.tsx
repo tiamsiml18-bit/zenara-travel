@@ -6,9 +6,10 @@ import { AutoSubmitDateInput } from '@/components/ui/auto-submit-date-input';
 import { ExpensesTable } from '@/components/expenses/expenses-table';
 import { AddExpenseButton } from '@/components/expenses/add-expense-button';
 import { CreditCardsPanel } from '@/components/expenses/credit-cards-panel';
+import { RecurringExpensesSection } from '@/components/expenses/recurring-expenses-section';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
-import { listExpenses, listUpcomingExpenses, getExpensesSummary, listExpenseCategories, listCreditCards } from '@/lib/services/expenses';
+import { listExpenses, listUpcomingExpenses, getExpensesSummary, listExpenseCategories, listCreditCards, generateDueRecurringExpenses, listRecurringSchedules } from '@/lib/services/expenses';
 import { EXPENSE_PAYMENT_STATUS_LABELS, EXPENSE_PAYMENT_METHOD_LABELS } from '@/lib/validation/expenses';
 
 function formatMoney(n: number) {
@@ -37,7 +38,13 @@ export default async function ExpensesPage({
   const params = await searchParams;
   const supabase = await createClient();
 
-  const [rows, upcoming, categories, creditCards] = await Promise.all([
+  // Runs on every page load — cheap when nothing is due (a no-op query
+  // per active schedule), and the database's unique constraint means
+  // calling it repeatedly, from multiple simultaneous visits, can never
+  // generate the same occurrence twice.
+  await generateDueRecurringExpenses(supabase);
+
+  const [rows, upcoming, categories, creditCards, recurringSchedules] = await Promise.all([
     listExpenses(supabase, {
       search: params.search,
       categoryId: params.categoryId,
@@ -51,9 +58,23 @@ export default async function ExpensesPage({
     listUpcomingExpenses(supabase),
     listExpenseCategories(supabase),
     listCreditCards(supabase),
+    listRecurringSchedules(supabase),
   ]);
 
   const summary = getExpensesSummary(rows);
+
+  // Export always follows the currently selected filters — the same
+  // query string driving the page's own listExpenses() call, just
+  // pointed at the export routes.
+  function buildExportHref(kind: 'pdf' | 'excel') {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (!v) continue;
+      sp.set(k, v);
+    }
+    const qs = sp.toString();
+    return `/api/expenses/export/${kind}${qs ? `?${qs}` : ''}`;
+  }
   const activeCreditCards = creditCards.filter((c) => c.is_active);
 
   return (
@@ -78,7 +99,13 @@ export default async function ExpensesPage({
           </div>
         )}
 
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex justify-end gap-2">
+          <a href={buildExportHref('pdf')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
+            Export PDF
+          </a>
+          <a href={buildExportHref('excel')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
+            Export Excel
+          </a>
           <AddExpenseButton categories={categories} creditCards={activeCreditCards} />
         </div>
 
@@ -181,6 +208,8 @@ export default async function ExpensesPage({
           </div>
           <CreditCardsPanel cards={creditCards} />
         </div>
+
+        <RecurringExpensesSection schedules={recurringSchedules} />
       </main>
     </>
   );

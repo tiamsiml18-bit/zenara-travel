@@ -58,6 +58,54 @@ export const expenseCategorySchema = z.object({
 });
 export type ExpenseCategoryInput = z.infer<typeof expenseCategorySchema>;
 
+export const RECURRING_FREQUENCIES = ['monthly', 'quarterly', 'yearly'] as const;
+export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number];
+export const RECURRING_FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  yearly: 'Yearly',
+};
+
+export const RECURRING_STATUSES = ['active', 'paused', 'ended'] as const;
+export type RecurringStatus = (typeof RECURRING_STATUSES)[number];
+export const RECURRING_STATUS_LABELS: Record<RecurringStatus, string> = {
+  active: 'Active',
+  paused: 'Paused',
+  ended: 'Ended',
+};
+
+/**
+ * Reuses every field the existing Add Expense form already collects
+ * (spec: "do not create a separate expense-entry system") plus the three
+ * recurrence-specific fields. dueDate here is used once, at creation, to
+ * derive a relative day-offset stored on the schedule — not re-asked for
+ * every future occurrence.
+ */
+export const recurringExpenseSchema = z.object({
+  id: z.string().uuid().optional(),
+  description: z.string().trim().min(1, 'Description is required.').max(300),
+  categoryId: z.string().uuid().optional().or(z.literal('')),
+  amount: z.coerce.number().min(0),
+  paymentStatus: z.enum(EXPENSE_PAYMENT_STATUSES).default('pending'),
+  paymentMethod: z.enum(EXPENSE_PAYMENT_METHODS).default('cash'),
+  creditCardId: z.string().uuid().optional().or(z.literal('')),
+  dueDate: z.string().optional().or(z.literal('')),
+  clientId: z.string().uuid().optional().or(z.literal('')),
+  quotationId: z.string().uuid().optional().or(z.literal('')),
+  bookingId: z.string().uuid().optional().or(z.literal('')),
+  remarks: z.string().trim().max(500).optional().or(z.literal('')),
+  frequency: z.enum(RECURRING_FREQUENCIES),
+  startDate: z.string().min(1, 'Start date is required.'),
+  endDate: z.string().optional().or(z.literal('')),
+});
+export type RecurringExpenseInput = z.infer<typeof recurringExpenseSchema>;
+
+export const recurringStatusUpdateSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(RECURRING_STATUSES),
+});
+export type RecurringStatusUpdateInput = z.infer<typeof recurringStatusUpdateSchema>;
+
 export const COST_SOURCES = ['manual', 'linked_expenses'] as const;
 export type CostSource = (typeof COST_SOURCES)[number];
 export const costSourceUpdateSchema = z.object({

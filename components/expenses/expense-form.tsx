@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
-import { upsertExpenseAction, searchQuotationsForExpenseAction } from '@/app/(app)/expenses/actions';
+import { upsertExpenseAction, upsertRecurringExpenseAction, searchQuotationsForExpenseAction } from '@/app/(app)/expenses/actions';
 import {
   EXPENSE_PAYMENT_STATUSES,
   EXPENSE_PAYMENT_STATUS_LABELS,
   EXPENSE_PAYMENT_METHODS,
   EXPENSE_PAYMENT_METHOD_LABELS,
+  RECURRING_FREQUENCIES,
+  RECURRING_FREQUENCY_LABELS,
   type ExpensePaymentStatus,
   type ExpensePaymentMethod,
+  type RecurringFrequency,
 } from '@/lib/validation/expenses';
 
 export interface ExpenseFormValues {
@@ -72,6 +75,14 @@ export function ExpenseForm({
 }) {
   const [values, setValues] = useState<ExpenseFormValues>(initialValues ?? EMPTY);
   const [error, setError] = useState<string | null>(null);
+  // Recurring settings are deliberately never shown when editing an
+  // already-generated occurrence (initialValues from the main Expenses
+  // table is always a plain expense) — recurring setup only happens on
+  // Add, matching "each generated occurrence must become a normal
+  // expense record", not a recurring one itself.
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
+  const [endDate, setEndDate] = useState('');
   const [isPending, startTransition] = useTransition();
 
   // Quotation picker — deliberately its own small piece of state, since
@@ -128,21 +139,38 @@ export function ExpenseForm({
       return;
     }
     startTransition(async () => {
-      const result = await upsertExpenseAction({
-        id: values.id,
-        expenseDate: values.expenseDate,
-        description: values.description,
-        categoryId: values.categoryId,
-        amount: values.amount,
-        paymentStatus: values.paymentStatus,
-        paymentMethod: values.paymentMethod,
-        creditCardId: values.creditCardId,
-        dueDate: values.dueDate,
-        clientId: values.clientId,
-        quotationId: values.quotationId,
-        bookingId: values.bookingId,
-        remarks: values.remarks,
-      });
+      const result = isRecurring
+        ? await upsertRecurringExpenseAction({
+            description: values.description,
+            categoryId: values.categoryId,
+            amount: values.amount,
+            paymentStatus: values.paymentStatus,
+            paymentMethod: values.paymentMethod,
+            creditCardId: values.creditCardId,
+            dueDate: values.dueDate,
+            clientId: values.clientId,
+            quotationId: values.quotationId,
+            bookingId: values.bookingId,
+            remarks: values.remarks,
+            frequency,
+            startDate: values.expenseDate,
+            endDate,
+          })
+        : await upsertExpenseAction({
+            id: values.id,
+            expenseDate: values.expenseDate,
+            description: values.description,
+            categoryId: values.categoryId,
+            amount: values.amount,
+            paymentStatus: values.paymentStatus,
+            paymentMethod: values.paymentMethod,
+            creditCardId: values.creditCardId,
+            dueDate: values.dueDate,
+            clientId: values.clientId,
+            quotationId: values.quotationId,
+            bookingId: values.bookingId,
+            remarks: values.remarks,
+          });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -265,6 +293,34 @@ export function ExpenseForm({
           <Field label="Due Date (optional)">
             <input type="date" value={values.dueDate} onChange={(e) => set('dueDate', e.target.value)} className={inputClass} />
           </Field>
+
+          {!values.id && (
+            <div className="rounded-md border border-sand-200 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-ink-700">
+                <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} />
+                Make this a recurring expense
+              </label>
+              {isRecurring && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Field label="Frequency">
+                    <select value={frequency} onChange={(e) => setFrequency(e.target.value as RecurringFrequency)} className={inputClass}>
+                      {RECURRING_FREQUENCIES.map((f) => (
+                        <option key={f} value={f}>
+                          {RECURRING_FREQUENCY_LABELS[f]}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Start Date">
+                    <input type="date" value={values.expenseDate} onChange={(e) => set('expenseDate', e.target.value)} className={inputClass} />
+                  </Field>
+                  <Field label="End Date (optional)">
+                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
+                  </Field>
+                </div>
+              )}
+            </div>
+          )}
 
           <Field label="Remarks">
             <input value={values.remarks} onChange={(e) => set('remarks', e.target.value)} className={inputClass} />
