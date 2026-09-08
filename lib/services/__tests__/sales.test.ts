@@ -1,5 +1,48 @@
 import { describe, it, expect } from 'vitest';
-import { getSalesPaymentStatus, getSalesSummary, computeSalesCostAndProfit } from '@/lib/services/sales';
+import { getSalesPaymentStatus, getSalesSummary, computeSalesCostAndProfit, resolveSalesCostAndProfit } from '@/lib/services/sales';
+
+describe('resolveSalesCostAndProfit (Manual vs Linked Expenses — the double-counting guard)', () => {
+  const manualCosts = { airfareCost: 20000, hotelCost: 15000, transferCost: 3000, tourCost: 10000, bankCharge: 500, refund: 0 };
+
+  it('uses only the manual cost fields when costSource is manual, ignoring linkedExpensesTotal entirely', () => {
+    const result = resolveSalesCostAndProfit({
+      costSource: 'manual',
+      totalSale: 100000,
+      manualCosts,
+      linkedExpensesTotal: 999999, // must be completely ignored
+    });
+    expect(result.totalCost).toBe(48500);
+    expect(result.netProfit).toBe(51500);
+  });
+
+  it('uses only the linked expenses total when costSource is linked_expenses, ignoring the manual fields entirely', () => {
+    const result = resolveSalesCostAndProfit({
+      costSource: 'linked_expenses',
+      totalSale: 100000,
+      manualCosts, // must be completely ignored
+      linkedExpensesTotal: 53000,
+    });
+    expect(result.totalCost).toBe(53000);
+    expect(result.netProfit).toBe(47000);
+  });
+
+  it('never sums manual costs and linked expenses together, under any combination', () => {
+    const manual = resolveSalesCostAndProfit({ costSource: 'manual', totalSale: 100000, manualCosts, linkedExpensesTotal: 53000 });
+    const linked = resolveSalesCostAndProfit({ costSource: 'linked_expenses', totalSale: 100000, manualCosts, linkedExpensesTotal: 53000 });
+    const wrongDoubleCounted =
+      manualCosts.airfareCost + manualCosts.hotelCost + manualCosts.transferCost + manualCosts.tourCost + manualCosts.bankCharge + manualCosts.refund + 53000;
+    expect(manual.totalCost).not.toBe(wrongDoubleCounted);
+    expect(linked.totalCost).not.toBe(wrongDoubleCounted);
+    expect(manual.totalCost).toBe(48500);
+    expect(linked.totalCost).toBe(53000);
+  });
+
+  it('defaults new/untouched Sales records to the manual formula, matching every existing record before Expenses existed', () => {
+    const beforeExpensesExisted = computeSalesCostAndProfit({ totalSale: 100000, ...manualCosts });
+    const afterExpensesAdded = resolveSalesCostAndProfit({ costSource: 'manual', totalSale: 100000, manualCosts, linkedExpensesTotal: 0 });
+    expect(afterExpensesAdded).toEqual(beforeExpensesExisted);
+  });
+});
 
 describe('computeSalesCostAndProfit', () => {
   it('matches the spec example exactly: PHP 100,000 sale, PHP 70,000 total cost, PHP 30,000 net profit', () => {
@@ -81,6 +124,7 @@ describe('getSalesSummary', () => {
       refund: 0,
       totalCost: 0,
       netProfit: 0,
+      costSource: 'manual',
       remarks: '',
       ...overrides,
     };

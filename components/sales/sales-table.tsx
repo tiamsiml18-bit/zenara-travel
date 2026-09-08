@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { updateSalesCostsAction, updateHistoricalSaleFieldAction, deleteHistoricalSaleAction } from '@/app/(app)/sales/actions';
+import { updateCostSourceAction } from '@/app/(app)/expenses/actions';
 import { SALES_PAYMENT_STATUS_LABELS, type SalesPaymentStatus } from '@/lib/services/sales';
 import { HistoricalSaleForm, type HistoricalSaleFormValues } from './historical-sale-form';
 
@@ -18,6 +19,10 @@ export interface SalesRow {
   dataSource: 'crm' | 'historical';
   bookingId?: string;
   historicalId?: string;
+  // Only meaningful for CRM rows — which cost figures are actually
+  // driving Total Cost/Net Profit for this booking. Historical rows have
+  // no Expenses concept at all, so this is always 'manual' for them.
+  costSource?: 'manual' | 'linked_expenses';
   quotationId: string | null;
   quotationNumber: string;
   customerId: string | null;
@@ -132,6 +137,39 @@ function RemarksCell({ row, value }: { row: SalesRow; value: string }) {
   );
 }
 
+/**
+ * The one control point for switching a CRM Sales row between the
+ * existing manual cost fields and the sum of that row's linked Expenses.
+ * Deliberately a plain <select>, not a toggle that silently recalculates
+ * anything on its own — changing it only changes which number Total
+ * Cost/Net Profit read from; it never edits or clears the other source's
+ * values, so switching back to Manual finds the agent's previous entries
+ * untouched.
+ */
+function CostSourceSelect({ bookingId, value }: { bookingId: string; value: 'manual' | 'linked_expenses' }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleChange(next: 'manual' | 'linked_expenses') {
+    startTransition(async () => {
+      const result = await updateCostSourceAction({ bookingId, costSource: next });
+      if (result.ok) router.refresh();
+    });
+  }
+
+  return (
+    <select
+      value={value}
+      disabled={isPending}
+      onChange={(e) => handleChange(e.target.value as 'manual' | 'linked_expenses')}
+      className="rounded border border-sand-200 bg-transparent px-1.5 py-1 text-xs disabled:opacity-60"
+    >
+      <option value="manual">Manual</option>
+      <option value="linked_expenses">Linked Expenses</option>
+    </select>
+  );
+}
+
 export function SalesTable({ rows }: { rows: SalesRow[] }) {
   const router = useRouter();
   // Local copy so Total Cost/Net Profit recalculate immediately on this
@@ -232,6 +270,7 @@ export function SalesTable({ rows }: { rows: SalesRow[] }) {
               <th className="px-3 py-2 text-right">Refund</th>
               <th className="px-3 py-2 text-right">Total Cost</th>
               <th className="px-3 py-2 text-right">Net Profit</th>
+              <th className="px-3 py-2">Cost Source</th>
               <th className="px-3 py-2">Next Payment Due</th>
               <th className="px-3 py-2">Agent</th>
               <th className="px-3 py-2">Remarks</th>
@@ -293,26 +332,36 @@ export function SalesTable({ rows }: { rows: SalesRow[] }) {
                   <td className={`px-3 py-2 text-right font-ticket font-semibold ${r.netProfit < 0 ? 'text-coral-600' : 'text-harbor-700'}`}>
                     {formatMoney(r.netProfit)}
                   </td>
+                  <td className="px-3 py-2">
+                    {r.dataSource === 'crm' && r.bookingId ? (
+                      <CostSourceSelect bookingId={r.bookingId} value={r.costSource ?? 'manual'} />
+                    ) : (
+                      <span className="text-xs text-ink-500">Manual</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-ink-500">{r.paymentStatus === 'paid' ? '—' : formatDate(r.paymentDueDate)}</td>
                   <td className="px-3 py-2 text-ink-500">{r.agentName}</td>
                   <td className="px-3 py-2">
                     <RemarksCell row={r} value={r.remarks} />
                   </td>
                   <td className="px-3 py-2">
-                    {r.dataSource === 'historical' && (
-                      <div className="flex gap-2 whitespace-nowrap">
-                        <button type="button" onClick={() => setEditingRow(r)} className="text-xs font-medium text-harbor-700 hover:underline">
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(r)}
-                          className="text-xs font-medium text-coral-600 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex gap-2 whitespace-nowrap">
+                      {r.dataSource === 'crm' && r.quotationId && (
+                        <Link href={`/expenses?quotationId=${r.quotationId}`} className="text-xs font-medium text-harbor-700 hover:underline">
+                          View Expenses
+                        </Link>
+                      )}
+                      {r.dataSource === 'historical' && (
+                        <>
+                          <button type="button" onClick={() => setEditingRow(r)} className="text-xs font-medium text-harbor-700 hover:underline">
+                            Edit
+                          </button>
+                          <button type="button" onClick={() => handleDelete(r)} className="text-xs font-medium text-coral-600 hover:underline">
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

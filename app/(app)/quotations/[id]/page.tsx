@@ -10,6 +10,7 @@ import { PdfPreviewButton } from '@/components/quotations/pdf-preview-button';
 import { SendQuotationEmailButton } from '@/components/quotations/send-quotation-email-button';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
+import { getLinkedExpensesTotal } from '@/lib/services/expenses';
 import { getBookingForQuotation } from '@/lib/services/bookings';
 import { getGmailConnection } from '@/lib/services/gmail';
 import { getEmailHistory } from '@/lib/services/email';
@@ -49,12 +50,13 @@ export default async function QuotationDetailPage({
   const viewedVersion = (viewedVersionId && versions.find((v) => v.id === viewedVersionId)) || currentVersion;
   const isViewingPastVersion = viewedVersion.id !== currentVersion.id;
 
-  const [{ itinerary, inclusions, exclusions }, pricing, existingBooking, gmailConnection, emailHistory] = await Promise.all([
+  const [{ itinerary, inclusions, exclusions }, pricing, existingBooking, gmailConnection, emailHistory, linkedExpensesTotal] = await Promise.all([
     getVersionDetail(supabase, viewedVersion.id),
     getPricingForVersion(supabase, viewedVersion.id),
     getBookingForQuotation(supabase, id),
     getGmailConnection(supabase),
     getEmailHistory(supabase, id),
+    getLinkedExpensesTotal(supabase, id),
   ]);
 
   const isDraft = currentVersion.status === 'draft';
@@ -266,6 +268,15 @@ export default async function QuotationDetailPage({
                   <Row label="Profit" value={formatMoney(pricing.profit)} />
                   <Row label="Margin" value={`${Math.round(pricing.profit_margin_pct)}%`} />
                 </dl>
+                {/* Simple financial reference only — the expense itself
+                    is always managed from the Expenses section, never
+                    duplicated or editable here. */}
+                <div className="mt-3 flex items-center justify-between border-t border-coral-500/20 pt-3 text-sm">
+                  <span className="text-ink-700">Expenses: {formatMoney(linkedExpensesTotal)}</span>
+                  <Link href={`/expenses?quotationId=${id}`} className="font-medium text-harbor-700 hover:underline">
+                    View Expenses
+                  </Link>
+                </div>
               </section>
             )}
 

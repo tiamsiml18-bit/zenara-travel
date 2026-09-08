@@ -3,6 +3,7 @@ import {
   Users,
   FileText,
   TrendingUp,
+  Wallet,
   Bell,
   Briefcase,
   Package,
@@ -57,6 +58,7 @@ export function Sidebar({
         <NavLink href="/clients" label="Clients" icon={<Users className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/quotations" label="Quotations" icon={<FileText className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/sales" label="Sales" icon={<TrendingUp className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/expenses" label="Expenses" icon={<Wallet className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/followups" label="Follow-ups" icon={<Bell className="h-4 w-4 shrink-0" strokeWidth={1.75} />} badge={followUpsDueCount} />
         <NavLink href="/bookings" label="Bookings" icon={<Briefcase className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />

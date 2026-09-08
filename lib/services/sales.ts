@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { unwrapToOne } from '@/lib/utils/unwrap-embed';
 import { getEffectivePaymentDueDate } from './payments';
+import { getLinkedExpenseTotalsByQuotation } from './expenses';
 
 /**
  * The Sales section's own display status — deliberately distinct from the
@@ -55,7 +56,7 @@ const SALES_SELECT = `
     id, quotation_number,
     current_version:quotation_versions!quotations_current_version_id_fkey ( total_price )
   ),
-  cost_entry:sales_cost_entries ( airfare_cost, hotel_cost, transfer_cost, tour_cost, bank_charge, refund, remarks )
+  cost_entry:sales_cost_entries ( airfare_cost, hotel_cost, transfer_cost, tour_cost, bank_charge, refund, remarks, cost_source )
 `;
 
 /**
@@ -84,6 +85,17 @@ export async function listSalesRecords(supabase: SupabaseClient, filters: SalesL
 
   const bookingIds = (bookingRows ?? []).map((b) => b.id);
   const paidByBooking = await sumPaymentsByBooking(supabase, bookingIds);
+  // Only fetched for rows that could possibly need it (cost_source ===
+  // 'linked_expenses') — a plain 'manual' Sales record (the default for
+  // every existing row) never even looks at this map, so nothing about
+  // the existing calculation path changes unless the agent has
+  // explicitly switched a row to Linked Expenses.
+  const quotationIdsNeedingLinkedTotal = (bookingRows ?? [])
+    .filter((b) => unwrapToOne(b.cost_entry)?.cost_source === 'linked_expenses')
+    .map((b) => unwrapToOne(b.quotation) as { id?: string } | null)
+    .map((q) => q?.id)
+    .filter((id): id is string => Boolean(id));
+  const linkedExpenseTotals = await getLinkedExpenseTotalsByQuotation(supabase, quotationIdsNeedingLinkedTotal);
 
   let rows = (bookingRows ?? []).map((b) => {
     const client = unwrapToOne(b.client);
@@ -102,19 +114,19 @@ export async function listSalesRecords(supabase: SupabaseClient, filters: SalesL
     const tourCost = Number(costEntry?.tour_cost ?? 0);
     const bankCharge = Number(costEntry?.bank_charge ?? 0);
     const refund = Number(costEntry?.refund ?? 0);
-    const { totalCost, netProfit } = computeSalesCostAndProfit({
+    const costSource = (costEntry?.cost_source as 'manual' | 'linked_expenses' | undefined) ?? 'manual';
+    const quotationIdForRow = (quotation as { id?: string } | null)?.id ?? null;
+
+    const { totalCost, netProfit } = resolveSalesCostAndProfit({
+      costSource,
       totalSale,
-      airfareCost,
-      hotelCost,
-      transferCost,
-      tourCost,
-      bankCharge,
-      refund,
+      manualCosts: { airfareCost, hotelCost, transferCost, tourCost, bankCharge, refund },
+      linkedExpensesTotal: quotationIdForRow ? (linkedExpenseTotals.get(quotationIdForRow) ?? 0) : 0,
     });
 
     return {
       bookingId: b.id,
-      quotationId: (quotation as { id?: string } | null)?.id ?? null,
+      quotationId: quotationIdForRow,
       quotationNumber: (quotation as { quotation_number?: string } | null)?.quotation_number ?? '—',
       customerId: (client as { id?: string } | null)?.id ?? null,
       customerName: (client as { full_name?: string } | null)?.full_name ?? '—',
@@ -135,6 +147,7 @@ export async function listSalesRecords(supabase: SupabaseClient, filters: SalesL
       refund,
       totalCost,
       netProfit,
+      costSource,
       remarks: costEntry?.remarks ?? '',
     };
   });
@@ -165,6 +178,28 @@ export function computeSalesCostAndProfit(params: {
 }) {
   const totalCost = params.airfareCost + params.hotelCost + params.transferCost + params.tourCost + params.bankCharge + params.refund;
   return { totalCost, netProfit: params.totalSale - totalCost };
+}
+
+/**
+ * The one branch point for a Sales row's Total Cost/Net Profit: Manual
+ * (the default, and the only option that ever existed before Expenses)
+ * keeps the exact same sum-of-6-fields formula as always. Linked
+ * Expenses substitutes the sum of that quotation's actual linked
+ * expenses instead — never both added together, which is what prevents
+ * double counting. Extracted as its own pure function specifically so
+ * this critical distinction is directly unit-tested, not just exercised
+ * incidentally inside a database query.
+ */
+export function resolveSalesCostAndProfit(params: {
+  costSource: 'manual' | 'linked_expenses';
+  totalSale: number;
+  manualCosts: { airfareCost: number; hotelCost: number; transferCost: number; tourCost: number; bankCharge: number; refund: number };
+  linkedExpensesTotal: number;
+}) {
+  if (params.costSource === 'linked_expenses') {
+    return { totalCost: params.linkedExpensesTotal, netProfit: params.totalSale - params.linkedExpensesTotal };
+  }
+  return computeSalesCostAndProfit({ totalSale: params.totalSale, ...params.manualCosts });
 }
 
 async function sumPaymentsByBooking(supabase: SupabaseClient, bookingIds: string[]): Promise<Map<string, number>> {
@@ -207,6 +242,19 @@ export async function updateSalesCosts(supabase: SupabaseClient, bookingId: stri
 
   const { error } = await supabase.from('sales_cost_entries').upsert(patch, { onConflict: 'booking_id' });
   if (error) throw new Error(`Failed to save sales costs: ${error.message}`);
+}
+
+/**
+ * Switches a Sales record between the two cost sources described above.
+ * Never touches the manual cost fields themselves — an agent can flip
+ * back to Manual later and find their previously entered values exactly
+ * as they left them.
+ */
+export async function updateCostSource(supabase: SupabaseClient, bookingId: string, costSource: 'manual' | 'linked_expenses', actingUserId: string) {
+  const { error } = await supabase
+    .from('sales_cost_entries')
+    .upsert({ booking_id: bookingId, cost_source: costSource, updated_by: actingUserId, updated_at: new Date().toISOString() }, { onConflict: 'booking_id' });
+  if (error) throw new Error(`Failed to update cost source: ${error.message}`);
 }
 
 /**
