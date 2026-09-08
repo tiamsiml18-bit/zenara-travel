@@ -50,7 +50,7 @@ type Client = { id: string; full_name: string; email: string | null; mobile_numb
 type PackageOption = { id: string; name: string; destination: string; num_days: number; num_nights: number };
 type Source = { id: string; name: string };
 
-const STEPS = ['Client', 'Package', 'Trip details', 'Itinerary', 'Inclusions', 'Review'] as const;
+const STEPS = ['Client', 'Package', 'Trip details', 'Itinerary', 'Flight Details', 'Inclusions', 'Review'] as const;
 
 /**
  * One additional Airfare/Hotel/Transfer section beyond the default (which
@@ -2269,7 +2269,11 @@ export function QuotationWizard({
         {(isSinglePageMode || step === 4) && (() => {
           const flightContent = (
             <div>
-              {!isSinglePageMode && <p className="mb-2 text-sm font-medium text-ink-900">Flight Details</p>}
+              {!isSinglePageMode && (
+                <p className="mb-3 text-sm text-ink-500">
+                  Optional — add each flight segment for this trip. Leave empty if not applicable.
+                </p>
+              )}
               <FlightSegmentsEditor segments={flightSegments} onChange={setFlightSegments} />
             </div>
           );
@@ -2282,7 +2286,7 @@ export function QuotationWizard({
           );
         })()}
 
-        {(isSinglePageMode || step === 4) && (() => {
+        {(isSinglePageMode || step === 5) && (() => {
           const stepContent = (
           <div className="grid grid-cols-2 gap-6">
             <div>
@@ -2304,7 +2308,7 @@ export function QuotationWizard({
           );
         })()}
 
-        {(isSinglePageMode || step === 5) && (
+        {(isSinglePageMode || step === 6) && (
           <div className="space-y-4 text-sm">
             {!isSinglePageMode && (
             <p className="text-ink-500">
@@ -2366,7 +2370,7 @@ export function QuotationWizard({
             type="button"
             onClick={() => {
               if (!canAdvance()) return;
-              if (step === 3) autoPopulateInclusionsExclusions();
+              if (step === 4) autoPopulateInclusionsExclusions();
               setStep((s) => s + 1);
             }}
             disabled={!canAdvance()}
