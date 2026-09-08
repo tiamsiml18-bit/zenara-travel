@@ -56,7 +56,7 @@ const SALES_SELECT = `
     id, quotation_number,
     current_version:quotation_versions!quotations_current_version_id_fkey ( total_price )
   ),
-  cost_entry:sales_cost_entries ( airfare_cost, hotel_cost, transfer_cost, tour_cost, bank_charge, refund, remarks, cost_source )
+  cost_entry:sales_cost_entries ( airfare_cost, hotel_cost, transfer_cost, tour_cost, bank_charge, refund, remarks, cost_source, zoho_invoice_number )
 `;
 
 /**
@@ -148,6 +148,7 @@ export async function listSalesRecords(supabase: SupabaseClient, filters: SalesL
       totalCost,
       netProfit,
       costSource,
+      zohoInvoiceNumber: costEntry?.zoho_invoice_number ?? '',
       remarks: costEntry?.remarks ?? '',
     };
   });
@@ -221,6 +222,7 @@ export interface SalesCostUpdate {
   bankCharge?: number;
   refund?: number;
   remarks?: string;
+  zohoInvoiceNumber?: string;
 }
 
 /**
@@ -229,6 +231,8 @@ export interface SalesCostUpdate {
  * agent's whole point in asking for them is to record an internal cost
  * breakdown without touching the client-facing quotation, so this never
  * writes to quotations/quotation_versions/quotation_pricing_internal.
+ * Zoho Invoice Number is the same kind of field — purely internal,
+ * manually entered, saved here alongside the existing cost fields.
  */
 export async function updateSalesCosts(supabase: SupabaseClient, bookingId: string, updates: SalesCostUpdate, actingUserId: string) {
   const patch: Record<string, unknown> = { booking_id: bookingId, updated_by: actingUserId, updated_at: new Date().toISOString() };
@@ -239,6 +243,7 @@ export async function updateSalesCosts(supabase: SupabaseClient, bookingId: stri
   if (updates.bankCharge !== undefined) patch.bank_charge = updates.bankCharge;
   if (updates.refund !== undefined) patch.refund = updates.refund;
   if (updates.remarks !== undefined) patch.remarks = updates.remarks || null;
+  if (updates.zohoInvoiceNumber !== undefined) patch.zoho_invoice_number = updates.zohoInvoiceNumber || null;
 
   const { error } = await supabase.from('sales_cost_entries').upsert(patch, { onConflict: 'booking_id' });
   if (error) throw new Error(`Failed to save sales costs: ${error.message}`);

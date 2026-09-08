@@ -9,6 +9,7 @@ export const salesCostUpdateSchema = z.object({
   bankCharge: z.coerce.number().min(0).optional(),
   refund: z.coerce.number().min(0).optional(),
   remarks: z.string().trim().max(500).optional(),
+  zohoInvoiceNumber: z.string().trim().max(100).optional(),
 });
 
 export type SalesCostUpdateInput = z.infer<typeof salesCostUpdateSchema>;

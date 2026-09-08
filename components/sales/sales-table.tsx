@@ -43,6 +43,7 @@ export interface SalesRow {
   refund: number;
   totalCost: number;
   netProfit: number;
+  zohoInvoiceNumber: string;
   remarks: string;
 }
 
@@ -137,6 +138,31 @@ function RemarksCell({ row, value }: { row: SalesRow; value: string }) {
   );
 }
 
+/** Purely an internal accounting reference — manually entered, saved alongside the existing cost fields, never affects Total Cost/Net Profit or any calculation. Works for both CRM and Historical rows via the same saveRowField routing every other inline-editable cell already uses. */
+function ZohoInvoiceCell({ row, value }: { row: SalesRow; value: string }) {
+  const [draft, setDraft] = useState(value);
+  const [isPending, startTransition] = useTransition();
+
+  function save() {
+    if (draft === value) return;
+    startTransition(async () => {
+      await saveRowField(row, { zohoInvoiceNumber: draft });
+    });
+  }
+
+  return (
+    <input
+      type="text"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      disabled={isPending}
+      placeholder="Zoho Invoice #…"
+      className="w-28 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm hover:border-sand-200 focus:border-harbor-400 focus:bg-surface focus:outline-none disabled:opacity-60"
+    />
+  );
+}
+
 /**
  * The one control point for switching a CRM Sales row between the
  * existing manual cost fields and the sum of that row's linked Expenses.
@@ -223,6 +249,7 @@ export function SalesTable({ rows }: { rows: SalesRow[] }) {
       bankCharge: row.bankCharge,
       refund: row.refund,
       agentName: row.agentName === '—' ? '' : row.agentName,
+      zohoInvoiceNumber: row.zohoInvoiceNumber,
       remarks: row.remarks,
     };
   }
@@ -255,6 +282,7 @@ export function SalesTable({ rows }: { rows: SalesRow[] }) {
           <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
             <tr>
               <th className="px-3 py-2">Quotation Ref</th>
+              <th className="px-3 py-2">Zoho Invoice #</th>
               <th className="px-3 py-2">Customer</th>
               <th className="px-3 py-2">Invoice Date</th>
               <th className="px-3 py-2">Travel Date</th>
@@ -290,6 +318,9 @@ export function SalesTable({ rows }: { rows: SalesRow[] }) {
                     ) : (
                       r.quotationNumber
                     )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <ZohoInvoiceCell row={r} value={r.zohoInvoiceNumber} />
                   </td>
                   <td className="px-3 py-2">
                     {r.customerId ? (

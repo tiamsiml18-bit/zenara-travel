@@ -20,6 +20,7 @@ export interface HistoricalSaleFormValues {
   bankCharge: number;
   refund: number;
   agentName: string;
+  zohoInvoiceNumber: string;
   remarks: string;
 }
 
@@ -38,6 +39,7 @@ const EMPTY: HistoricalSaleFormValues = {
   bankCharge: 0,
   refund: 0,
   agentName: '',
+  zohoInvoiceNumber: '',
   remarks: '',
 };
 
@@ -149,6 +151,14 @@ export function HistoricalSaleForm({ initialValues, onClose }: { initialValues?:
           </Field>
           <Field label="Agent">
             <input value={values.agentName} onChange={(e) => set('agentName', e.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Zoho Invoice Number">
+            <input
+              value={values.zohoInvoiceNumber}
+              onChange={(e) => set('zohoInvoiceNumber', e.target.value)}
+              className={inputClass}
+              placeholder="For accounting/reconciliation only"
+            />
           </Field>
           <Field label="Remarks">
             <input value={values.remarks} onChange={(e) => set('remarks', e.target.value)} className={inputClass} placeholder="e.g. PAID, DP 36,000…" />

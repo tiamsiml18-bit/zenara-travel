@@ -34,6 +34,7 @@ export const historicalSaleSchema = z.object({
   bankCharge: z.coerce.number().min(0).default(0),
   refund: z.coerce.number().min(0).default(0),
   agentName: z.string().trim().max(200).optional().or(z.literal('')),
+  zohoInvoiceNumber: z.string().trim().max(100).optional().or(z.literal('')),
   remarks: z.string().trim().max(500).optional().or(z.literal('')),
 });
 

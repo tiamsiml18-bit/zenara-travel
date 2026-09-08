@@ -7,7 +7,7 @@ const HISTORICAL_SELECT = `
   id, quotation_ref, linked_quotation_id, customer_name, linked_client_id,
   invoice_date, travel_date, total_sale, amount_paid, payment_status, payment_due_date,
   airfare_cost, hotel_cost, transfer_cost, tour_cost, bank_charge, refund, total_cost, net_profit,
-  agent_name, remarks, created_at,
+  agent_name, remarks, zoho_invoice_number, created_at,
   linked_client:clients ( id, full_name )
 `;
 
@@ -56,6 +56,7 @@ export async function listHistoricalSales(supabase: SupabaseClient, filters: His
       totalCost: Number(r.total_cost),
       netProfit: Number(r.net_profit),
       agentName: (r.agent_name as string | null) ?? '—',
+      zohoInvoiceNumber: (r.zoho_invoice_number as string | null) ?? '',
       remarks: (r.remarks as string | null) ?? '',
     };
   });
@@ -109,6 +110,7 @@ export async function upsertHistoricalSale(supabase: SupabaseClient, input: Hist
     total_cost: totalCost,
     net_profit: netProfit,
     agent_name: input.agentName || null,
+    zoho_invoice_number: input.zohoInvoiceNumber || null,
     remarks: input.remarks || null,
     created_by: actingUserId,
     updated_at: new Date().toISOString(),
@@ -142,6 +144,7 @@ export async function updateHistoricalSaleField(
     bankCharge: number;
     refund: number;
     remarks: string;
+    zohoInvoiceNumber: string;
   }>
 ) {
   const dbPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -152,6 +155,7 @@ export async function updateHistoricalSaleField(
   if (patch.bankCharge !== undefined) dbPatch.bank_charge = patch.bankCharge;
   if (patch.refund !== undefined) dbPatch.refund = patch.refund;
   if (patch.remarks !== undefined) dbPatch.remarks = patch.remarks || null;
+  if (patch.zohoInvoiceNumber !== undefined) dbPatch.zoho_invoice_number = patch.zohoInvoiceNumber || null;
 
   const hasCostChange = ['airfareCost', 'hotelCost', 'transferCost', 'tourCost', 'bankCharge', 'refund'].some((k) => k in patch);
   if (hasCostChange) {

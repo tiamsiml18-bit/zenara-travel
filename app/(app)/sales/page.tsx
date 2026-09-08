@@ -80,6 +80,7 @@ export default async function SalesPage({
     paymentStatus: r.paymentStatus as SalesPaymentStatus,
     paymentDueDate: r.paymentDueDate,
     agentName: r.agentName,
+    zohoInvoiceNumber: r.zohoInvoiceNumber,
     airfareCost: r.airfareCost,
     hotelCost: r.hotelCost,
     transferCost: r.transferCost,

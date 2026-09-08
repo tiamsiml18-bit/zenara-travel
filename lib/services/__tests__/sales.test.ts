@@ -125,6 +125,7 @@ describe('getSalesSummary', () => {
       totalCost: 0,
       netProfit: 0,
       costSource: 'manual',
+      zohoInvoiceNumber: '',
       remarks: '',
       ...overrides,
     };
