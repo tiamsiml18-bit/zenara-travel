@@ -3,6 +3,7 @@ import { Topbar } from '@/components/layout/topbar';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { AutoSubmitDateInput } from '@/components/ui/auto-submit-date-input';
+import { DropdownMenu, DropdownMenuLink } from '@/components/ui/dropdown-menu';
 import { ExpensesTable } from '@/components/expenses/expenses-table';
 import { AddExpenseButton } from '@/components/expenses/add-expense-button';
 import { CreditCardsPanel } from '@/components/expenses/credit-cards-panel';
@@ -100,12 +101,10 @@ export default async function ExpensesPage({
         )}
 
         <div className="mb-4 flex justify-end gap-2">
-          <a href={buildExportHref('pdf')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
-            Export PDF
-          </a>
-          <a href={buildExportHref('excel')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
-            Export Excel
-          </a>
+          <DropdownMenu label="Export">
+            <DropdownMenuLink href={buildExportHref('pdf')}>Export PDF</DropdownMenuLink>
+            <DropdownMenuLink href={buildExportHref('excel')}>Export Excel</DropdownMenuLink>
+          </DropdownMenu>
           <AddExpenseButton categories={categories} creditCards={activeCreditCards} />
         </div>
 
