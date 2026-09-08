@@ -138,6 +138,12 @@ const styles = StyleSheet.create({
 
   listItem: { fontSize: 11, color: COLORS.ink700, lineHeight: 1.7 },
 
+  // Compact by design (spec: "keep the section compact so it uses only
+  // the space required") -- two lines per flight, no table, no borders.
+  flightBlock: { marginBottom: 8 },
+  flightHeaderLine: { fontSize: 11, fontWeight: 700, color: COLORS.ink900, lineHeight: 1.4 },
+  flightDetailLine: { fontSize: 10.5, color: COLORS.ink700, lineHeight: 1.4 },
+
   // Full-width pricing section, placed after the two-column body -- no
   // longer a boxed-off card confined to one side of the page.
   pricingSection: { marginTop: 18, paddingTop: 14, borderTopWidth: 1.5, borderTopColor: COLORS.harbor700 },
@@ -218,6 +224,17 @@ function formatPhoneDisplay(raw: string): string {
   const national = withCountryCode.slice(2);
   return `+63 ${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6)}`;
 }
+// The document renders entirely in standard Helvetica (WinANSI encoding,
+// no custom font registered), matching the existing PDF exactly per
+// spec ("do not change fonts") -- but that encoding has no glyph for the
+// Unicode arrow (→) an agent is likely to type in a flight route (e.g.
+// "MNL → DAD"), which would otherwise render as a broken/missing
+// character. This only affects how the route displays on the PDF; the
+// agent's own saved text (arrow included) is untouched everywhere else.
+function pdfSafeText(text: string): string {
+  return text.replace(/[→⇒➜➔]/g, '-');
+}
+
 function formatMoney(n: number | null, currency: string) {
   if (n === null || n === undefined) return '—';
   // The calculation itself never rounds (see guest-pricing.ts) — only this
@@ -237,7 +254,7 @@ function InfoField({ label, value, width }: { label: string; value: string; widt
 }
 
 export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
-  const { agency, client, trip, itinerary, inclusions, exclusions, fees, pricing, quotationNumber, agent, packageTitle, validUntil } =
+  const { agency, client, trip, itinerary, inclusions, exclusions, flightSegments, fees, pricing, quotationNumber, agent, packageTitle, validUntil } =
     data;
 
   const guestSummary = [
@@ -333,6 +350,28 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
             </View>
 
             <View style={styles.rightCol}>
+              {flightSegments.length > 0 && (
+                <View style={styles.rightColSection}>
+                  <Text style={styles.sectionTitle}>Flight Schedule</Text>
+                  {flightSegments.map((flight, i) => (
+                    <View key={i} style={styles.flightBlock} wrap={false}>
+                      <Text style={styles.flightHeaderLine}>
+                        {[flight.flightNumber, flight.airline].filter(Boolean).join(' | ') || '—'}
+                      </Text>
+                      <Text style={styles.flightDetailLine}>
+                        {pdfSafeText(
+                          [
+                            flight.departureTime || flight.arrivalTime ? `${flight.departureTime || '—'} - ${flight.arrivalTime || '—'}` : null,
+                            flight.route || null,
+                          ]
+                            .filter(Boolean)
+                            .join(' | ')
+                        )}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
               <View style={styles.rightColSection}>
                 <Text style={styles.sectionTitle}>Inclusions</Text>
                 {inclusions.length === 0 && <Text style={styles.listItem}>—</Text>}

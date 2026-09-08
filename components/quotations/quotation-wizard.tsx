@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import { ChevronDown } from 'lucide-react';
 import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from './itinerary-builder';
 import { TagListInput } from './tag-list-input';
+import { FlightSegmentsEditor } from './flight-segments-editor';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { generateSuggestedInclusions, generateSuggestedExclusions } from '@/lib/utils/quotation-inclusions';
 import { CostBreakdownEditor } from './cost-breakdown-editor';
@@ -121,6 +122,15 @@ interface AdditionalTransferItem {
   ratePwd: number | '';
 }
 
+interface FlightSegmentState {
+  key: string;
+  airline: string;
+  flightNumber: string;
+  departureTime: string;
+  arrivalTime: string;
+  route: string;
+}
+
 export interface QuotationWizardInitialData {
   clientId: string;
   clientLabel: string;
@@ -189,6 +199,7 @@ export interface QuotationWizardInitialData {
   itinerary: ItineraryDayDraft[];
   inclusions: string[];
   exclusions: string[];
+  flightSegments?: { id?: string; airline?: string; flightNumber?: string; departureTime?: string; arrivalTime?: string; route?: string }[];
   supplierCost: number; // legacy fallback (pre-itemization); costItems is the source of truth going forward
   costItems?: OtherSupplierCostItemInput[];
   feeItems?: CostItemInput[];
@@ -638,6 +649,16 @@ export function QuotationWizard({
   );
   const [inclusions, setInclusions] = useState<string[]>(initialData?.inclusions ?? []);
   const [exclusions, setExclusions] = useState<string[]>(initialData?.exclusions ?? []);
+  const [flightSegments, setFlightSegments] = useState<FlightSegmentState[]>(
+    (initialData?.flightSegments ?? []).map((f, i) => ({
+      key: f.id ?? `existing-${i}`,
+      airline: f.airline ?? '',
+      flightNumber: f.flightNumber ?? '',
+      departureTime: f.departureTime ?? '',
+      arrivalTime: f.arrivalTime ?? '',
+      route: f.route ?? '',
+    }))
+  );
 
   /**
    * Fires when a tour is picked from any day's "Select Tour" dropdown.
@@ -1189,6 +1210,13 @@ export function QuotationWizard({
       consultantId: trip.consultantId,
       inclusions,
       exclusions,
+      flightSegments: flightSegments.map((f) => ({
+        airline: f.airline,
+        flightNumber: f.flightNumber,
+        departureTime: f.departureTime,
+        arrivalTime: f.arrivalTime,
+        route: f.route,
+      })),
       itinerary,
       costItems: costItems.map((c) => ({
         label: c.label,
@@ -2235,6 +2263,22 @@ export function QuotationWizard({
             </CollapsibleSection>
           ) : (
             stepContent
+          );
+        })()}
+
+        {(isSinglePageMode || step === 4) && (() => {
+          const flightContent = (
+            <div>
+              {!isSinglePageMode && <p className="mb-2 text-sm font-medium text-ink-900">Flight Details</p>}
+              <FlightSegmentsEditor segments={flightSegments} onChange={setFlightSegments} />
+            </div>
+          );
+          return isSinglePageMode ? (
+            <CollapsibleSection title="Flight Details" open={sectionOpen.flightDetails ?? true} onToggle={() => toggleSection('flightDetails')}>
+              {flightContent}
+            </CollapsibleSection>
+          ) : (
+            flightContent
           );
         })()}
 

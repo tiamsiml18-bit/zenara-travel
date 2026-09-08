@@ -26,7 +26,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
   const [
     { data: recentClients },
     { data: currentClient },
-    { itinerary, inclusions, exclusions, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer },
+    { itinerary, inclusions, exclusions, flightSegments, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer },
     pricing,
     packages,
     sources,
@@ -137,6 +137,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
             })),
             inclusions: inclusions.map((i) => i.item),
             exclusions: exclusions.map((e) => e.item),
+            flightSegments,
             costItems,
             feeItems,
             tourPricing,

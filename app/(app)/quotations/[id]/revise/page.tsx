@@ -23,7 +23,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
     redirect(`/quotations/${id}`);
   }
 
-  const [{ itinerary, inclusions, exclusions, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer }, pricing, packages, sources, consultants, tours, agencySettings] =
+  const [{ itinerary, inclusions, exclusions, flightSegments, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer }, pricing, packages, sources, consultants, tours, agencySettings] =
     await Promise.all([
       getVersionDetail(supabase, currentVersion.id),
       getPricingForVersion(supabase, currentVersion.id),
@@ -119,6 +119,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
             })),
             inclusions: inclusions.map((i) => i.item),
             exclusions: exclusions.map((e) => e.item),
+            flightSegments,
             costItems,
             feeItems,
             tourPricing,

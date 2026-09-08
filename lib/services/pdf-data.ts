@@ -44,7 +44,7 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     .single();
   if (vError || !version) throw new Error('Quotation has no version to render.');
 
-  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: fees }, { data: guestPricing }] =
+  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: fees }, { data: guestPricing }, { data: flightSegments }] =
     await Promise.all([
       supabase
         .from('quotation_itinerary_days')
@@ -71,6 +71,11 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
       // Client-facing rate per guest type — quotation_guest_pricing only,
       // never its _internal counterpart (supplier cost).
       supabase.from('quotation_guest_pricing').select('guest_type, price_per_person').eq('quotation_version_id', version.id),
+      supabase
+        .from('quotation_flight_segments')
+        .select('airline, flight_number, departure_time, arrival_time, route')
+        .eq('quotation_version_id', version.id)
+        .order('sort_order'),
     ]);
 
   const { data: agency } = await supabase.from('agency_settings').select('*').limit(1).single();
@@ -148,6 +153,17 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     })),
     inclusions: (inclusions ?? []).map((i) => i.item as string),
     exclusions: (exclusions ?? []).map((e) => e.item as string),
+    // Only ever what the agent actually typed into Flight Details — never
+    // filled in or guessed. Empty array when nothing was entered, which
+    // the PDF renders as "no Flight Schedule section at all" (never a
+    // heading with blank space).
+    flightSegments: (flightSegments ?? []).map((f) => ({
+      airline: f.airline as string,
+      flightNumber: f.flight_number as string,
+      departureTime: f.departure_time as string,
+      arrivalTime: f.arrival_time as string,
+      route: f.route as string,
+    })),
     fees: (fees ?? []).map((f) => ({ label: f.label as string, amount: Number(f.amount) })),
     agency: {
       name: agency?.agency_name ?? 'Zenara Travel and Tours',

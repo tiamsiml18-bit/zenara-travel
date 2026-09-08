@@ -114,6 +114,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     { data: itinerary },
     { data: inclusions },
     { data: exclusions },
+    { data: flightSegments },
     { data: costItems },
     { data: feeItems },
     { data: guestPricing },
@@ -136,6 +137,11 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     supabase
       .from('quotation_exclusions')
       .select('id, item')
+      .eq('quotation_version_id', versionId)
+      .order('sort_order'),
+    supabase
+      .from('quotation_flight_segments')
+      .select('id, airline, flight_number, departure_time, arrival_time, route')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
     supabase
@@ -281,6 +287,14 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
     itinerary: itinerary ?? [],
     inclusions: inclusions ?? [],
     exclusions: exclusions ?? [],
+    flightSegments: (flightSegments ?? []).map((f) => ({
+      id: f.id,
+      airline: f.airline,
+      flightNumber: f.flight_number,
+      departureTime: f.departure_time,
+      arrivalTime: f.arrival_time,
+      route: f.route,
+    })),
     costItems: (costItems ?? []).map((c) => ({
       label: c.label,
       rateSenior: c.rate_senior === null ? null : Number(c.rate_senior),
@@ -718,6 +732,21 @@ async function insertVersionChildren(
     if (error) throw new Error(`Failed to save exclusions: ${error.message}`);
   }
 
+  if (input.flightSegments.length > 0) {
+    const { error } = await supabase.from('quotation_flight_segments').insert(
+      input.flightSegments.map((f, i) => ({
+        quotation_version_id: versionId,
+        airline: f.airline || '',
+        flight_number: f.flightNumber || '',
+        departure_time: f.departureTime || '',
+        arrival_time: f.arrivalTime || '',
+        route: f.route || '',
+        sort_order: i,
+      }))
+    );
+    if (error) throw new Error(`Failed to save flight details: ${error.message}`);
+  }
+
   // Client-facing additional fees / taxes — a separate table from
   // quotation_items (internal cost breakdown) since one is meant to be shown
   // to the client (via the PDF) and the other must never be.
@@ -919,6 +948,7 @@ export async function updateDraftQuotation(
     supabase.from('quotation_itinerary_days').delete().eq('quotation_version_id', versionId),
     supabase.from('quotation_inclusions').delete().eq('quotation_version_id', versionId),
     supabase.from('quotation_exclusions').delete().eq('quotation_version_id', versionId),
+    supabase.from('quotation_flight_segments').delete().eq('quotation_version_id', versionId),
     supabase.from('quotation_fees').delete().eq('quotation_version_id', versionId),
     supabase.from('quotation_items').delete().eq('quotation_version_id', versionId),
     supabase.from('quotation_guest_pricing').delete().eq('quotation_version_id', versionId),
@@ -1367,7 +1397,7 @@ export async function duplicateQuotation(
   const { currentVersion } = await getQuotationById(supabase, sourceQuotationId);
   if (!currentVersion) throw new Error('Source quotation has no version to duplicate.');
 
-  const { itinerary, inclusions, exclusions, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer } =
+  const { itinerary, inclusions, exclusions, flightSegments, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer } =
     await getVersionDetail(supabase, currentVersion.id);
   const pricing = await getPricingForVersion(supabase, currentVersion.id);
 
@@ -1443,6 +1473,13 @@ export async function duplicateQuotation(
     notes: currentVersion.notes ?? '',
     inclusions: inclusions.map((i) => i.item),
     exclusions: exclusions.map((e) => e.item),
+    flightSegments: flightSegments.map((f) => ({
+      airline: f.airline,
+      flightNumber: f.flightNumber,
+      departureTime: f.departureTime,
+      arrivalTime: f.arrivalTime,
+      route: f.route,
+    })),
     itinerary: itinerary.map((d) => ({
       dayNumber: d.day_number,
       dayDate: d.day_date ?? '',

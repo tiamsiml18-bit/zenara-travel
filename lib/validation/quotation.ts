@@ -13,6 +13,17 @@ export const itineraryDaySchema = z.object({
   sourceTourId: z.string().uuid().optional().nullable(),
 });
 
+// All fields optional/blank-tolerant by design — the agent may only have
+// partial flight info at quoting time, and nothing here is ever
+// auto-generated or guessed.
+export const flightSegmentSchema = z.object({
+  airline: z.string().trim().max(100).optional().or(z.literal('')),
+  flightNumber: z.string().trim().max(30).optional().or(z.literal('')),
+  departureTime: z.string().trim().max(20).optional().or(z.literal('')),
+  arrivalTime: z.string().trim().max(20).optional().or(z.literal('')),
+  route: z.string().trim().max(100).optional().or(z.literal('')),
+});
+
 export const costItemSchema = z.object({
   label: z.string().trim().min(1, 'Give this cost item a label.').max(120),
   amount: z.coerce.number().min(0, 'Cost cannot be negative.'),
@@ -224,6 +235,7 @@ export const quotationDraftSchema = z
     inclusions: z.array(z.string().trim().min(1)).default([]),
     exclusions: z.array(z.string().trim().min(1)).default([]),
     itinerary: z.array(itineraryDaySchema).default([]),
+    flightSegments: z.array(flightSegmentSchema).default([]),
 
     // Client-facing additional fees / taxes — shown on the PDF as its own
     // section (terminal fee, environmental fee, VAT, whatever comes up).
