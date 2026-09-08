@@ -50,7 +50,7 @@ type Client = { id: string; full_name: string; email: string | null; mobile_numb
 type PackageOption = { id: string; name: string; destination: string; num_days: number; num_nights: number };
 type Source = { id: string; name: string };
 
-const STEPS = ['Client', 'Package', 'Trip details', 'Itinerary', 'Flight Details', 'Inclusions', 'Review'] as const;
+const STEPS = ['Client', 'Package', 'Trip details', 'Itinerary', 'Inclusions', 'Review'] as const;
 
 /**
  * One additional Airfare/Hotel/Transfer section beyond the default (which
@@ -659,6 +659,24 @@ export function QuotationWizard({
       route: f.route ?? '',
     }))
   );
+  // Trip Type has no column of its own — the actual saved data is just
+  // the flight segments themselves, so this infers correctly from how
+  // many were saved (1 => One Way, everything else => Round Trip, the
+  // more common case and the spec's own default) rather than adding
+  // schema for a value that's fully derivable. Selecting a Trip Type
+  // only seeds the default segment count when the list is still empty —
+  // it never deletes flights the agent has already filled in.
+  const [tripType, setTripType] = useState<'round_trip' | 'one_way'>(
+    (initialData?.flightSegments?.length ?? 0) === 1 ? 'one_way' : 'round_trip'
+  );
+
+  function handleTripTypeChange(next: 'round_trip' | 'one_way') {
+    setTripType(next);
+    if (flightSegments.length === 0) {
+      const blank = (key: string): FlightSegmentState => ({ key, airline: '', flightNumber: '', departureTime: '', arrivalTime: '', route: '' });
+      setFlightSegments(next === 'round_trip' ? [blank(`new-${Date.now()}-1`), blank(`new-${Date.now()}-2`)] : [blank(`new-${Date.now()}-1`)]);
+    }
+  }
 
   /**
    * Fires when a tour is picked from any day's "Select Tour" dropdown.
@@ -1625,6 +1643,36 @@ export function QuotationWizard({
                 />
               </div>
             </div>
+
+            <div className="rounded-md border border-sand-200 p-3">
+              <p className="mb-2 text-sm font-medium text-ink-900">Flight Details</p>
+              <p className="mb-3 text-sm text-ink-500">Optional — add flight information for this trip.</p>
+              <label className="mb-3 block">
+                <span className="mb-1.5 block text-sm font-medium text-ink-700">Trip Type</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleTripTypeChange('round_trip')}
+                    className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                      tripType === 'round_trip' ? 'border-harbor-700 bg-harbor-700 text-sand-50' : 'border-sand-200 text-ink-700 hover:bg-sand-100'
+                    }`}
+                  >
+                    Round Trip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTripTypeChange('one_way')}
+                    className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                      tripType === 'one_way' ? 'border-harbor-700 bg-harbor-700 text-sand-50' : 'border-sand-200 text-ink-700 hover:bg-sand-100'
+                    }`}
+                  >
+                    One Way
+                  </button>
+                </div>
+              </label>
+              <FlightSegmentsEditor segments={flightSegments} onChange={setFlightSegments} />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <LabeledInput
                 label="Hotel name"
@@ -2267,26 +2315,6 @@ export function QuotationWizard({
         })()}
 
         {(isSinglePageMode || step === 4) && (() => {
-          const flightContent = (
-            <div>
-              {!isSinglePageMode && (
-                <p className="mb-3 text-sm text-ink-500">
-                  Optional — add each flight segment for this trip. Leave empty if not applicable.
-                </p>
-              )}
-              <FlightSegmentsEditor segments={flightSegments} onChange={setFlightSegments} />
-            </div>
-          );
-          return isSinglePageMode ? (
-            <CollapsibleSection title="Flight Details" open={sectionOpen.flightDetails ?? true} onToggle={() => toggleSection('flightDetails')}>
-              {flightContent}
-            </CollapsibleSection>
-          ) : (
-            flightContent
-          );
-        })()}
-
-        {(isSinglePageMode || step === 5) && (() => {
           const stepContent = (
           <div className="grid grid-cols-2 gap-6">
             <div>
@@ -2308,7 +2336,7 @@ export function QuotationWizard({
           );
         })()}
 
-        {(isSinglePageMode || step === 6) && (
+        {(isSinglePageMode || step === 5) && (
           <div className="space-y-4 text-sm">
             {!isSinglePageMode && (
             <p className="text-ink-500">
@@ -2370,7 +2398,7 @@ export function QuotationWizard({
             type="button"
             onClick={() => {
               if (!canAdvance()) return;
-              if (step === 4) autoPopulateInclusionsExclusions();
+              if (step === 3) autoPopulateInclusionsExclusions();
               setStep((s) => s + 1);
             }}
             disabled={!canAdvance()}
