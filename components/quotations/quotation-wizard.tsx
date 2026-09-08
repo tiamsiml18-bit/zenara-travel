@@ -126,9 +126,12 @@ interface FlightSegmentState {
   key: string;
   airline: string;
   flightNumber: string;
+  departure: string;
+  arrival: string;
   departureTime: string;
   arrivalTime: string;
   route: string;
+  routeManuallyEdited?: boolean;
 }
 
 export interface QuotationWizardInitialData {
@@ -199,7 +202,16 @@ export interface QuotationWizardInitialData {
   itinerary: ItineraryDayDraft[];
   inclusions: string[];
   exclusions: string[];
-  flightSegments?: { id?: string; airline?: string; flightNumber?: string; departureTime?: string; arrivalTime?: string; route?: string }[];
+  flightSegments?: {
+    id?: string;
+    airline?: string;
+    flightNumber?: string;
+    departure?: string;
+    arrival?: string;
+    departureTime?: string;
+    arrivalTime?: string;
+    route?: string;
+  }[];
   supplierCost: number; // legacy fallback (pre-itemization); costItems is the source of truth going forward
   costItems?: OtherSupplierCostItemInput[];
   feeItems?: CostItemInput[];
@@ -654,9 +666,16 @@ export function QuotationWizard({
       key: f.id ?? `existing-${i}`,
       airline: f.airline ?? '',
       flightNumber: f.flightNumber ?? '',
+      departure: f.departure ?? '',
+      arrival: f.arrival ?? '',
       departureTime: f.departureTime ?? '',
       arrivalTime: f.arrivalTime ?? '',
       route: f.route ?? '',
+      // A saved route is always treated as manual on load -- it was
+      // either typed by hand or already auto-generated and saved; either
+      // way, re-editing Departure/Arrival afterward must not silently
+      // replace what's already on the quotation.
+      routeManuallyEdited: Boolean(f.route),
     }))
   );
   // Trip Type has no column of its own — the actual saved data is just
@@ -673,7 +692,16 @@ export function QuotationWizard({
   function handleTripTypeChange(next: 'round_trip' | 'one_way') {
     setTripType(next);
     if (flightSegments.length === 0) {
-      const blank = (key: string): FlightSegmentState => ({ key, airline: '', flightNumber: '', departureTime: '', arrivalTime: '', route: '' });
+      const blank = (key: string): FlightSegmentState => ({
+        key,
+        airline: '',
+        flightNumber: '',
+        departure: '',
+        arrival: '',
+        departureTime: '',
+        arrivalTime: '',
+        route: '',
+      });
       setFlightSegments(next === 'round_trip' ? [blank(`new-${Date.now()}-1`), blank(`new-${Date.now()}-2`)] : [blank(`new-${Date.now()}-1`)]);
     }
   }
@@ -1231,6 +1259,8 @@ export function QuotationWizard({
       flightSegments: flightSegments.map((f) => ({
         airline: f.airline,
         flightNumber: f.flightNumber,
+        departure: f.departure,
+        arrival: f.arrival,
         departureTime: f.departureTime,
         arrivalTime: f.arrivalTime,
         route: f.route,

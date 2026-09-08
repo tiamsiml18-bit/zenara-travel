@@ -19,9 +19,11 @@ export const itineraryDaySchema = z.object({
 export const flightSegmentSchema = z.object({
   airline: z.string().trim().max(100).optional().or(z.literal('')),
   flightNumber: z.string().trim().max(30).optional().or(z.literal('')),
+  departure: z.string().trim().max(120).optional().or(z.literal('')),
+  arrival: z.string().trim().max(120).optional().or(z.literal('')),
   departureTime: z.string().trim().max(20).optional().or(z.literal('')),
   arrivalTime: z.string().trim().max(20).optional().or(z.literal('')),
-  route: z.string().trim().max(100).optional().or(z.literal('')),
+  route: z.string().trim().max(150).optional().or(z.literal('')),
 });
 
 export const costItemSchema = z.object({

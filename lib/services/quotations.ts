@@ -141,7 +141,7 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       .order('sort_order'),
     supabase
       .from('quotation_flight_segments')
-      .select('id, airline, flight_number, departure_time, arrival_time, route')
+      .select('id, airline, flight_number, departure, arrival, departure_time, arrival_time, route')
       .eq('quotation_version_id', versionId)
       .order('sort_order'),
     supabase
@@ -291,6 +291,8 @@ export async function getVersionDetail(supabase: SupabaseClient, versionId: stri
       id: f.id,
       airline: f.airline,
       flightNumber: f.flight_number,
+      departure: f.departure,
+      arrival: f.arrival,
       departureTime: f.departure_time,
       arrivalTime: f.arrival_time,
       route: f.route,
@@ -738,6 +740,8 @@ async function insertVersionChildren(
         quotation_version_id: versionId,
         airline: f.airline || '',
         flight_number: f.flightNumber || '',
+        departure: f.departure || '',
+        arrival: f.arrival || '',
         departure_time: f.departureTime || '',
         arrival_time: f.arrivalTime || '',
         route: f.route || '',
@@ -1476,6 +1480,8 @@ export async function duplicateQuotation(
     flightSegments: flightSegments.map((f) => ({
       airline: f.airline,
       flightNumber: f.flightNumber,
+      departure: f.departure,
+      arrival: f.arrival,
       departureTime: f.departureTime,
       arrivalTime: f.arrivalTime,
       route: f.route,
