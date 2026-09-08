@@ -5,7 +5,8 @@ import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { AutoSubmitDateInput } from '@/components/ui/auto-submit-date-input';
 import { SalesTable, type SalesRow } from '@/components/sales/sales-table';
 import { SalesSourceToggle } from '@/components/sales/sales-source-toggle';
-import { AddHistoricalSaleButton } from '@/components/sales/add-historical-sale-button';
+import { HistoricalSalesMenu } from '@/components/sales/historical-sales-menu';
+import { DropdownMenu, DropdownMenuLink } from '@/components/ui/dropdown-menu';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
 import { listSalesRecords, listUpcomingPayments, getSalesSummary, SALES_PAYMENT_STATUS_LABELS, type SalesPaymentStatus } from '@/lib/services/sales';
@@ -184,16 +185,11 @@ export default async function SalesPage({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <SalesSourceToggle current={source} buildHref={buildHref} />
           <div className="flex gap-2">
-            <a href={buildExportHref('pdf')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
-              Export PDF
-            </a>
-            <a href={buildExportHref('excel')} className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
-              Export Excel
-            </a>
-            <AddHistoricalSaleButton />
-            <Link href="/sales/import" className="rounded-md border border-sand-200 px-3 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
-              Import Historical Sales
-            </Link>
+            <DropdownMenu label="Export">
+              <DropdownMenuLink href={buildExportHref('pdf')}>Export PDF</DropdownMenuLink>
+              <DropdownMenuLink href={buildExportHref('excel')}>Export Excel</DropdownMenuLink>
+            </DropdownMenu>
+            <HistoricalSalesMenu />
           </div>
         </div>
 
