@@ -48,7 +48,19 @@ export interface FlightSegmentFields {
 const inputClass = 'w-full rounded-md border border-sand-200 px-2.5 py-1.5 text-sm outline-none ring-harbor-400 focus:ring-2';
 
 /** Departure/Arrival field — free-text with a searchable dropdown of matching airports. Selecting one stores "City (CODE)"; typing without selecting keeps the agent's own text untouched (never forces a match). Route auto-generation and carry-forward only react once a value is actually committed (a selection, or blurring away) -- never on every keystroke, so an in-progress "Sing..." can't get carried forward as a half-typed, code-less value before the agent finishes picking "Singapore (SIN)". */
-function AirportInput({ label, placeholder, value, onChange }: { label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+function AirportInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<Airport[]>([]);
@@ -109,12 +121,14 @@ function AirportInput({ label, placeholder, value, onChange }: { label: string; 
         value={draft}
         onChange={(e) => handleInput(e.target.value)}
         onFocus={() => {
+          if (disabled) return;
           loadSearchAirports().then((search) => setResults(search(draft)));
           setOpen(true);
         }}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className={inputClass}
+        disabled={disabled}
+        className={`${inputClass} disabled:cursor-not-allowed disabled:bg-sand-50 disabled:text-ink-500`}
         autoComplete="off"
       />
       {open && results.length > 0 && (
@@ -139,7 +153,19 @@ function AirportInput({ label, placeholder, value, onChange }: { label: string; 
 }
 
 /** Time field — accepts fast entry like "700PM" and auto-formats to "7:00 PM" on blur. Invalid entries surface a clear message rather than a guessed value. */
-function TimeInput({ label, placeholder, value, onChange }: { label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+function TimeInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
 
@@ -166,7 +192,8 @@ function TimeInput({ label, placeholder, value, onChange }: { label: string; pla
         }}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className={`${inputClass} ${error ? 'border-coral-500' : ''}`}
+        disabled={disabled}
+        className={`${inputClass} disabled:cursor-not-allowed disabled:bg-sand-50 disabled:text-ink-500 ${error ? 'border-coral-500' : ''}`}
       />
       {error && <span className="mt-0.5 block text-[11px] text-coral-600">{error}</span>}
     </label>
@@ -176,9 +203,11 @@ function TimeInput({ label, placeholder, value, onChange }: { label: string; pla
 export function FlightSegmentsEditor({
   segments,
   onChange,
+  disabled,
 }: {
   segments: FlightSegmentFields[];
   onChange: (next: FlightSegmentFields[]) => void;
+  disabled?: boolean;
 }) {
   function update(index: number, patch: Partial<FlightSegmentFields>) {
     let next = segments.map((s, i) => (i === index ? { ...s, ...patch } : s));
@@ -241,30 +270,49 @@ export function FlightSegmentsEditor({
           <div key={segment.key} className="rounded-md border border-sand-200 p-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wide text-ink-500">Flight {i + 1}</span>
-              <button type="button" onClick={() => removeFlight(i)} className="text-ink-400 hover:text-coral-600" aria-label={`Remove flight ${i + 1}`}>
+              <button
+                type="button"
+                onClick={() => removeFlight(i)}
+                disabled={disabled}
+                className="text-ink-400 hover:text-coral-600 disabled:cursor-not-allowed disabled:hover:text-ink-400"
+                aria-label={`Remove flight ${i + 1}`}
+              >
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <label className="block">
                 <span className="mb-1 block text-[11px] text-ink-500">Airline</span>
-                <input value={segment.airline} onChange={(e) => update(i, { airline: e.target.value })} placeholder="Philippine Airlines" className={inputClass} />
+                <input
+                  value={segment.airline}
+                  onChange={(e) => update(i, { airline: e.target.value })}
+                  placeholder="Philippine Airlines"
+                  disabled={disabled}
+                  className={`${inputClass} disabled:cursor-not-allowed disabled:bg-sand-50 disabled:text-ink-500`}
+                />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[11px] text-ink-500">Flight Number</span>
-                <input value={segment.flightNumber} onChange={(e) => update(i, { flightNumber: e.target.value })} placeholder="PR 123" className={inputClass} />
+                <input
+                  value={segment.flightNumber}
+                  onChange={(e) => update(i, { flightNumber: e.target.value })}
+                  placeholder="PR 123"
+                  disabled={disabled}
+                  className={`${inputClass} disabled:cursor-not-allowed disabled:bg-sand-50 disabled:text-ink-500`}
+                />
               </label>
-              <AirportInput label="Departure" placeholder="Manila" value={segment.departure} onChange={(v) => update(i, { departure: v })} />
-              <AirportInput label="Arrival" placeholder="Singapore" value={segment.arrival} onChange={(v) => update(i, { arrival: v })} />
-              <TimeInput label="Departure Time" placeholder="700AM" value={segment.departureTime} onChange={(v) => update(i, { departureTime: v })} />
-              <TimeInput label="Arrival Time" placeholder="900AM" value={segment.arrivalTime} onChange={(v) => update(i, { arrivalTime: v })} />
+              <AirportInput label="Departure" placeholder="Manila" value={segment.departure} onChange={(v) => update(i, { departure: v })} disabled={disabled} />
+              <AirportInput label="Arrival" placeholder="Singapore" value={segment.arrival} onChange={(v) => update(i, { arrival: v })} disabled={disabled} />
+              <TimeInput label="Departure Time" placeholder="700AM" value={segment.departureTime} onChange={(v) => update(i, { departureTime: v })} disabled={disabled} />
+              <TimeInput label="Arrival Time" placeholder="900AM" value={segment.arrivalTime} onChange={(v) => update(i, { arrivalTime: v })} disabled={disabled} />
               <label className="col-span-2 block">
                 <span className="mb-1 block text-[11px] text-ink-500">Route</span>
                 <input
                   value={segment.route}
                   onChange={(e) => update(i, { route: e.target.value, routeManuallyEdited: true })}
                   placeholder="MNL - SIN"
-                  className={inputClass}
+                  disabled={disabled}
+                  className={`${inputClass} disabled:cursor-not-allowed disabled:bg-sand-50 disabled:text-ink-500`}
                 />
               </label>
             </div>
@@ -274,7 +322,8 @@ export function FlightSegmentsEditor({
       <button
         type="button"
         onClick={addFlight}
-        className="mt-3 inline-flex items-center gap-1 rounded-md border border-sand-200 px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-sand-100"
+        disabled={disabled}
+        className="mt-3 inline-flex items-center gap-1 rounded-md border border-sand-200 px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-sand-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
       >
         <Plus className="h-3.5 w-3.5" strokeWidth={2} />
         Add Flight

@@ -1674,16 +1674,28 @@ export function QuotationWizard({
               </div>
             </div>
 
-            <div className="rounded-md border border-sand-200 p-3">
+            <div
+              className={clsx(
+                'rounded-md border border-sand-200 p-3',
+                trip.packageType === 'land_arrangement' && 'opacity-60'
+              )}
+            >
               <p className="mb-2 text-sm font-medium text-ink-900">Flight Details</p>
-              <p className="mb-3 text-sm text-ink-500">Optional — add flight information for this trip.</p>
+              {trip.packageType === 'land_arrangement' ? (
+                <p className="mb-3 rounded-md bg-coral-500/5 px-2 py-1.5 text-xs font-medium text-coral-600">
+                  Excluded — this quotation is Land Arrangement Only. Flight details below are kept but disabled.
+                </p>
+              ) : (
+                <p className="mb-3 text-sm text-ink-500">Optional — add flight information for this trip.</p>
+              )}
               <label className="mb-3 block">
                 <span className="mb-1.5 block text-sm font-medium text-ink-700">Trip Type</span>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleTripTypeChange('round_trip')}
-                    className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                    disabled={trip.packageType === 'land_arrangement'}
+                    className={`rounded-md border px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed ${
                       tripType === 'round_trip' ? 'border-harbor-700 bg-harbor-700 text-sand-50' : 'border-sand-200 text-ink-700 hover:bg-sand-100'
                     }`}
                   >
@@ -1692,7 +1704,8 @@ export function QuotationWizard({
                   <button
                     type="button"
                     onClick={() => handleTripTypeChange('one_way')}
-                    className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                    disabled={trip.packageType === 'land_arrangement'}
+                    className={`rounded-md border px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed ${
                       tripType === 'one_way' ? 'border-harbor-700 bg-harbor-700 text-sand-50' : 'border-sand-200 text-ink-700 hover:bg-sand-100'
                     }`}
                   >
@@ -1700,7 +1713,7 @@ export function QuotationWizard({
                   </button>
                 </div>
               </label>
-              <FlightSegmentsEditor segments={flightSegments} onChange={setFlightSegments} />
+              <FlightSegmentsEditor segments={flightSegments} onChange={setFlightSegments} disabled={trip.packageType === 'land_arrangement'} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1770,15 +1783,36 @@ export function QuotationWizard({
                     </p>
                   )}
                   <div className="grid grid-cols-5 gap-2">
-                    <PriceField label="Adult" value={trip.airfareAdultRate} onChange={(v) => setTrip((t) => ({ ...t, airfareAdultRate: v }))} />
-                    <PriceField label="Senior" value={trip.airfareSeniorRate} onChange={(v) => setTrip((t) => ({ ...t, airfareSeniorRate: v }))} />
-                    <PriceField label="Child" value={trip.airfareChildRate} onChange={(v) => setTrip((t) => ({ ...t, airfareChildRate: v }))} />
+                    <PriceField
+                      label="Adult"
+                      value={trip.airfareAdultRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareAdultRate: v }))}
+                      disabled={trip.packageType === 'land_arrangement'}
+                    />
+                    <PriceField
+                      label="Senior"
+                      value={trip.airfareSeniorRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareSeniorRate: v }))}
+                      disabled={trip.packageType === 'land_arrangement'}
+                    />
+                    <PriceField
+                      label="Child"
+                      value={trip.airfareChildRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfareChildRate: v }))}
+                      disabled={trip.packageType === 'land_arrangement'}
+                    />
                     <PriceField
                       label="Infant/Toddler"
                       value={trip.airfareInfantRate}
                       onChange={(v) => setTrip((t) => ({ ...t, airfareInfantRate: v }))}
+                      disabled={trip.packageType === 'land_arrangement'}
                     />
-                    <PriceField label="PWD" value={trip.airfarePwdRate} onChange={(v) => setTrip((t) => ({ ...t, airfarePwdRate: v }))} />
+                    <PriceField
+                      label="PWD"
+                      value={trip.airfarePwdRate}
+                      onChange={(v) => setTrip((t) => ({ ...t, airfarePwdRate: v }))}
+                      disabled={trip.packageType === 'land_arrangement'}
+                    />
                   </div>
                   <AdjustedRateRow rates={computedAirfareRates} counts={guestCounts} />
                 </div>
@@ -1802,7 +1836,8 @@ export function QuotationWizard({
                         value={item.label}
                         onChange={(e) => updateAdditionalAirfare(item.key, { label: e.target.value })}
                         placeholder={`Airfare ${i + 2} — e.g. Hanoi \u2192 Manila`}
-                        className="flex-1 rounded-md border border-sand-200 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-ink-700 outline-none ring-harbor-400 focus:ring-2"
+                        disabled={trip.packageType === 'land_arrangement'}
+                        className="flex-1 rounded-md border border-sand-200 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-ink-700 outline-none ring-harbor-400 focus:ring-2 disabled:cursor-not-allowed disabled:bg-sand-50"
                       />
                       <MarkupInput
                         value={item.markupPct}
@@ -1813,21 +1848,43 @@ export function QuotationWizard({
                       <button
                         type="button"
                         onClick={() => removeAdditionalAirfare(item.key)}
-                        className="shrink-0 text-xs text-coral-600 hover:underline"
+                        disabled={trip.packageType === 'land_arrangement'}
+                        className="shrink-0 text-xs text-coral-600 hover:underline disabled:cursor-not-allowed disabled:text-ink-400 disabled:no-underline"
                       >
                         Remove
                       </button>
                     </div>
                     <div className="grid grid-cols-5 gap-2">
-                      <PriceField label="Adult" value={item.rateAdult} onChange={(v) => updateAdditionalAirfare(item.key, { rateAdult: v })} />
-                      <PriceField label="Senior" value={item.rateSenior} onChange={(v) => updateAdditionalAirfare(item.key, { rateSenior: v })} />
-                      <PriceField label="Child" value={item.rateChild} onChange={(v) => updateAdditionalAirfare(item.key, { rateChild: v })} />
+                      <PriceField
+                        label="Adult"
+                        value={item.rateAdult}
+                        onChange={(v) => updateAdditionalAirfare(item.key, { rateAdult: v })}
+                        disabled={trip.packageType === 'land_arrangement'}
+                      />
+                      <PriceField
+                        label="Senior"
+                        value={item.rateSenior}
+                        onChange={(v) => updateAdditionalAirfare(item.key, { rateSenior: v })}
+                        disabled={trip.packageType === 'land_arrangement'}
+                      />
+                      <PriceField
+                        label="Child"
+                        value={item.rateChild}
+                        onChange={(v) => updateAdditionalAirfare(item.key, { rateChild: v })}
+                        disabled={trip.packageType === 'land_arrangement'}
+                      />
                       <PriceField
                         label="Infant/Toddler"
                         value={item.rateInfant}
                         onChange={(v) => updateAdditionalAirfare(item.key, { rateInfant: v })}
+                        disabled={trip.packageType === 'land_arrangement'}
                       />
-                      <PriceField label="PWD" value={item.ratePwd} onChange={(v) => updateAdditionalAirfare(item.key, { ratePwd: v })} />
+                      <PriceField
+                        label="PWD"
+                        value={item.ratePwd}
+                        onChange={(v) => updateAdditionalAirfare(item.key, { ratePwd: v })}
+                        disabled={trip.packageType === 'land_arrangement'}
+                      />
                     </div>
                     <AdjustedRateRow
                       rates={calculateMarkedUpRates(
@@ -1847,7 +1904,8 @@ export function QuotationWizard({
                 <button
                   type="button"
                   onClick={addAdditionalAirfare}
-                  className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100"
+                  disabled={trip.packageType === 'land_arrangement'}
+                  className="rounded-md border border-sand-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                 >
                   + Add Another Airfare
                 </button>
@@ -2657,7 +2715,17 @@ function SummaryBar({
   );
 }
 
-function PriceField({ label, value, onChange }: { label: string; value: number | ''; onChange: (v: number | '') => void }) {
+function PriceField({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: number | '';
+  onChange: (v: number | '') => void;
+  disabled?: boolean;
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-xs font-medium text-ink-700">{label}</label>
@@ -2668,8 +2736,9 @@ function PriceField({ label, value, onChange }: { label: string; value: number |
           min={0}
           value={value}
           placeholder="0"
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
-          className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+          className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2 disabled:cursor-not-allowed disabled:bg-sand-50 disabled:text-ink-500"
         />
       </div>
     </div>
