@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { QuotationDraftInput } from '@/lib/validation/quotation';
+import { unwrapToOne } from '@/lib/utils/unwrap-embed';
 import { writeAudit, diffFields } from './audit';
 import { setClientStatusByName } from './clients';
 import { generateFirstFollowUp } from './followups';
@@ -93,6 +94,7 @@ export async function getQuotationById(supabase: SupabaseClient, quotationId: st
       `*, client:clients ( id, full_name, email, mobile_number ),
        agent:users!quotations_assigned_agent_id_fkey ( id, full_name )`
     )
+    .is('deleted_at', null)
     .eq('id', quotationId)
     .single();
   if (error || !quotation) throw new Error('Quotation not found.');
@@ -890,6 +892,7 @@ export async function updateDraftQuotation(
   const { data: quotation, error: qFetchError } = await supabase
     .from('quotations')
     .select('id, current_version_id, quotation_versions:quotation_versions!quotations_current_version_id_fkey(status)')
+    .is('deleted_at', null)
     .eq('id', quotationId)
     .single();
   if (qFetchError || !quotation) throw new Error('Quotation not found.');
@@ -1333,6 +1336,72 @@ export async function unarchiveQuotation(supabase: SupabaseClient, quotationId: 
 }
 
 /**
+ * Delete (Recycle Bin) — distinct from archiveQuotation above. This is
+ * the app's existing `deleted_at` mechanism, already reserved everywhere
+ * else for "actual removal from every query" (every listing/lookup
+ * function already filters `deleted_at is null`), which is exactly what
+ * lets a deleted quotation disappear from Sales automatically: Sales is
+ * joined off bookings -> quotations, and a quotation excluded here is
+ * excluded there too, with no separate Sales-side logic needed. Nothing
+ * about the quotation row or any of its child records (itinerary,
+ * pricing, flight segments, revisions, etc.) is touched or removed --
+ * only these two columns change, so restoring is a pure, lossless
+ * reversal.
+ */
+export async function softDeleteQuotations(supabase: SupabaseClient, quotationIds: string[], actingUserId: string) {
+  if (quotationIds.length === 0) return;
+  const { error } = await supabase
+    .from('quotations')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: actingUserId })
+    .in('id', quotationIds);
+  if (error) throw new Error(`Failed to delete quotation(s): ${error.message}`);
+  for (const id of quotationIds) {
+    await writeAudit(supabase, { userId: actingUserId, action: 'quotation.deleted', entityType: 'quotation', entityId: id });
+  }
+}
+
+export async function restoreQuotation(supabase: SupabaseClient, quotationId: string, actingUserId: string) {
+  const { error } = await supabase.from('quotations').update({ deleted_at: null, deleted_by: null }).eq('id', quotationId);
+  if (error) throw new Error(`Failed to restore quotation: ${error.message}`);
+  await writeAudit(supabase, { userId: actingUserId, action: 'quotation.restored', entityType: 'quotation', entityId: quotationId });
+}
+
+/** For the Deleted Quotations / Recycle Bin list — deliberately its own query (not listQuotations with a flag flipped) so the normal active list's query, filters, and behavior stay completely untouched. */
+export async function listDeletedQuotations(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from('quotations')
+    .select(
+      `id, quotation_number, deleted_at,
+       client:clients ( id, full_name ),
+       deleted_by_user:users!quotations_deleted_by_fkey ( id, full_name ),
+       current_version:quotation_versions!quotations_current_version_id_fkey ( destination, travel_start_date, travel_end_date, total_price, status )`
+    )
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+  if (error) throw new Error(`Failed to load deleted quotations: ${error.message}`);
+
+  return (data ?? []).map((q) => {
+    const client = unwrapToOne(q.client) as { id: string; full_name: string } | null;
+    const deletedByUser = unwrapToOne(q.deleted_by_user) as { id: string; full_name: string } | null;
+    const version = unwrapToOne(q.current_version) as
+      | { destination: string; travel_start_date: string; travel_end_date: string; total_price: number; status: string | null }
+      | null;
+    return {
+      id: q.id as string,
+      quotationNumber: q.quotation_number as string,
+      clientName: client?.full_name ?? '—',
+      destination: version?.destination ?? '—',
+      travelStartDate: version?.travel_start_date ?? null,
+      travelEndDate: version?.travel_end_date ?? null,
+      totalPrice: Number(version?.total_price ?? 0),
+      originalStatus: version?.status ?? 'Draft',
+      deletedAt: q.deleted_at as string,
+      deletedByName: deletedByUser?.full_name ?? '—',
+    };
+  });
+}
+
+/**
  * Quotation Status and Follow-up (pipeline) Stage now share the exact same
  * six values (Sent, Negotiating, Confirmed, Paid, No Response, Lost) — one
  * consistent status system, not two systems that happen to look similar.
@@ -1352,6 +1421,7 @@ export async function updateQuotationStatus(
   const { data: quotation, error: fetchError } = await supabase
     .from('quotations')
     .select('client_id, quotation_number, status')
+    .is('deleted_at', null)
     .eq('id', quotationId)
     .single();
   if (fetchError || !quotation) throw new Error('Quotation not found.');

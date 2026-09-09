@@ -111,6 +111,7 @@ export async function convertQuotationToBooking(
          id, destination, travel_start_date, travel_end_date, total_price
        )`
     )
+    .is('deleted_at', null)
     .eq('id', quotationId)
     .single();
   if (qError || !quotation) throw new Error('Quotation not found.');

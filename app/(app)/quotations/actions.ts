@@ -124,6 +124,35 @@ export async function archiveQuotationAction(quotationId: string): Promise<{ ok:
   }
 }
 
+/** Delete Selected — moves one or more quotations to the Recycle Bin. Never a permanent delete; existing data and every child record are left completely untouched, only deleted_at/deleted_by change. */
+export async function deleteQuotationsAction(quotationIds: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await quotationsService.softDeleteQuotations(supabase, quotationIds, user.id);
+    revalidatePath('/quotations');
+    revalidatePath('/quotations/deleted');
+    revalidatePath('/dashboard');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to delete quotation(s).' };
+  }
+}
+
+export async function restoreQuotationAction(quotationId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await quotationsService.restoreQuotation(supabase, quotationId, user.id);
+    revalidatePath('/quotations');
+    revalidatePath('/quotations/deleted');
+    revalidatePath('/dashboard');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to restore quotation.' };
+  }
+}
+
 export async function getPackageDetailsAction(packageId: string) {
   await requireUser();
   const supabase = await createSupabaseServerClient();

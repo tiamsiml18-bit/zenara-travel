@@ -186,7 +186,10 @@ export async function getMonthlyBookingVolume(supabase: SupabaseClient, filters:
     return data ?? [];
   }
 
-  let query = supabase.from('bookings').select('status, total_amount, created_at, assigned_agent_id, destination').is('deleted_at', null);
+  let query = supabase
+    .from('bookings')
+    .select('status, total_amount, created_at, assigned_agent_id, destination, quotation:quotations ( deleted_at )')
+    .is('deleted_at', null);
   if (bookingFilters.dateFrom) query = query.gte('created_at', bookingFilters.dateFrom);
   if (bookingFilters.dateTo) query = query.lte('created_at', bookingFilters.dateTo);
   if (bookingFilters.agentId) query = query.eq('assigned_agent_id', bookingFilters.agentId);
@@ -194,7 +197,16 @@ export async function getMonthlyBookingVolume(supabase: SupabaseClient, filters:
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  return groupByMonth(data ?? [], (rows) => ({
+  // Mirrors the same fix already applied to Sales (listSalesRecords) --
+  // a booking row survives its quotation being soft-deleted, so that has
+  // to be checked explicitly here too, not assumed away by the
+  // bookings.deleted_at filter above.
+  const activeRows = (data ?? []).filter((r) => {
+    const quotation = Array.isArray(r.quotation) ? r.quotation[0] : r.quotation;
+    return !(quotation as { deleted_at?: string | null } | null)?.deleted_at;
+  });
+
+  return groupByMonth(activeRows, (rows) => ({
     bookings_created: rows.length,
     bookings_confirmed: rows.filter((r) => r.status === 'confirmed').length,
     total_booked_value: rows.reduce((sum, r) => sum + Number(r.total_amount ?? 0), 0),

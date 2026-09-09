@@ -53,7 +53,7 @@ const SALES_SELECT = `
   client:clients ( id, full_name ),
   agent:users!bookings_assigned_agent_id_fkey ( id, full_name ),
   quotation:quotations (
-    id, quotation_number,
+    id, quotation_number, deleted_at,
     current_version:quotation_versions!quotations_current_version_id_fkey ( total_price )
   ),
   cost_entry:sales_cost_entries ( airfare_cost, hotel_cost, transfer_cost, tour_cost, bank_charge, refund, remarks, cost_source, zoho_invoice_number )
@@ -83,21 +83,30 @@ export async function listSalesRecords(supabase: SupabaseClient, filters: SalesL
   const { data: bookingRows, error } = await query;
   if (error) throw new Error(`Failed to load sales records: ${error.message}`);
 
-  const bookingIds = (bookingRows ?? []).map((b) => b.id);
+  // A booking's quotation being soft-deleted must remove it from Sales
+  // entirely -- Sales is joined off bookings, so filtering only
+  // bookings.deleted_at (above) isn't enough on its own; the quotation
+  // itself can be deleted independently while its booking row remains.
+  const activeBookingRows = (bookingRows ?? []).filter((b) => {
+    const quotation = unwrapToOne(b.quotation) as { deleted_at?: string | null } | null;
+    return !quotation?.deleted_at;
+  });
+
+  const bookingIds = activeBookingRows.map((b) => b.id);
   const paidByBooking = await sumPaymentsByBooking(supabase, bookingIds);
   // Only fetched for rows that could possibly need it (cost_source ===
   // 'linked_expenses') — a plain 'manual' Sales record (the default for
   // every existing row) never even looks at this map, so nothing about
   // the existing calculation path changes unless the agent has
   // explicitly switched a row to Linked Expenses.
-  const quotationIdsNeedingLinkedTotal = (bookingRows ?? [])
+  const quotationIdsNeedingLinkedTotal = activeBookingRows
     .filter((b) => unwrapToOne(b.cost_entry)?.cost_source === 'linked_expenses')
     .map((b) => unwrapToOne(b.quotation) as { id?: string } | null)
     .map((q) => q?.id)
     .filter((id): id is string => Boolean(id));
   const linkedExpenseTotals = await getLinkedExpenseTotalsByQuotation(supabase, quotationIdsNeedingLinkedTotal);
 
-  let rows = (bookingRows ?? []).map((b) => {
+  let rows = activeBookingRows.map((b) => {
     const client = unwrapToOne(b.client);
     const agent = unwrapToOne(b.agent);
     const quotation = unwrapToOne(b.quotation);

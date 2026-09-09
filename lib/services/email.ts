@@ -21,6 +21,7 @@ export async function sendQuotationEmail(supabase: SupabaseClient, input: SendQu
   const { data: quotation, error } = await supabase
     .from('quotations')
     .select('quotation_number, client_id, current_version:quotation_versions!quotations_current_version_id_fkey(version_label)')
+    .is('deleted_at', null)
     .eq('id', input.quotationId)
     .single();
   if (error || !quotation) throw new Error('Quotation not found.');

@@ -56,6 +56,7 @@ export async function updateQuotationPipelineStage(
   const { data: current, error: fetchError } = await supabase
     .from('quotations')
     .select('pipeline_stage')
+    .is('deleted_at', null)
     .eq('id', quotationId)
     .single();
   if (fetchError || !current) throw new Error('Quotation not found.');

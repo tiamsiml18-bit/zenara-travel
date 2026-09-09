@@ -29,6 +29,7 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
        agent:users!quotations_assigned_agent_id_fkey ( full_name, email, phone ),
        package:packages ( name )`
     )
+    .is('deleted_at', null)
     .eq('id', quotationId)
     .single();
   if (error || !quotation) throw new Error('Quotation not found.');
