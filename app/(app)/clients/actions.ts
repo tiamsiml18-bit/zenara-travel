@@ -154,3 +154,37 @@ export async function archiveClientAction(clientId: string): Promise<{ ok: true 
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to archive client.' };
   }
 }
+
+/** Powers the duplicate warning dialog — checked client-side before the create/edit form actually submits. */
+export async function checkPossibleDuplicatesAction(input: {
+  fullName: string;
+  email?: string;
+  mobileNumber?: string;
+  excludeClientId?: string;
+}): Promise<clientsService.PossibleDuplicateClient[]> {
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  return clientsService.findPossibleDuplicates(
+    supabase,
+    { fullName: input.fullName, email: input.email, mobileNumber: input.mobileNumber },
+    input.excludeClientId
+  );
+}
+
+/** Merge Duplicate Clients confirmation action — the actual atomic merge runs as a single Postgres transaction (merge_clients). */
+export async function mergeClientsAction(
+  survivingClientId: string,
+  duplicateClientId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await clientsService.mergeClients(supabase, survivingClientId, duplicateClientId, user.id);
+    revalidatePath('/clients');
+    revalidatePath(`/clients/${survivingClientId}`);
+    revalidatePath(`/clients/${duplicateClientId}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to merge clients.' };
+  }
+}

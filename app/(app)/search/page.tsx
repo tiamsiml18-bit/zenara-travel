@@ -91,6 +91,7 @@ async function searchClients(supabase: Awaited<ReturnType<typeof createClient>>,
     .from('clients')
     .select('id, full_name, email, mobile_number, destination')
     .is('deleted_at', null)
+    .is('merged_into_client_id', null)
     .or(`full_name.ilike.%${query}%,email.ilike.%${query}%,mobile_number.ilike.%${query}%,destination.ilike.%${query}%`)
     .limit(10);
   if (error) throw new Error(error.message);

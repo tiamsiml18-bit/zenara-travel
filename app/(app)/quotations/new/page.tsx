@@ -23,6 +23,7 @@ export default async function NewQuotationPage({
       .from('clients')
       .select('id, full_name, email, mobile_number')
       .is('deleted_at', null)
+      .is('merged_into_client_id', null)
       .order('updated_at', { ascending: false })
       .limit(200),
     listClientSources(supabase),

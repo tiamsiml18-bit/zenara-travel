@@ -38,6 +38,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
       .from('clients')
       .select('id, full_name, email, mobile_number')
       .is('deleted_at', null)
+      .is('merged_into_client_id', null)
       .order('updated_at', { ascending: false })
       .limit(200),
     supabase.from('clients').select('id, full_name, email, mobile_number').eq('id', quotation.client_id).single(),

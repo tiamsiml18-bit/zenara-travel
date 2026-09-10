@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
-import { StatusBadge } from '@/components/ui/status-badge';
+import { ClientsTable } from '@/components/clients/clients-table';
 import { Pagination } from '@/components/ui/pagination';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { createClient } from '@/lib/supabase/server';
@@ -9,23 +9,18 @@ import { listClients } from '@/lib/services/clients';
 import { listClientStatuses, listAgents } from '@/lib/services/lookups';
 import { requireUser } from '@/lib/auth/session';
 
-function formatDate(d?: string | null) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-function formatMoney(n?: number | null) {
-  if (n === null || n === undefined) return '—';
-  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
-}
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; agent?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; agent?: string; page?: string; view?: string }>;
 }) {
   await requireUser();
   const params = await searchParams;
   const supabase = await createClient();
+  const duplicatesOnly = params.view === 'duplicates';
 
   const [{ clients, total, page, pageSize }, statuses, agents] = await Promise.all([
     listClients(supabase, {
@@ -33,6 +28,7 @@ export default async function ClientsPage({
       statusId: params.status,
       agentId: params.agent,
       page: params.page ? Number(params.page) : 1,
+      duplicatesOnly,
     }),
     listClientStatuses(supabase),
     listAgents(supabase),
@@ -42,8 +38,28 @@ export default async function ClientsPage({
     <>
       <Topbar title="Clients" />
       <main className="flex-1 overflow-y-auto p-6">
+        <div className="mb-4 flex items-center gap-2 border-b border-sand-200">
+          <Link
+            href="/clients"
+            className={`border-b-2 px-1 pb-2 text-sm font-medium ${
+              !duplicatesOnly ? 'border-harbor-700 text-ink-900' : 'border-transparent text-ink-500 hover:text-ink-700'
+            }`}
+          >
+            All Clients
+          </Link>
+          <Link
+            href="/clients?view=duplicates"
+            className={`border-b-2 px-1 pb-2 text-sm font-medium ${
+              duplicatesOnly ? 'border-harbor-700 text-ink-900' : 'border-transparent text-ink-500 hover:text-ink-700'
+            }`}
+          >
+            Duplicates
+          </Link>
+        </div>
+
         <div className="mb-4 flex items-center justify-between">
           <form className="flex flex-1 gap-2" action="/clients">
+            {duplicatesOnly && <input type="hidden" name="view" value="duplicates" />}
             <input
               name="q"
               defaultValue={params.q}
@@ -72,51 +88,14 @@ export default async function ClientsPage({
           </Link>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-sand-200 bg-sand-50 text-xs uppercase tracking-wide text-ink-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Destination</th>
-                <th className="px-4 py-3 font-medium">Travel date</th>
-                <th className="px-4 py-3 font-medium">Quoted price</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Agent</th>
-                <th className="px-4 py-3 font-medium">Updated</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-sand-100">
-              {clients.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-ink-500">
-                    No clients match these filters yet.
-                  </td>
-                </tr>
-              )}
-              {clients.map((c: any) => (
-                <tr key={c.id} className="hover:bg-sand-50">
-                  <td className="px-4 py-3">
-                    <Link href={`/clients/${c.id}`} className="font-medium text-ink-900 hover:text-harbor-600">
-                      {c.full_name}
-                    </Link>
-                    <p className="text-xs text-ink-500">{c.email || c.mobile_number || '—'}</p>
-                  </td>
-                  <td className="px-4 py-3 text-ink-700">{c.destination || '—'}</td>
-                  <td className="px-4 py-3 font-ticket text-ink-700">{formatDate(c.travel_start_date)}</td>
-                  <td className="px-4 py-3 font-ticket text-ink-700">{formatMoney(c.quoted_price)}</td>
-                  <td className="px-4 py-3">{c.status && <StatusBadge label={c.status.name} />}</td>
-                  <td className="px-4 py-3 text-ink-700">{c.agent?.full_name ?? '—'}</td>
-                  <td className="px-4 py-3 text-ink-500">{formatDate(c.updated_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <ClientsTable clients={clients} duplicatesView={duplicatesOnly} />
+        <div className="overflow-hidden rounded-b-lg border border-t-0 border-sand-200 bg-surface">
           <Pagination
             page={page}
             pageSize={pageSize}
             total={total}
             basePath="/clients"
-            searchParams={{ q: params.q, status: params.status, agent: params.agent }}
+            searchParams={{ q: params.q, status: params.status, agent: params.agent, view: params.view }}
           />
         </div>
       </main>

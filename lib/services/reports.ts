@@ -32,7 +32,8 @@ export async function getDashboardKpis(supabase: SupabaseClient, filters: Dashbo
   const { data: clientsAgg } = await supabase
     .from('clients')
     .select('id, created_at', { count: 'exact', head: false })
-    .is('deleted_at', null);
+    .is('deleted_at', null)
+    .is('merged_into_client_id', null);
 
   const totalLeads = clientsAgg?.length ?? 0;
   const thirtyDaysAgo = new Date();

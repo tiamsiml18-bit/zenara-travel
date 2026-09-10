@@ -16,6 +16,7 @@ export interface ClientListFilters {
   agentId?: string;
   page?: number;
   pageSize?: number;
+  duplicatesOnly?: boolean;
 }
 
 export async function listClients(supabase: SupabaseClient, filters: ClientListFilters = {}) {
@@ -24,12 +25,27 @@ export async function listClients(supabase: SupabaseClient, filters: ClientListF
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
+  // Always computed (not just when filtering) so every row — even in the
+  // "All Clients" view — can carry a neutral "Possible Duplicate" badge.
+  const { data: dupIds, error: dupError } = await supabase.rpc('list_duplicate_client_ids');
+  if (dupError) throw new Error(`Failed to load duplicate clients: ${dupError.message}`);
+  const duplicateIdSet = new Set((dupIds ?? []).map((r: { id: string }) => r.id));
+
   let query = supabase
     .from('clients')
     .select(CLIENT_LIST_SELECT, { count: 'exact' })
     .is('deleted_at', null)
+    .is('merged_into_client_id', null)
     .order('updated_at', { ascending: false })
     .range(from, to);
+
+  if (filters.duplicatesOnly) {
+    const ids = Array.from(duplicateIdSet);
+    // No possible duplicates at all -- filter to an impossible id rather
+    // than skip the .in() call, so the query still correctly returns zero
+    // rows instead of accidentally falling through to "all clients."
+    query = query.in('id', ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000']);
+  }
 
   if (filters.search) {
     // Uses the pg_trgm GIN index defined in the schema — safe at scale.
@@ -43,7 +59,9 @@ export async function listClients(supabase: SupabaseClient, filters: ClientListF
   const { data, error, count } = await query;
   if (error) throw new Error(`Failed to load clients: ${error.message}`);
 
-  return { clients: data ?? [], total: count ?? 0, page, pageSize };
+  const clients = (data ?? []).map((c) => ({ ...c, isPossibleDuplicate: duplicateIdSet.has((c as { id: string }).id) }));
+
+  return { clients, total: count ?? 0, page, pageSize };
 }
 
 export async function getClientById(supabase: SupabaseClient, clientId: string) {
@@ -55,6 +73,7 @@ export async function getClientById(supabase: SupabaseClient, clientId: string) 
     )
     .eq('id', clientId)
     .is('deleted_at', null)
+    .is('merged_into_client_id', null)
     .single();
 
   if (error) throw new Error(`Client not found: ${error.message}`);
@@ -294,4 +313,62 @@ export async function setClientStatusByName(
     description: description ?? `Status changed to ${statusName}.`,
     user_id: actingUserId,
   });
+}
+
+export interface PossibleDuplicateClient {
+  id: string;
+  full_name: string;
+  email: string | null;
+  mobile_number: string | null;
+  destination: string | null;
+  created_at: string;
+  match_reason: 'email' | 'phone' | 'name';
+}
+
+/**
+ * Checks whether a name/email/phone combination looks like it might
+ * already exist, before a new client is saved (or an existing one is
+ * updated) — powers the duplicate warning dialog. Matches by exact
+ * email, exact normalized phone, or fuzzy name similarity; see the
+ * find_possible_duplicate_clients SQL function for the actual logic.
+ * excludeClientId is passed when checking an in-progress edit, so the
+ * client being edited never flags itself as its own duplicate.
+ */
+export async function findPossibleDuplicates(
+  supabase: SupabaseClient,
+  input: { fullName: string; email?: string | null; mobileNumber?: string | null },
+  excludeClientId?: string
+): Promise<PossibleDuplicateClient[]> {
+  const { data, error } = await supabase.rpc('find_possible_duplicate_clients', {
+    p_full_name: input.fullName,
+    p_email: input.email || null,
+    p_mobile_number: input.mobileNumber || null,
+    p_exclude_client_id: excludeClientId ?? null,
+  });
+  if (error) throw new Error(`Failed to check for duplicate clients: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Merge Duplicate Clients — combines survivingClientId and
+ * duplicateClientId into one record. Runs as a single atomic Postgres
+ * transaction (see the merge_clients SQL function): every related
+ * quotation, booking, follow-up, payment (via bookings), expense, and
+ * note is reassigned to the survivor, any blank field on the survivor is
+ * filled in from the duplicate, and the duplicate is marked
+ * merged_into_client_id rather than deleted. Never touches deleted_at —
+ * that remains reserved for the separate, existing Archive feature.
+ */
+export async function mergeClients(
+  supabase: SupabaseClient,
+  survivingClientId: string,
+  duplicateClientId: string,
+  actingUserId: string
+) {
+  const { error } = await supabase.rpc('merge_clients', {
+    p_surviving_id: survivingClientId,
+    p_duplicate_id: duplicateClientId,
+    p_acting_user_id: actingUserId,
+  });
+  if (error) throw new Error(`Failed to merge clients: ${error.message}`);
 }

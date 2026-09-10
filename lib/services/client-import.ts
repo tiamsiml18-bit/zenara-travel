@@ -19,10 +19,10 @@ export async function findExistingContacts(
 
   const [emailResult, mobileResult] = await Promise.all([
     uniqueEmails.length > 0
-      ? supabase.from('clients').select('email').is('deleted_at', null).in('email', uniqueEmails)
+      ? supabase.from('clients').select('email').is('deleted_at', null).is('merged_into_client_id', null).in('email', uniqueEmails)
       : Promise.resolve({ data: [] as { email: string }[] }),
     uniqueMobiles.length > 0
-      ? supabase.from('clients').select('mobile_number').is('deleted_at', null).in('mobile_number', uniqueMobiles)
+      ? supabase.from('clients').select('mobile_number').is('deleted_at', null).is('merged_into_client_id', null).in('mobile_number', uniqueMobiles)
       : Promise.resolve({ data: [] as { mobile_number: string }[] }),
   ]);
 

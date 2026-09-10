@@ -30,6 +30,7 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
           statuses={statuses}
           agents={agents}
           submitLabel="Save changes"
+          clientId={id}
           defaultValues={{
             fullName: client.full_name,
             mobileNumber: client.mobile_number ?? '',

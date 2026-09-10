@@ -9,7 +9,9 @@
 // being its own small component below rather than reading isPending here.
 import { useFormState, useFormStatus } from 'react-dom';
 import type { FormState } from '@/app/(app)/clients/actions';
+import { checkPossibleDuplicatesAction } from '@/app/(app)/clients/actions';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useDuplicateWarningDialog } from '@/components/clients/duplicate-warning-dialog';
 
 type Option = { id: string; name: string };
 type Agent = { id: string; full_name: string };
@@ -27,6 +29,7 @@ export function ClientForm({
   agents,
   defaultValues,
   submitLabel,
+  clientId,
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   sources: Option[];
@@ -51,10 +54,14 @@ export function ClientForm({
     notes: string;
   }>;
   submitLabel: string;
+  // Present only when editing an existing client — lets the duplicate
+  // check exclude this record from matching against itself.
+  clientId?: string;
 }) {
   const [state, formAction] = useFormState<FormState, FormData>(action, undefined);
   const err = (field: string) => state?.fieldErrors?.[field];
   const { confirm, dialog } = useConfirmDialog();
+  const { warnIfDuplicates, dialog: duplicateDialog } = useDuplicateWarningDialog();
 
   // Only an existing client being edited has a "before" state worth
   // comparing against — a brand-new client's initial status/agent isn't a
@@ -67,6 +74,20 @@ export function ClientForm({
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
+
+    const fullName = String(formData.get('fullName') ?? '').trim();
+    const email = String(formData.get('email') ?? '').trim();
+    const mobileNumber = String(formData.get('mobileNumber') ?? '').trim();
+    if (fullName) {
+      const matches = await checkPossibleDuplicatesAction({
+        fullName,
+        email: email || undefined,
+        mobileNumber: mobileNumber || undefined,
+        excludeClientId: clientId,
+      });
+      const proceed = await warnIfDuplicates(matches);
+      if (!proceed) return;
+    }
 
     if (isEditing) {
       const newAgentId = String(formData.get('assignedAgentId') ?? '');
@@ -111,6 +132,7 @@ export function ClientForm({
   return (
     <form onSubmit={handleSubmit} className="max-w-3xl space-y-8">
       {dialog}
+      {duplicateDialog}
       {state?.error && (
         <div className="rounded-md border border-coral-500/30 bg-coral-500/5 px-3 py-2 text-sm text-coral-600">
           {state.error}
