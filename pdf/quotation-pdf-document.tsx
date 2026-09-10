@@ -31,11 +31,19 @@ const COLORS = {
 const styles = StyleSheet.create({
   page: { fontFamily: 'Helvetica', fontSize: 10.5, color: COLORS.ink900, paddingBottom: 46 },
 
+  // Sized against the logo's real 400x226px aspect ratio (≈1.77) so the
+  // watermark is centered exactly, on both axes, using the page's true
+  // center point (A4 = 595.28 x 841.89pt) rather than the previous
+  // eyeballed top/left percentages -- width increased moderately from
+  // 320 to 440 (opacity, position method aside, everything else here is
+  // unchanged) while staying well clear of the header and footer.
   watermark: {
     position: 'absolute',
-    top: '38%',
-    left: '22%',
-    width: 320,
+    top: '50%',
+    left: '50%',
+    width: 440,
+    marginTop: -124.35,
+    marginLeft: -220,
     opacity: 0.06,
   },
 
