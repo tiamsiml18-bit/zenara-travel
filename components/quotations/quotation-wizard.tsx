@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect, useRef } from 'react';
+import { useState, useTransition, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
 import { ChevronDown } from 'lucide-react';
@@ -469,13 +469,16 @@ export function QuotationWizard({
   // convention someone could accidentally violate. Both this and the
   // server (see lib/services/quotations.ts) call the exact same
   // calculateTotalPrice() from lib/utils/guest-pricing.ts.
-  const guestCounts: GuestCounts = {
-    senior: trip.numSeniors,
-    adult: trip.numAdults,
-    child: trip.numChildren,
-    infant: trip.numInfants,
-    pwd: trip.numPwd,
-  };
+  const guestCounts: GuestCounts = useMemo(
+    () => ({
+      senior: trip.numSeniors,
+      adult: trip.numAdults,
+      child: trip.numChildren,
+      infant: trip.numInfants,
+      pwd: trip.numPwd,
+    }),
+    [trip.numSeniors, trip.numAdults, trip.numChildren, trip.numInfants, trip.numPwd]
+  );
   const activeTypes = activeGuestTypes(guestCounts);
   const tourDestinations = Array.from(new Set(tours.map((t) => t.destination).filter((d): d is string => Boolean(d)))).sort();
   // Tour contribution only — accumulated via handleTourSelected() as tours
@@ -488,25 +491,51 @@ export function QuotationWizard({
   // Airfare/Hotel/Transfer are computed separately below and combined with
   // this, exactly matching the server's computeFullPricing() so the
   // wizard's live preview can never disagree with what actually gets saved.
-  const tourClientRateMap = GUEST_TYPES.reduce(
-    (acc, t) => {
-      const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof TourPricingRow;
-      acc[t] = tourPricing.reduce((sum, row) => sum + (row[key] === '' ? 0 : Number(row[key])), 0);
-      return acc;
-    },
-    {} as Record<GuestType, number>
+  const tourClientRateMap = useMemo(
+    () =>
+      GUEST_TYPES.reduce(
+        (acc, t) => {
+          const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof TourPricingRow;
+          acc[t] = tourPricing.reduce((sum, row) => sum + (row[key] === '' ? 0 : Number(row[key])), 0);
+          return acc;
+        },
+        {} as Record<GuestType, number>
+      ),
+    [tourPricing]
   );
 
   const numVal = (v: number | '') => (v === '' ? 0 : Number(v));
-  const computedAirfareRates = calculateMarkedUpRates(
-    {
-      senior: numVal(trip.airfareSeniorRate),
-      adult: numVal(trip.airfareAdultRate),
-      child: numVal(trip.airfareChildRate),
-      infant: numVal(trip.airfareInfantRate),
-      pwd: numVal(trip.airfarePwdRate),
-    },
-    trip.airfareMarkupEnabled ? trip.airfareMarkupPct : 0
+  // Performance note: this whole calculation chain was previously plain
+  // `const`s recomputed on every single render of this wizard (e.g. every
+  // keystroke into an unrelated field like Notes or Hotel Name), including
+  // running the full itinerary/tour JSX tree's reconciliation each time.
+  // Each step below is now individually memoized against the exact
+  // primitive/state values it actually reads — never the whole `trip`
+  // object (which gets a new reference on every edit to ANY of its many
+  // unrelated fields) — so a change to, say, Notes no longer reruns any
+  // pricing math at all. No formula below was changed; only when each one
+  // recomputes.
+  const computedAirfareRates = useMemo(
+    () =>
+      calculateMarkedUpRates(
+        {
+          senior: numVal(trip.airfareSeniorRate),
+          adult: numVal(trip.airfareAdultRate),
+          child: numVal(trip.airfareChildRate),
+          infant: numVal(trip.airfareInfantRate),
+          pwd: numVal(trip.airfarePwdRate),
+        },
+        trip.airfareMarkupEnabled ? trip.airfareMarkupPct : 0
+      ),
+    [
+      trip.airfareSeniorRate,
+      trip.airfareAdultRate,
+      trip.airfareChildRate,
+      trip.airfareInfantRate,
+      trip.airfarePwdRate,
+      trip.airfareMarkupEnabled,
+      trip.airfareMarkupPct,
+    ]
   );
   // Hotel's rates (trip.hotelAdultRate etc) are auto-calculated by a
   // useEffect from hotelTotalAmount/markup/guest counts, but directly
@@ -516,20 +545,27 @@ export function QuotationWizard({
   // manual edit is reflected in the live preview immediately, not
   // silently overridden.
   const payingGuestCount = guestCounts.adult + guestCounts.senior + guestCounts.child + guestCounts.pwd;
-  const computedHotelRates: GuestRates = {
-    senior: numVal(trip.hotelSeniorRate),
-    adult: numVal(trip.hotelAdultRate),
-    child: numVal(trip.hotelChildRate),
-    infant: 0,
-    pwd: numVal(trip.hotelPwdRate),
-  };
-  const otherCostRateMap = GUEST_TYPES.reduce(
-    (acc, t) => {
-      const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof OtherCostRow;
-      acc[t] = costItems.reduce((sum, row) => sum + (row[key] === '' ? 0 : Number(row[key])), 0);
-      return acc;
-    },
-    {} as Record<GuestType, number>
+  const computedHotelRates: GuestRates = useMemo(
+    () => ({
+      senior: numVal(trip.hotelSeniorRate),
+      adult: numVal(trip.hotelAdultRate),
+      child: numVal(trip.hotelChildRate),
+      infant: 0,
+      pwd: numVal(trip.hotelPwdRate),
+    }),
+    [trip.hotelSeniorRate, trip.hotelAdultRate, trip.hotelChildRate, trip.hotelPwdRate]
+  );
+  const otherCostRateMap = useMemo(
+    () =>
+      GUEST_TYPES.reduce(
+        (acc, t) => {
+          const key = (`rate${t[0]!.toUpperCase()}${t.slice(1)}`) as keyof OtherCostRow;
+          acc[t] = costItems.reduce((sum, row) => sum + (row[key] === '' ? 0 : Number(row[key])), 0);
+          return acc;
+        },
+        {} as Record<GuestType, number>
+      ),
+    [costItems]
   );
   // Transfer's rates (trip.transferAdultRate etc) are auto-calculated by
   // a useEffect from transferTotalAmount/markup/guest counts, but
@@ -538,13 +574,16 @@ export function QuotationWizard({
   // the server-side computeFullPricing exactly and mirroring Hotel's
   // identical fix above. Never recomputed here, so a manual edit is
   // reflected in the live preview immediately, not silently overridden.
-  const computedTransferRates: GuestRates = {
-    senior: numVal(trip.transferSeniorRate),
-    adult: numVal(trip.transferAdultRate),
-    child: numVal(trip.transferChildRate),
-    infant: 0,
-    pwd: numVal(trip.transferPwdRate),
-  };
+  const computedTransferRates: GuestRates = useMemo(
+    () => ({
+      senior: numVal(trip.transferSeniorRate),
+      adult: numVal(trip.transferAdultRate),
+      child: numVal(trip.transferChildRate),
+      infant: 0,
+      pwd: numVal(trip.transferPwdRate),
+    }),
+    [trip.transferSeniorRate, trip.transferAdultRate, trip.transferChildRate, trip.transferPwdRate]
+  );
   // Land Arrangement Only excludes Airfare from the calculation entirely —
   // not by deleting or zeroing the entered rates (those stay exactly as
   // typed, in case the agent switches back to All-In), but by simply not
@@ -575,7 +614,13 @@ export function QuotationWizard({
     }
     return total;
   }
-  const additionalAirfareTotal = sumAdditionalWithMarkup(additionalAirfare);
+  // additionalAirfare/additionalHotel/additionalTransfer are each their
+  // own useState array — React guarantees that reference only changes
+  // when their own setter is actually called (a genuine add/remove/edit),
+  // never merely because the component re-rendered for an unrelated
+  // reason — so depending on the array itself here is exactly as precise
+  // as depending on its individual items would be, with far less code.
+  const additionalAirfareTotal = useMemo(() => sumAdditionalWithMarkup(additionalAirfare), [additionalAirfare]);
   function sumHotelAdditionalWithMarkup(items: AdditionalHotelItem[]): GuestRates {
     const total: GuestRates = { senior: 0, adult: 0, child: 0, infant: 0, pwd: 0 };
     for (const item of items) {
@@ -586,50 +631,100 @@ export function QuotationWizard({
     }
     return total;
   }
-  const additionalHotelTotal = sumHotelAdditionalWithMarkup(additionalHotel);
-  const additionalTransferTotal = sumHotelAdditionalWithMarkup(additionalTransfer);
-  const totalAirfareRates: GuestRates = GUEST_TYPES.reduce(
-    (acc, t) => ({ ...acc, [t]: (computedAirfareRates[t] ?? 0) + (additionalAirfareTotal[t] ?? 0) }),
-    {} as GuestRates
+  const additionalHotelTotal = useMemo(() => sumHotelAdditionalWithMarkup(additionalHotel), [additionalHotel]);
+  const additionalTransferTotal = useMemo(() => sumHotelAdditionalWithMarkup(additionalTransfer), [additionalTransfer]);
+  const totalAirfareRates: GuestRates = useMemo(
+    () =>
+      GUEST_TYPES.reduce(
+        (acc, t) => ({ ...acc, [t]: (computedAirfareRates[t] ?? 0) + (additionalAirfareTotal[t] ?? 0) }),
+        {} as GuestRates
+      ),
+    [computedAirfareRates, additionalAirfareTotal]
   );
-  const totalHotelRates: GuestRates = GUEST_TYPES.reduce(
-    (acc, t) => ({ ...acc, [t]: (computedHotelRates[t] ?? 0) + (additionalHotelTotal[t] ?? 0) }),
-    {} as GuestRates
+  const totalHotelRates: GuestRates = useMemo(
+    () =>
+      GUEST_TYPES.reduce(
+        (acc, t) => ({ ...acc, [t]: (computedHotelRates[t] ?? 0) + (additionalHotelTotal[t] ?? 0) }),
+        {} as GuestRates
+      ),
+    [computedHotelRates, additionalHotelTotal]
   );
-  const totalTransferRates: GuestRates = GUEST_TYPES.reduce(
-    (acc, t) => ({ ...acc, [t]: (computedTransferRates[t] ?? 0) + (additionalTransferTotal[t] ?? 0) }),
-    {} as GuestRates
+  const totalTransferRates: GuestRates = useMemo(
+    () =>
+      GUEST_TYPES.reduce(
+        (acc, t) => ({ ...acc, [t]: (computedTransferRates[t] ?? 0) + (additionalTransferTotal[t] ?? 0) }),
+        {} as GuestRates
+      ),
+    [computedTransferRates, additionalTransferTotal]
   );
-  const computedPackagePerPax = calculatePackagePerPax(
-    trip.packageType === 'land_arrangement' ? {} : totalAirfareRates,
-    totalHotelRates,
-    totalTransferRates,
-    tourClientRateMap,
-    otherCostRateMap
+  const computedPackagePerPax = useMemo(
+    () =>
+      calculatePackagePerPax(
+        trip.packageType === 'land_arrangement' ? {} : totalAirfareRates,
+        totalHotelRates,
+        totalTransferRates,
+        tourClientRateMap,
+        otherCostRateMap
+      ),
+    [trip.packageType, totalAirfareRates, totalHotelRates, totalTransferRates, tourClientRateMap, otherCostRateMap]
   );
   const feePct = trip.paymentMethod === 'credit_card' ? feePercentages.creditCard : trip.paymentMethod === 'paypal' ? feePercentages.paypal : 0;
-  const computedBankFee = calculateBankFee(computedPackagePerPax, feePct);
-  const computedAdjustedPackage = calculateAdjustedPackage(computedPackagePerPax, computedBankFee);
-  const clientRateMap = calculateFinalRatePerPax(computedAdjustedPackage, numVal(trip.markup)) as Record<GuestType, number>;
+  const computedBankFee = useMemo(
+    () => calculateBankFee(computedPackagePerPax, feePct),
+    [computedPackagePerPax, trip.paymentMethod, feePercentages.creditCard, feePercentages.paypal]
+  );
+  const computedAdjustedPackage = useMemo(
+    () => calculateAdjustedPackage(computedPackagePerPax, computedBankFee),
+    [computedPackagePerPax, computedBankFee]
+  );
+  const clientRateMap = useMemo(
+    () => calculateFinalRatePerPax(computedAdjustedPackage, numVal(trip.markup)) as Record<GuestType, number>,
+    [computedAdjustedPackage, trip.markup]
+  );
   // Tours have no separate "cost vs selling price" split in the per-person
   // model — the entered rate IS the cost basis (same treatment as
   // Airfare's Senior/Child/Infant/PWD rates), so the tour contribution
   // counts once here too, reusing the same map.
   const supplierCostMap = tourClientRateMap;
 
-  const computedTotalPrice = calculateTotalPrice(guestCounts, clientRateMap);
-  const computedGuestSupplierCost = calculateGuestSupplierCost(guestCounts, supplierCostMap);
+  const computedTotalPrice = useMemo(() => calculateTotalPrice(guestCounts, clientRateMap), [guestCounts, clientRateMap]);
+  const computedGuestSupplierCost = useMemo(
+    () => calculateGuestSupplierCost(guestCounts, supplierCostMap),
+    [guestCounts, supplierCostMap]
+  );
   // Internal-only total supplier cost, purely for the agent's own margin
   // visibility — sums every guest type's entered Airfare/Hotel/Transfer
   // rate (times headcount) plus Other Supplier Costs plus Tours.
-  const computedTotalSupplierCost =
-    calculateTotalPrice(guestCounts, {
-      senior: numVal(trip.airfareSeniorRate) + numVal(trip.hotelSeniorRate) + numVal(trip.transferSeniorRate) + otherCostRateMap.senior,
-      adult: numVal(trip.airfareAdultRate) + numVal(trip.hotelAdultRate) + numVal(trip.transferAdultRate) + otherCostRateMap.adult,
-      child: numVal(trip.airfareChildRate) + numVal(trip.hotelChildRate) + numVal(trip.transferChildRate) + otherCostRateMap.child,
-      infant: numVal(trip.airfareInfantRate) + numVal(trip.hotelInfantRate) + numVal(trip.transferInfantRate) + otherCostRateMap.infant,
-      pwd: numVal(trip.airfarePwdRate) + numVal(trip.hotelPwdRate) + numVal(trip.transferPwdRate) + otherCostRateMap.pwd,
-    }) + computedGuestSupplierCost;
+  const computedTotalSupplierCost = useMemo(
+    () =>
+      calculateTotalPrice(guestCounts, {
+        senior: numVal(trip.airfareSeniorRate) + numVal(trip.hotelSeniorRate) + numVal(trip.transferSeniorRate) + otherCostRateMap.senior,
+        adult: numVal(trip.airfareAdultRate) + numVal(trip.hotelAdultRate) + numVal(trip.transferAdultRate) + otherCostRateMap.adult,
+        child: numVal(trip.airfareChildRate) + numVal(trip.hotelChildRate) + numVal(trip.transferChildRate) + otherCostRateMap.child,
+        infant: numVal(trip.airfareInfantRate) + numVal(trip.hotelInfantRate) + numVal(trip.transferInfantRate) + otherCostRateMap.infant,
+        pwd: numVal(trip.airfarePwdRate) + numVal(trip.hotelPwdRate) + numVal(trip.transferPwdRate) + otherCostRateMap.pwd,
+      }) + computedGuestSupplierCost,
+    [
+      guestCounts,
+      trip.airfareSeniorRate,
+      trip.airfareAdultRate,
+      trip.airfareChildRate,
+      trip.airfareInfantRate,
+      trip.airfarePwdRate,
+      trip.hotelSeniorRate,
+      trip.hotelAdultRate,
+      trip.hotelChildRate,
+      trip.hotelInfantRate,
+      trip.hotelPwdRate,
+      trip.transferSeniorRate,
+      trip.transferAdultRate,
+      trip.transferChildRate,
+      trip.transferInfantRate,
+      trip.transferPwdRate,
+      otherCostRateMap,
+      computedGuestSupplierCost,
+    ]
+  );
   const computedProfit = computedTotalPrice - computedTotalSupplierCost;
   const computedMarginPct = computedTotalPrice > 0 ? (computedProfit / computedTotalPrice) * 100 : 0;
 
@@ -1115,10 +1210,95 @@ export function QuotationWizard({
   // effect happens to run.
   const baselineSnapshotRef = useRef<string | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards against two overlapping save requests in flight at once (e.g.
+  // the agent keeps editing and the debounce fires again before a prior
+  // save's network round-trip has finished). isSavingRef marks "a request
+  // is currently in flight"; if the debounce timer fires while that's
+  // true, it doesn't start a second concurrent request — it just flags
+  // pendingSaveRef, and performSave() itself checks that flag right after
+  // finishing and immediately runs again if set. That re-run always calls
+  // buildDraftInput() fresh at that moment, so it captures whatever the
+  // agent typed in the meantime — nothing is ever silently dropped, and
+  // the two saves are simply sequenced instead of racing (revise mode's
+  // hasCreatedRevisionRef is what makes this safe to do serially: the
+  // second call always correctly becomes an update, never a second
+  // revision).
+  const isSavingRef = useRef(false);
+  const pendingSaveRef = useRef(false);
   const isSinglePageMode = mode === 'edit' || mode === 'revise';
+  // performAutosave (below) is a plain function defined in this component's
+  // body, so it's re-created fresh on every render with a closure over
+  // THAT render's buildDraftInput/trip/etc. The debounce timer's callback
+  // and performAutosave's own recursive "run the queued save" call both
+  // fire well after the render that created them — by then, newer renders
+  // (and newer state) may already exist, but a directly-closed-over
+  // buildDraftInput() call would still see the OLD render's stale state,
+  // silently dropping whatever the agent typed in between (exactly the
+  // "stale pricing value" this change must never produce). Routing every
+  // read through a ref that's reassigned on every render — read only at
+  // the moment performAutosave actually executes, not at closure-creation
+  // time — guarantees it always captures the truly latest state,
+  // regardless of which render's closure happens to be running.
+  const buildDraftInputRef = useRef<() => QuotationDraftInput>();
+  buildDraftInputRef.current = buildDraftInput;
+
+  async function performAutosave() {
+    isSavingRef.current = true;
+    setSaveStatus('saving');
+    try {
+      const input = buildDraftInputRef.current!();
+      const result =
+        mode === 'revise' && !hasCreatedRevisionRef.current
+          ? await reviseQuotationAction(quotationId!, input)
+          : await updateDraftQuotationAction(quotationId!, input);
+      if (result.ok) {
+        if (mode === 'revise') hasCreatedRevisionRef.current = true;
+        setSaveStatus('saved');
+      } else {
+        setSaveStatus('error');
+        setError(result.error);
+      }
+    } catch (err) {
+      // A thrown/rejected save (e.g. a network error, as opposed to the
+      // action's own graceful { ok: false } result) must still be treated
+      // as "the save finished, unsuccessfully" — never left half-finished.
+      // Without this catch, isSavingRef would stay stuck at true forever,
+      // and every future edit would just queue behind it indefinitely
+      // instead of ever actually saving again for the rest of the
+      // session — a strictly worse failure mode than the pre-existing
+      // code had, since it had no such shared "is a save in flight" flag
+      // to get stuck in the first place.
+      setSaveStatus('error');
+      setError(err instanceof Error ? err.message : 'Failed to save quotation.');
+    } finally {
+      // Runs no matter which branch above executed, so isSavingRef is
+      // guaranteed to be released and any edit that arrived in the
+      // meantime is guaranteed to still get its turn — a save attempt,
+      // successful or not, never permanently blocks the next one.
+      isSavingRef.current = false;
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        await performAutosave();
+      }
+    }
+  }
 
   useEffect(() => {
     if (!isSinglePageMode || !quotationId) return;
+    // Computed inside the effect — so it only ever runs when one of the
+    // dependencies below has actually changed reference, not on every
+    // render of the wizard (e.g. toggling "Show internal pricing",
+    // expanding/collapsing a section, or moving between steps used to
+    // rebuild and JSON-serialize the entire draft every single time,
+    // even though none of those affect what gets saved). Every
+    // dependency here is a real piece of state buildDraftInput() reads —
+    // trip/tourPricing/additionalAirfare/additionalHotel/
+    // additionalTransfer/inclusions/exclusions/flightSegments/itinerary/
+    // costItems/feeItems/clientId/packageMode/packageId account for every
+    // field it touches (verified against buildDraftInput()'s full body),
+    // so this can never miss a legitimate change — it just stops
+    // rebuilding the snapshot for renders that were never going to
+    // produce a different one anyway.
     const snapshot = JSON.stringify(buildDraftInput());
     if (baselineSnapshotRef.current === null) {
       baselineSnapshotRef.current = snapshot;
@@ -1128,33 +1308,42 @@ export function QuotationWizard({
     baselineSnapshotRef.current = snapshot;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     setSaveStatus('saving');
-    autosaveTimerRef.current = setTimeout(async () => {
-      const input = buildDraftInput();
-      const result =
-        mode === 'revise' && !hasCreatedRevisionRef.current
-          ? await reviseQuotationAction(quotationId, input)
-          : await updateDraftQuotationAction(quotationId, input);
-      if (result.ok) {
-        if (mode === 'revise') hasCreatedRevisionRef.current = true;
-        setSaveStatus('saved');
-      } else {
-        setSaveStatus('error');
-        setError(result.error);
+    autosaveTimerRef.current = setTimeout(() => {
+      if (isSavingRef.current) {
+        // A previous save's network round-trip hasn't finished yet —
+        // queue this one rather than firing a second request at the same
+        // time. performAutosave() picks the queue up itself the moment
+        // the in-flight one completes, rebuilding the input fresh at
+        // that point.
+        pendingSaveRef.current = true;
+        return;
       }
+      void performAutosave();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, 1500);
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-    // Deliberately a broad dependency — this effect exists purely to
-    // detect "did the draft the agent would save right now change from
-    // last time", and every field that could change lives inside
-    // buildDraftInput(). Listing each one individually would be hundreds
-    // of entries and easy to silently miss one when a new field is added
-    // later (exactly the bug class already found once in the edit/revise
-    // pages' initial-data loading).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(buildDraftInput())]);
+  }, [
+    isSinglePageMode,
+    quotationId,
+    mode,
+    clientId,
+    packageMode,
+    packageId,
+    trip,
+    tourPricing,
+    additionalAirfare,
+    additionalHotel,
+    additionalTransfer,
+    inclusions,
+    exclusions,
+    flightSegments,
+    itinerary,
+    costItems,
+    feeItems,
+  ]);
 
   function buildDraftInput(): QuotationDraftInput {
     return {
