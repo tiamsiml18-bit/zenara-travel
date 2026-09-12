@@ -65,6 +65,16 @@ export function Sidebar({
         <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+
+        {/* Visible to every authenticated user, not just admins — the four
+            internal policies are meant for all authorized HIIKAP users to
+            read and acknowledge, not an admin-only configuration area.
+            Deliberately its own small group (same visual treatment as the
+            "Admin" group below) rather than a bare top-level item, so it
+            reads as a settings/legal area rather than a primary CRM
+            module. This does not affect /admin/settings, which stays
+            admin-only via requireRole('admin') exactly as before. */}
+        <div className="mt-4 mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-ink-500">Settings</div>
         <NavLink
           href="/settings/privacy-security"
           label="Privacy & Security"
