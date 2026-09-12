@@ -1,12 +1,22 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { rateLimitLogin } from '@/lib/security/rate-limit';
 
 async function login(formData: FormData) {
   'use server';
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
   const redirectTo = String(formData.get('redirectTo') ?? '/dashboard');
+
+  // Checked before ever touching Supabase Auth, so a blocked attempt never
+  // even reaches signInWithPassword — this is what actually stops
+  // brute-force/credential-stuffing traffic from generating real auth
+  // load, not just from succeeding.
+  const rateLimit = await rateLimitLogin(email);
+  if (!rateLimit.allowed) {
+    redirect(`/login?error=${encodeURIComponent(rateLimit.message)}`);
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });

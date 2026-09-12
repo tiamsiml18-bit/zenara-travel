@@ -1,9 +1,21 @@
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { rateLimitPasswordReset } from '@/lib/security/rate-limit';
 
 async function sendResetLink(formData: FormData) {
   'use server';
   const email = String(formData.get('email') ?? '');
+
+  // Same generic outcome either way (below) whether this was rate-limited
+  // or actually sent — an attacker probing for valid addresses can't tell
+  // the difference from the response, only from the eventual email itself
+  // never arriving, which the volume limits above make expensive to
+  // exploit at scale.
+  const rateLimit = await rateLimitPasswordReset(email);
+  if (!rateLimit.allowed) {
+    return;
+  }
+
   const headersList = await headers();
   const origin = headersList.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL;
 
