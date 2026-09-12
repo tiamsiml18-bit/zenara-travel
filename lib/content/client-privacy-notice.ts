@@ -1,20 +1,32 @@
 import { PLACEHOLDER, type PolicyDocument } from './policy-types';
 
+// Official values confirmed for the public Client Privacy Notice only.
+// Deliberately NOT written into the shared PLACEHOLDER object in
+// policy-types.ts — that object is also used by the three protected
+// internal documents (Internal Privacy Policy, Terms of Use, Incident
+// Procedure), which must stay exactly as previously approved. These
+// constants are scoped to this file so only the public notice reflects
+// the confirmed information.
+const OFFICIAL_EFFECTIVE_DATE = 'September 12, 2026';
+const OFFICIAL_LAST_UPDATED = 'September 12, 2026';
+const OFFICIAL_PRIVACY_CONTACT = 'bookings@zenaratravelandtours.com';
+const OFFICIAL_BUSINESS_ADDRESS = 'Mahacot West, Batangas City, Philippines';
+
 export const CLIENT_PRIVACY_NOTICE: PolicyDocument = {
   key: 'client-privacy-notice',
   title: 'Zenara Travel and Tours',
   subtitle: 'Client Privacy Notice',
   version: PLACEHOLDER.version,
-  effectiveDate: PLACEHOLDER.effectiveDate,
-  lastUpdated: PLACEHOLDER.lastUpdated,
+  effectiveDate: OFFICIAL_EFFECTIVE_DATE,
+  lastUpdated: OFFICIAL_LAST_UPDATED,
   responsibleOfficer: PLACEHOLDER.privacyOfficer,
-  contactEmail: PLACEHOLDER.privacyContact,
+  contactEmail: OFFICIAL_PRIVACY_CONTACT,
   summary: 'How Zenara Travel and Tours collects, uses, and protects your information.',
   sections: [
     {
       heading: '1. Who We Are',
       paragraphs: [
-        `Zenara Travel and Tours (${PLACEHOLDER.registeredName}) is a Philippine travel agency. We use internal business systems to manage client relationships, quotations, bookings, and related travel services. This notice explains how we handle your personal information when you inquire about, book, or travel with us.`,
+        `Zenara Travel and Tours is a Philippine travel agency. We use internal business systems to manage client relationships, quotations, bookings, and related travel services. This notice explains how we handle your personal information when you inquire about, book, or travel with us.`,
       ],
     },
     {
@@ -116,7 +128,7 @@ export const CLIENT_PRIVACY_NOTICE: PolicyDocument = {
     {
       heading: '14. How to Exercise Your Rights',
       paragraphs: [
-        `To exercise any of these rights, or if you have any questions about how we handle your information, please contact us at: ${PLACEHOLDER.privacyContact}.`,
+        `To exercise any of these rights, or if you have any questions about how we handle your information, please contact us at: ${OFFICIAL_PRIVACY_CONTACT}.`,
       ],
     },
     {
@@ -139,7 +151,7 @@ export const CLIENT_PRIVACY_NOTICE: PolicyDocument = {
     },
     {
       heading: '18. Contact Us',
-      paragraphs: [`Official privacy contact: ${PLACEHOLDER.privacyContact}`, `Business address: ${PLACEHOLDER.businessAddress}`],
+      paragraphs: [`Official privacy contact: ${OFFICIAL_PRIVACY_CONTACT}`, `Business address: ${OFFICIAL_BUSINESS_ADDRESS}`],
     },
   ],
 };

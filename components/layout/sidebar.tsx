@@ -9,13 +9,10 @@ import {
   Package,
   Map,
   BarChart3,
-  Settings,
-  UploadCloud,
-  UserCog,
-  ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { NavLink } from './nav-link';
+import { SettingsNavGroup } from './settings-nav-group';
 import type { AppUser } from '@/lib/auth/session';
 
 export function Sidebar({
@@ -66,26 +63,13 @@ export function Sidebar({
         <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
 
-        {/* Single "Settings" group. General/Users/Import clients keep their
-            existing routes and requireRole('admin') gating untouched — only
-            what's shown in the sidebar changes, not access control. Privacy
-            & Security renders unconditionally since every authenticated
-            user is expected to be able to read and acknowledge those
-            policies, not just admins. A non-admin sees one item here
-            (Privacy & Security); an admin sees all four, in this order. */}
-        <div className="mt-4 mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-ink-500">Settings</div>
-        {user.role === 'admin' && (
-          <>
-            <NavLink href="/admin/settings" label="General" icon={<Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-            <NavLink href="/admin/users" label="Users" icon={<UserCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-            <NavLink href="/admin/import" label="Import clients" icon={<UploadCloud className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-          </>
-        )}
-        <NavLink
-          href="/settings/privacy-security"
-          label="Privacy & Security"
-          icon={<ShieldCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
-        />
+        {/* Single collapsible "Settings" parent — collapsed by default,
+            expands on click, and auto-expands when the current route is
+            inside one of its four children. General/Users/Import clients
+            keep their existing routes and admin-only gating; Privacy &
+            Security is available to every authenticated user. See
+            settings-nav-group.tsx for the toggle/auto-expand logic. */}
+        <SettingsNavGroup isAdmin={user.role === 'admin'} />
       </nav>
 
       {/* Tag stub footer — signed-in agent, like the traveler name on a tag */}
