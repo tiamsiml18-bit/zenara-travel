@@ -12,6 +12,7 @@ import {
   Settings,
   UploadCloud,
   UserCog,
+  ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { NavLink } from './nav-link';
@@ -64,6 +65,11 @@ export function Sidebar({
         <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink
+          href="/settings/privacy-security"
+          label="Privacy & Security"
+          icon={<ShieldCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+        />
 
         {user.role === 'admin' && (
           <>

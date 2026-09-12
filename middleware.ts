@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password'];
+const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password', '/privacy'];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
@@ -35,7 +35,13 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublicPath = PUBLIC_PATHS.some((p) => path.startsWith(p));
+  // Exact match, not prefix match — every current PUBLIC_PATHS entry is a
+  // single flat route (no /login/[token], no /privacy/[section], etc.),
+  // so this doesn't change behavior for the existing public routes. It
+  // does stop a future route like /privacy-internal or /privacy/staff-only
+  // from becoming accidentally public just because it starts with
+  // "/privacy" — a prefix match on '/privacy' would have covered those too.
+  const isPublicPath = PUBLIC_PATHS.includes(path);
 
   // Unauthenticated user hitting a protected route -> bounce to login.
   if (!user && !isPublicPath) {

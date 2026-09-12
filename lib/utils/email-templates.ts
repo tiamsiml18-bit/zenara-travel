@@ -1,4 +1,5 @@
 import type { PipelineStage } from '@/lib/services/pipeline';
+import { CLIENT_PRIVACY_NOTICE_URL } from '@/lib/services/privacy';
 
 export interface EmailDraft {
   subject: string;
@@ -6,6 +7,13 @@ export interface EmailDraft {
 }
 
 const SIGN_OFF = (consultantFirstName: string) => `Best,\n${consultantFirstName}`;
+
+// Short, single-line reference only — per the privacy implementation spec,
+// quotation emails should link to the Client Privacy Notice without adding
+// a large privacy block. Deliberately appended only to quotation emails
+// (not follow-ups or payment reminders), which have their own strict
+// word-count and tone constraints tested in email-templates.test.ts.
+const PRIVACY_FOOTER = `\n\nHow we handle your information: ${CLIENT_PRIVACY_NOTICE_URL}`;
 
 /**
  * The quotation email -- sent once for the original quote, and again
@@ -32,7 +40,7 @@ I've updated the quotation for your ${dest} trip based on the changes you reques
 
 Please let me know what you think, and if you'd like any further adjustments, I'll be happy to help.
 
-${SIGN_OFF(params.consultantFirstName)}`,
+${SIGN_OFF(params.consultantFirstName)}${PRIVACY_FOOTER}`,
     };
   }
 
@@ -44,7 +52,7 @@ I'm sending over the quotation for your ${dest} trip. I've attached the full pac
 
 Please let me know what you think, and if you'd like us to adjust anything, I'll be happy to help.
 
-${SIGN_OFF(params.consultantFirstName)}`,
+${SIGN_OFF(params.consultantFirstName)}${PRIVACY_FOOTER}`,
   };
 }
 
