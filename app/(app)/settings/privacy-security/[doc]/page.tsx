@@ -10,6 +10,17 @@ import { PolicyDocumentView } from '@/components/settings/policy-document-view';
 import { AcknowledgePolicyButton } from '@/components/settings/acknowledge-policy-button';
 import { acknowledgePolicyAction } from '../actions';
 
+/**
+ * Cosmetic only — turns the internal version key (e.g. "v1.0-draft",
+ * used verbatim for acknowledgment matching everywhere else) into a
+ * clean display label (e.g. "1.0") so the document page doesn't read
+ * like an unfinished build. The actual document.version value is never
+ * modified; this only affects what's rendered here.
+ */
+function formatVersionDisplay(version: string): string {
+  return version.replace(/^v/i, '').replace(/-draft$/i, '');
+}
+
 export default async function PrivacyDocumentPage({ params }: { params: Promise<{ doc: string }> }) {
   const { doc: docKey } = await params;
   const document = getPrivacyDocument(docKey);
@@ -30,7 +41,7 @@ export default async function PrivacyDocumentPage({ params }: { params: Promise<
           Privacy & Security
         </Link>
 
-        <PolicyDocumentView document={document} />
+        <PolicyDocumentView document={document} versionDisplay={formatVersionDisplay(document.version)} />
 
         <div className="mt-6 max-w-3xl rounded-lg border border-sand-200 bg-sand-50 p-4">
           <AcknowledgePolicyButton

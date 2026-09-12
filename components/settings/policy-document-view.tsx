@@ -5,15 +5,22 @@ import type { PolicyDocument } from '@/lib/content/policy-types';
  * (authenticated) Settings → Privacy & Security pages and the public,
  * unauthenticated /privacy page for the Client Privacy Notice — same
  * component, same typography, so the two never visually drift apart.
+ *
+ * `versionDisplay` is optional and purely cosmetic: when omitted (as on
+ * the public /privacy page, which never passes it), the raw
+ * `document.version` string renders exactly as before. The internal
+ * Settings → Privacy & Security document page passes a cleaned-up label
+ * (e.g. "1.0" instead of "v1.0-draft") without altering the underlying
+ * version value used for acknowledgment matching anywhere else.
  */
-export function PolicyDocumentView({ document }: { document: PolicyDocument }) {
+export function PolicyDocumentView({ document, versionDisplay }: { document: PolicyDocument; versionDisplay?: string }) {
   return (
     <article className="max-w-3xl">
       <header className="mb-6 border-b border-sand-200 pb-5">
         <h1 className="font-display text-xl font-semibold text-ink-900">{document.title}</h1>
         {document.subtitle && <p className="mt-1 text-sm text-ink-600">{document.subtitle}</p>}
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-ink-500 sm:grid-cols-4">
-          <Meta label="Version" value={document.version} />
+          <Meta label="Version" value={versionDisplay ?? document.version} />
           <Meta label="Effective date" value={document.effectiveDate} />
           <Meta label="Last updated" value={document.lastUpdated} />
           <Meta label="Responsible officer" value={document.responsibleOfficer} />

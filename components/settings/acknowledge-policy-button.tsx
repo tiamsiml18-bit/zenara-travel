@@ -33,6 +33,7 @@ export function AcknowledgePolicyButton({
   return (
     <div>
       {error && <p className="mb-2 text-sm text-coral-600">{error}</p>}
+      <p className="mb-2 text-sm text-ink-700">I have read and acknowledge this document.</p>
       <button
         type="button"
         disabled={isPending}
@@ -50,7 +51,7 @@ export function AcknowledgePolicyButton({
         }
         className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-50"
       >
-        {isPending ? 'Recording…' : 'I have read and acknowledge this document'}
+        {isPending ? 'Recording…' : 'Acknowledge'}
       </button>
     </div>
   );
