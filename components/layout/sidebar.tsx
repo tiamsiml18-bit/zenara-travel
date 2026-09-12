@@ -66,29 +66,26 @@ export function Sidebar({
         <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
 
-        {/* Visible to every authenticated user, not just admins — the four
-            internal policies are meant for all authorized HIIKAP users to
-            read and acknowledge, not an admin-only configuration area.
-            Deliberately its own small group (same visual treatment as the
-            "Admin" group below) rather than a bare top-level item, so it
-            reads as a settings/legal area rather than a primary CRM
-            module. This does not affect /admin/settings, which stays
-            admin-only via requireRole('admin') exactly as before. */}
+        {/* Single "Settings" group. General/Users/Import clients keep their
+            existing routes and requireRole('admin') gating untouched — only
+            what's shown in the sidebar changes, not access control. Privacy
+            & Security renders unconditionally since every authenticated
+            user is expected to be able to read and acknowledge those
+            policies, not just admins. A non-admin sees one item here
+            (Privacy & Security); an admin sees all four, in this order. */}
         <div className="mt-4 mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-ink-500">Settings</div>
+        {user.role === 'admin' && (
+          <>
+            <NavLink href="/admin/settings" label="General" icon={<Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+            <NavLink href="/admin/users" label="Users" icon={<UserCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+            <NavLink href="/admin/import" label="Import clients" icon={<UploadCloud className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          </>
+        )}
         <NavLink
           href="/settings/privacy-security"
           label="Privacy & Security"
           icon={<ShieldCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
         />
-
-        {user.role === 'admin' && (
-          <>
-            <div className="mt-4 mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-ink-500">Admin</div>
-            <NavLink href="/admin/settings" label="Settings" icon={<Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-            <NavLink href="/admin/users" label="Users" icon={<UserCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-            <NavLink href="/admin/import" label="Import clients" icon={<UploadCloud className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-          </>
-        )}
       </nav>
 
       {/* Tag stub footer — signed-in agent, like the traveler name on a tag */}

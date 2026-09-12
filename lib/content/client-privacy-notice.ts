@@ -14,7 +14,7 @@ export const CLIENT_PRIVACY_NOTICE: PolicyDocument = {
     {
       heading: '1. Who We Are',
       paragraphs: [
-        `Zenara Travel and Tours (${PLACEHOLDER.registeredName}) is a Philippine travel agency. We use HIIKAP, our internal business application, to manage client relationships, quotations, bookings, and related travel services. This notice explains how we handle your personal information when you inquire about, book, or travel with us.`,
+        `Zenara Travel and Tours (${PLACEHOLDER.registeredName}) is a Philippine travel agency. We use internal business systems to manage client relationships, quotations, bookings, and related travel services. This notice explains how we handle your personal information when you inquire about, book, or travel with us.`,
       ],
     },
     {
@@ -71,7 +71,7 @@ export const CLIENT_PRIVACY_NOTICE: PolicyDocument = {
     {
       heading: '8. Technology Providers',
       paragraphs: [
-        'We use technology service providers to operate HIIKAP and our business systems (for example, database hosting, application hosting, and email delivery). These providers process information on our behalf and only as necessary to provide their service to us.',
+        'We use technology service providers to operate our business systems (for example, database hosting, application hosting, and email delivery). These providers process information on our behalf and only as necessary to provide their service to us.',
       ],
     },
     {
