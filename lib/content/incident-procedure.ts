@@ -55,7 +55,7 @@ export const INCIDENT_PROCEDURE: PolicyDocument = {
     {
       heading: '5. Internal Reporting',
       paragraphs: [
-        `Report the incident immediately to ${PLACEHOLDER.privacyOfficer} (or, if unavailable, to your direct supervisor or a Zenara administrator), and to ${PLACEHOLDER.privacyContact}. Provide as much detail as you have — what happened, when, what information may be involved, and any immediate steps already taken.`,
+        `Report the incident immediately to your direct supervisor or a Zenara administrator, and to ${PLACEHOLDER.privacyContact}. If Zenara has designated a Data Protection Officer or Privacy Officer, report to them as well. Provide as much detail as you have — what happened, when, what information may be involved, and any immediate steps already taken.`,
       ],
     },
     {

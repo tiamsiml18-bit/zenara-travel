@@ -23,11 +23,10 @@ export const INTERNAL_PRIVACY_POLICY: PolicyDocument = {
     {
       heading: '2. Organization and Accountability',
       paragraphs: [
-        `Zenara Travel and Tours (${PLACEHOLDER.registeredName}) is the organization responsible for personal information processed through HIIKAP.`,
+        'Zenara Travel and Tours is the organization responsible for personal information processed through HIIKAP.',
         'HIIKAP is the internal CRM application used to manage travel-related business operations — client relationships, quotations, packages, tours, bookings, payments, and follow-ups. HIIKAP itself is a tool; it is Zenara, as the business operating the tool, that is accountable for the personal information within it.',
         `Registered business address: ${PLACEHOLDER.businessAddress}`,
         `Official privacy contact: ${PLACEHOLDER.privacyContact}`,
-        `Designated Data Protection Officer / Privacy Officer: ${PLACEHOLDER.privacyOfficer}`,
       ],
     },
     {

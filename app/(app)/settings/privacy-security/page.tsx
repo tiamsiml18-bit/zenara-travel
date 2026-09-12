@@ -48,7 +48,6 @@ export default async function PrivacySecurityPage() {
                     <p className="truncate text-sm font-medium text-ink-900">{label}</p>
                     {isAcknowledged && <p className="mt-0.5 text-xs text-ink-400">Acknowledged</p>}
                   </div>
-                  <span className="shrink-0 text-xs text-ink-500">View document &rarr;</span>
                 </Link>
               );
             })}

@@ -31,11 +31,11 @@ export interface PolicyDocument {
 }
 
 export const PLACEHOLDER = {
-  effectiveDate: '[Effective Date — to be set by Zenara]',
+  effectiveDate: 'September 12, 2026',
   version: 'v1.0-draft',
   lastUpdated: '[Last Updated — to be set by Zenara]',
   privacyOfficer: '[Name of Designated Data Protection Officer / Privacy Officer, if appointed]',
-  privacyContact: '[Official Zenara Privacy Contact Email]',
-  businessAddress: '[Zenara Business Address]',
+  privacyContact: 'bookings@zenaratravelandtours.com',
+  businessAddress: 'Mahacot West, Batangas City, Philippines',
   registeredName: '[Official Registered Business Name, if different from "Zenara Travel and Tours"]',
 } as const;
