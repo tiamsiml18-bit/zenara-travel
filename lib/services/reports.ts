@@ -53,22 +53,43 @@ export async function getDashboardKpis(supabase: SupabaseClient, filters: Dashbo
 
   const { data: payments } = await supabase.from('v_payment_summary').select('*').maybeSingle();
 
-  // "Confirmed bookings" now counts the exact same records as the
-  // Follow-ups pipeline board's "Confirmed" count (quotations at
-  // pipeline_stage = 'confirmed') rather than a separate query against
-  // the bookings table. The two previously disagreed because a booking's
-  // own status field can drift from its source quotation's current
-  // pipeline stage over time (e.g. a booking still marked "confirmed"
-  // after its quotation has since moved on to "paid"), and because a
-  // quotation confirmed in the pipeline doesn't necessarily have a
-  // bookings row yet (an agent hasn't run Convert to Booking). Verified
-  // status and pipeline_stage can independently drift apart in this
-  // data, so pipeline_stage is queried directly here rather than trusting
-  // quotations.status to always match it. No date/agent/destination
-  // filters are applied, matching getPipelineDashboardCounts exactly —
-  // this KPI is specifically meant to always agree with that count.
-  const { data: pipelineRows } = await supabase.from('quotations').select('pipeline_stage').is('deleted_at', null);
-  const confirmedBookingsCount = (pipelineRows ?? []).filter((r) => r.pipeline_stage === 'confirmed').length;
+  // "Confirmed bookings" counts actual rows in the bookings table whose
+  // status is 'confirmed' (the same booking_status enum value the
+  // Bookings page itself displays and filters by — see
+  // database/migrations/0001_init.sql), excluding soft-deleted bookings.
+  //
+  // This previously queried quotations.pipeline_stage = 'confirmed'
+  // instead, on the theory that a booking's own status could drift from
+  // its source quotation's pipeline stage. That produced a different,
+  // larger number than the Bookings page's own confirmed count for two
+  // concrete reasons: (1) it counted quotations, not bookings, so a
+  // quotation sitting at pipeline_stage = 'confirmed' with no bookings
+  // row yet (no one has run "Convert to Booking") was counted even
+  // though zero actual bookings exist for it; (2) pipeline_stage and a
+  // quotation's own status field are independent columns that can (and
+  // did, in the data that surfaced this bug) disagree, so this wasn't
+  // even reliably counting "confirmed" in the sense the Quotations page
+  // displays either. Querying bookings.status directly makes this KPI
+  // agree with the Bookings page by construction — same table, same
+  // status column, same enum value — rather than needing two definitions
+  // of "confirmed" to be kept in sync by hand.
+  //
+  // No date/agent/destination filters are applied here, matching this
+  // KPI's original (pre-fix) behavior in both Dashboard and Reports.
+  //
+  // This intentionally now disagrees with getPipelineDashboardCounts()'s
+  // own "confirmed" figure (lib/services/pipeline.ts), which is a
+  // different, correct concept for its own purpose — quotations
+  // currently sitting at the "Confirmed" pipeline stage, for the
+  // Follow-ups Kanban board — not a count of booking records. The two
+  // being equal was never a real business rule; it was this KPI
+  // borrowing the wrong table to approximate it.
+  const { data: confirmedBookingsRows } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('status', 'confirmed')
+    .is('deleted_at', null);
+  const confirmedBookingsCount = confirmedBookingsRows?.length ?? 0;
 
   const quotesSent = rows.filter((r) => r.status !== null).length;
   const quotesPending = rows.filter((r) => r.status === 'sent').length;
