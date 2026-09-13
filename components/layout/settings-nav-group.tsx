@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChevronRight, Settings, UserCog, UploadCloud, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Settings, SlidersHorizontal, UserRoundCog, CloudUpload, ShieldCheck } from 'lucide-react';
 import { clsx } from 'clsx';
 import { NavLink } from './nav-link';
 
@@ -67,9 +67,9 @@ export function SettingsNavGroup({ isAdmin }: { isAdmin: boolean }) {
         <div className="mt-1 flex flex-col gap-1 pl-4">
           {isAdmin && (
             <>
-              <NavLink href="/admin/settings" label="General" icon={<Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-              <NavLink href="/admin/users" label="Users" icon={<UserCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-              <NavLink href="/admin/import" label="Import clients" icon={<UploadCloud className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+              <NavLink href="/admin/settings" label="General" icon={<SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+              <NavLink href="/admin/users" label="Users" icon={<UserRoundCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+              <NavLink href="/admin/import" label="Import clients" icon={<CloudUpload className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
             </>
           )}
           <NavLink

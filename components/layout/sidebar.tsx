@@ -1,15 +1,17 @@
 import {
   LayoutDashboard,
-  Users,
+  UsersRound,
   FileText,
   TrendingUp,
-  Wallet,
   Bell,
-  Briefcase,
+  BriefcaseBusiness,
   Package,
+  PackageCheck,
   Map,
-  BarChart3,
-  Workflow,
+  WalletCards,
+  Receipt,
+  ChartNoAxesCombined,
+  GitBranch,
 } from 'lucide-react';
 import Link from 'next/link';
 import { NavLink } from './nav-link';
@@ -58,13 +60,13 @@ export function Sidebar({
 
         <CollapsibleNavGroup
           label="Pipeline"
-          icon={<Workflow className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+          icon={<GitBranch className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
           childRoutes={['/clients', '/quotations', '/followups', '/bookings']}
         >
-          <NavLink href="/clients" label="Clients" icon={<Users className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/clients" label="Clients" icon={<UsersRound className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
           <NavLink href="/quotations" label="Quotations" icon={<FileText className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
           <NavLink href="/followups" label="Follow-ups" icon={<Bell className="h-4 w-4 shrink-0" strokeWidth={1.75} />} badge={followUpsDueCount} />
-          <NavLink href="/bookings" label="Bookings" icon={<Briefcase className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/bookings" label="Bookings" icon={<BriefcaseBusiness className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         </CollapsibleNavGroup>
 
         <CollapsibleNavGroup
@@ -72,20 +74,20 @@ export function Sidebar({
           icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
           childRoutes={['/packages', '/tours']}
         >
-          <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/packages" label="Packages" icon={<PackageCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
           <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         </CollapsibleNavGroup>
 
         <CollapsibleNavGroup
           label="Finance"
-          icon={<Wallet className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+          icon={<WalletCards className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
           childRoutes={['/sales', '/expenses']}
         >
           <NavLink href="/sales" label="Sales" icon={<TrendingUp className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-          <NavLink href="/expenses" label="Expenses" icon={<Wallet className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/expenses" label="Expenses" icon={<Receipt className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
         </CollapsibleNavGroup>
 
-        <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        <NavLink href="/reports" label="Reports" icon={<ChartNoAxesCombined className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
 
         {/* Single collapsible "Settings" parent — collapsed by default,
             expands on click, and auto-expands when the current route is
