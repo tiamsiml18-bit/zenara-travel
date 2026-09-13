@@ -9,9 +9,11 @@ import {
   Package,
   Map,
   BarChart3,
+  Workflow,
 } from 'lucide-react';
 import Link from 'next/link';
 import { NavLink } from './nav-link';
+import { CollapsibleNavGroup } from './collapsible-nav-group';
 import { SettingsNavGroup } from './settings-nav-group';
 import type { AppUser } from '@/lib/auth/session';
 
@@ -53,14 +55,36 @@ export function Sidebar({
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
         <NavLink href="/dashboard" label="Dashboard" icon={<LayoutDashboard className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-        <NavLink href="/clients" label="Clients" icon={<Users className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-        <NavLink href="/quotations" label="Quotations" icon={<FileText className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-        <NavLink href="/sales" label="Sales" icon={<TrendingUp className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-        <NavLink href="/expenses" label="Expenses" icon={<Wallet className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-        <NavLink href="/followups" label="Follow-ups" icon={<Bell className="h-4 w-4 shrink-0" strokeWidth={1.75} />} badge={followUpsDueCount} />
-        <NavLink href="/bookings" label="Bookings" icon={<Briefcase className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-        <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-        <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+
+        <CollapsibleNavGroup
+          label="Pipeline"
+          icon={<Workflow className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+          childRoutes={['/clients', '/quotations', '/followups', '/bookings']}
+        >
+          <NavLink href="/clients" label="Clients" icon={<Users className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/quotations" label="Quotations" icon={<FileText className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/followups" label="Follow-ups" icon={<Bell className="h-4 w-4 shrink-0" strokeWidth={1.75} />} badge={followUpsDueCount} />
+          <NavLink href="/bookings" label="Bookings" icon={<Briefcase className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        </CollapsibleNavGroup>
+
+        <CollapsibleNavGroup
+          label="Catalog"
+          icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+          childRoutes={['/packages', '/tours']}
+        >
+          <NavLink href="/packages" label="Packages" icon={<Package className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        </CollapsibleNavGroup>
+
+        <CollapsibleNavGroup
+          label="Finance"
+          icon={<Wallet className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+          childRoutes={['/sales', '/expenses']}
+        >
+          <NavLink href="/sales" label="Sales" icon={<TrendingUp className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+          <NavLink href="/expenses" label="Expenses" icon={<Wallet className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+        </CollapsibleNavGroup>
+
         <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
 
         {/* Single collapsible "Settings" parent — collapsed by default,
