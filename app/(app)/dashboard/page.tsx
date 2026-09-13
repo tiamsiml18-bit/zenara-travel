@@ -32,11 +32,6 @@ export default async function DashboardPage() {
     <>
       <Topbar title="Dashboard" />
       <main className="flex-1 overflow-y-auto p-6">
-        <p className="mb-5 text-sm text-ink-500">
-          Welcome back, {user.fullName.split(' ')[0]}. Here's where things stand
-          {user.role === 'agent' ? ' for your clients' : ' across the agency'}.
-        </p>
-
         {/* One condensed KPI row — the essentials, at a glance, no
             secondary "Sales pipeline" section duplicating Confirmed/Lost
             counts already shown here (that detail still lives on the
@@ -83,13 +78,6 @@ export default async function DashboardPage() {
             still lives on the Reports page (see getAgentPerformance,
             untouched). The Monthly quotations / Upcoming travel row above
             simply fills the space naturally. */}
-        <p className="mt-2 text-xs text-ink-500">
-          Top destinations, lead sources, agent performance, and the full breakdown by date range and status live on{' '}
-          <a href="/reports" className="font-medium text-harbor-600 hover:underline">
-            Reports
-          </a>
-          .
-        </p>
       </main>
     </>
   );

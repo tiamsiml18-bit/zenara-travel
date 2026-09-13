@@ -60,7 +60,7 @@ export function TagListInput({
     onChange(arrayMove(items, oldIndex, newIndex));
   }
 
-  const dot = tone === 'positive' ? 'bg-green-500 dark:bg-green-600' : tone === 'negative' ? 'bg-coral-500' : 'bg-ink-500';
+  const dot = tone === 'positive' ? 'bg-green-500' : tone === 'negative' ? 'bg-coral-500' : 'bg-ink-500';
 
   return (
     <div>

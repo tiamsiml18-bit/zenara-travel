@@ -7,37 +7,44 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* Light mode (default) — every value below is what tailwind.config.ts's
-     harbor/sand/coral/ink/surface tokens already resolved to before Dark
-     Mode existed, just expressed as CSS variables now instead of static
-     hex, so .dark below can override them in one place rather than every
-     component needing its own dark: variant. */
-  --harbor-50: 247 248 252;
-  --harbor-100: 233 235 255;
-  --harbor-200: 208 210 241;
-  --harbor-400: 131 137 216;
-  --harbor-500: 102 109 204;
-  --harbor-600: 89 97 199;
-  --harbor-700: 56 65 178;
-  --harbor-800: 43 50 130;
-  --harbor-900: 34 38 89;
-  --harbor-950: 24 26 58;
+  /* Light mode — the only mode. Color-system revision: returns to the
+     original Teal + Navy identity (a later brighter teal/Deep-Ocean
+     detour, and a subsequent dark-mode-specific correction, were both
+     reviewed and superseded by this version), and dark mode has been
+     removed entirely — see the bottom of this file for what was
+     deleted. Every CSS variable NAME is unchanged, so no component
+     needed to change; this is a value swap at the token layer only.
+     harbor-700 is exactly the specified Primary Teal (#0F766E);
+     harbor-600 is exactly the specified Primary Hover (#115E59) — note
+     hover is deliberately DARKER than the base color here (a
+     "press/darken" hover, not a "lighten" hover), per the exact values
+     given; harbor-950 is exactly the specified Deep Navy Blue
+     (#17324D). success/warning are UNCHANGED: the specified Success
+     (#15803D) and Warning (#B45309) are already exactly Tailwind's
+     green-700/amber-700, which success-700/warning-700 already
+     resolved to. */
+  --harbor-50: 240 253 250;
+  --harbor-100: 204 251 241;
+  --harbor-200: 153 246 228;
+  --harbor-400: 45 212 191;
+  --harbor-500: 20 184 166;
+  --harbor-600: 17 94 89;
+  --harbor-700: 15 118 110;
+  --harbor-800: 16 95 97;
+  --harbor-900: 17 72 84;
+  --harbor-950: 23 50 77;
 
-  --sand-50: 248 249 252;
-  --sand-100: 240 242 244;
-  --sand-200: 229 231 235;
+  --sand-50: 248 250 252;
+  --sand-100: 241 245 249;
+  --sand-200: 226 232 240;
   --surface: 255 255 255;
 
-  --coral-500: 244 123 115;
-  --coral-600: 238 88 79;
+  --coral-500: 231 111 81;
+  --coral-600: 214 95 63;
 
   /* success/warning — built from the exact Tailwind green/amber values
      already used ad hoc across the app (see the Phase 1 audit: 15 files
-     currently hand-write raw green and amber utility classes with manual
-     dark: pairs instead of a token). These are new, additive tokens
-     only — nothing has been migrated onto them yet, so this changes
-     nothing visually until a later phase updates those call sites one
-     at a time. */
+     currently hand-write raw green and amber utility classes). */
   --success-100: 220 252 231;  /* Tailwind green-100 */
   --success-500: 34 197 94;    /* Tailwind green-500 */
   --success-600: 22 163 74;    /* Tailwind green-600 */
@@ -48,54 +55,18 @@
   --warning-600: 217 119 6;    /* Tailwind amber-600 */
   --warning-700: 180 83 9;     /* Tailwind amber-700 */
 
-  --ink-900: 55 65 81;
-  --ink-700: 87 98 117;
-  --ink-500: 126 137 154;
+  --ink-900: 31 41 55;
+  --ink-700: 71 85 105;
+  --ink-500: 100 116 139;
 }
 
-/* Dark Mode — same purple/coral hues, brightened slightly at the mid-tones
-   for contrast on a dark page; the near-white light tints (harbor-50/100,
-   sand-50/100/200, surface) become dark instead, and the ink text scale
-   flips to light-on-dark. Toggled by adding/removing "dark" on <html>
-   (next-themes), never anything component-level. */
-.dark {
-  --harbor-50: 26 28 46;
-  --harbor-100: 42 45 82;
-  --harbor-200: 58 63 107;
-  --harbor-400: 125 132 221;
-  --harbor-500: 116 123 214;
-  --harbor-600: 111 118 212;
-  --harbor-700: 89 97 199;
-  --harbor-800: 69 77 171;
-  --harbor-900: 50 56 117;
-  --harbor-950: 32 34 63;
-
-  --sand-50: 19 21 28;
-  --sand-100: 28 31 42;
-  --sand-200: 46 51 65;
-  --surface: 25 28 38;
-
-  --coral-500: 246 143 135;
-  --coral-600: 244 112 105;
-
-  /* Same relationship as harbor's dark-mode values above: the light,
-     near-white background tint (100) becomes a dark, muted version of
-     the same hue; the readable/text-facing tones (500/700) brighten so
-     they stay legible against the dark surface. */
-  --success-100: 20 66 45;
-  --success-500: 74 222 128;   /* Tailwind green-400, brightened for dark bg */
-  --success-600: 34 197 94;
-  --success-700: 134 239 172;  /* Tailwind green-300, brightened for dark bg */
-
-  --warning-100: 69 46 8;
-  --warning-500: 251 191 36;   /* Tailwind amber-400, brightened for dark bg */
-  --warning-600: 245 158 11;
-  --warning-700: 252 211 77;   /* Tailwind amber-300, brightened for dark bg */
-
-  --ink-900: 232 234 240;
-  --ink-700: 176 181 194;
-  --ink-500: 122 129 148;
-}
+/* Dark mode has been removed. There is no .dark CSS-variable block, no
+   theme toggle, and no next-themes provider anywhere in the app —
+   components/theme/ (ThemeProvider, ThemeToggle) was deleted, and
+   app/layout.tsx no longer wraps children in a theme provider or sets
+   suppressHydrationWarning (that attribute existed specifically to
+   accommodate next-themes' pre-hydration class injection, which no
+   longer happens). Light Mode, defined above, is the only theme. */
 
 @layer base {
   body {

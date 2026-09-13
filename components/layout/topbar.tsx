@@ -2,7 +2,6 @@ import { Search } from 'lucide-react';
 import { BackButton } from './back-button';
 import { NotificationBell, type NotificationFollowUp } from './notification-bell';
 import { ProfileMenu } from './profile-menu';
-import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
 import { listAttentionNeededFollowUps } from '@/lib/services/followups';
@@ -64,7 +63,6 @@ export async function Topbar({
         </form>
 
         <NotificationBell followUps={followUps} />
-        <ThemeToggle />
         <ProfileMenu isAdmin={user.role === 'admin'} />
       </div>
     </header>

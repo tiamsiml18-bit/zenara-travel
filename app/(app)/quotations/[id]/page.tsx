@@ -154,13 +154,13 @@ export default async function QuotationDetailPage({
         </div>
 
         {isViewingPastVersion && (
-          <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
-            <p className="text-sm text-amber-800 dark:text-amber-300">
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-800">
               You&apos;re viewing {viewedVersion.version_label} — a past revision, not the current version. It&apos;s read-only.
             </p>
             <Link
               href={`/quotations/${id}`}
-              className="rounded-md border border-amber-300 dark:border-amber-700 bg-surface px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:bg-amber-900/30"
+              className="rounded-md border border-amber-300 bg-surface px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
             >
               Back to current ({currentVersion.version_label})
             </Link>

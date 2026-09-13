@@ -168,7 +168,7 @@ export function SupplierImportPanel({
           </div>
 
           {warnings.length > 0 && (
-            <div className="mb-4 rounded-md border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+            <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
               <p className="mb-1 font-medium">Review carefully — some fields couldn't be found automatically:</p>
               <ul className="list-inside list-disc space-y-0.5">
                 {warnings.map((w, i) => (

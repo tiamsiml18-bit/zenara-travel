@@ -1,38 +1,35 @@
 import type { Config } from 'tailwindcss';
 
 // Zenara design tokens
-// Palette rationale: a light, modern SaaS-style theme built around the
-// agency's chosen brand indigo (#5961C7) — not a dark sidebar. Every
-// anchor value below (harbor-50/100/600, coral-500, ink-900, sand-50/200)
-// is the exact hex specified, not approximated; the intermediate steps
-// were computed to progress sensibly between them. "Harbor" is the
-// primary brand color used for buttons, links, active states, and
-// important numbers; "coral" is used sparingly, for alerts and selected
-// highlights only; "sand" is the light neutral background/border family;
-// "ink" is body text, several shades lighter than before so the overall
-// page reads soft rather than high-contrast-dark.
+// Palette: a restrained Teal + Navy identity for a professional travel
+// operations CRM (color-system revision — brighter teal/Deep-Ocean and
+// dark-mode-specific attempts were tried and superseded by this
+// version). Every anchor value below (harbor-600 = Primary Hover
+// #115E59, harbor-700 = Primary Teal #0F766E, harbor-950 = Deep Navy
+// Blue #17324D, coral-500 = Accent Coral #E76F51, ink-900 = Primary
+// Text #1F2937, ink-500 = Secondary Text #64748B, sand-50 = Page
+// Background #F8FAFC, sand-200 = Border #E2E8F0) is the exact hex
+// specified; the intermediate steps were computed to progress sensibly
+// between them. "Harbor" is the primary brand color used for buttons,
+// links, active states, and important numbers; "coral" is used
+// sparingly, for alerts, destructive actions, and one accent highlight
+// only — never a UI-wide color; "sand" is the light neutral
+// background/border family; "ink" is body text.
 //
-// "success" and "warning" (added in the Phase 1 design-token foundation
-// pass) close the one real gap in this system: several pages already
-// needed a green "confirmed/paid" tone and an amber "partial/pending"
-// tone, but had no token for either — so they fell back to raw Tailwind
-// green-*/amber-* with hand-written dark: pairs, the only place in the
-// app where color didn't flow through a CSS variable. These two tokens
-// are deliberately built from those exact same Tailwind green/amber
-// values already in use everywhere (see globals.css), so introducing
-// them changes nothing visually yet — they're additive tokens only.
-// Nothing has been migrated onto them in this pass; that's a later,
-// separate phase, done call-site by call-site.
+// "success" and "warning" needed no changes: the specified Success
+// (#15803D) and Warning (#B45309) are already exactly Tailwind's
+// green-700/amber-700, which success-700/warning-700 already resolved
+// to from the Phase 1 design-token foundation.
 //
-// Every color below resolves through a CSS variable defined in
-// globals.css (":root" for light, ".dark" for dark) rather than a static
-// hex — this is what makes Dark Mode apply consistently everywhere
-// without every component needing its own dark: variant. "surface" is
-// new: the card/panel background, white in light mode, dark charcoal in
-// dark mode (previously every card just used Tailwind's built-in "white",
-// which can't have a dark-mode counterpart the same way).
+// Dark mode has been removed entirely — there is no .dark CSS-variable
+// block (see globals.css), no theme toggle, and no next-themes
+// provider anywhere in the app. Light Mode is the only theme, so
+// darkMode is no longer configured here. Every color below still
+// resolves through a CSS variable defined in globals.css rather than a
+// static hex, purely so every component only needs to change once if
+// the palette is ever revised again. "surface" is the card/panel
+// background (white).
 const config: Config = {
-  darkMode: 'class',
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
