@@ -155,9 +155,9 @@ export default async function ExpensesPage({
           <div className="lg:col-span-2">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700">Upcoming Expenses</h2>
             {upcoming.length === 0 ? (
-              <p className="rounded-lg border border-sand-200 bg-surface p-4 text-sm text-ink-500">No upcoming or pending expenses with a due date.</p>
+              <p className="rounded-lg border border-sand-200 bg-surface p-4 text-sm text-ink-500 shadow-card">No upcoming or pending expenses with a due date.</p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-sand-200 bg-surface">
+              <div className="overflow-x-auto rounded-lg border border-sand-200 bg-surface shadow-card">
                 <table className="w-full text-sm">
                   <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
                     <tr>

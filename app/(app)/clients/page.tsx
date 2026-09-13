@@ -64,7 +64,7 @@ export default async function ClientsPage({
               name="q"
               defaultValue={params.q}
               placeholder="Search by name, phone, or email…"
-              className="w-72 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              className="w-72 rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <AutoSubmitSelect
               name="status"

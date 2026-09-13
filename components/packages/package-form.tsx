@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import { ItineraryBuilder, type ItineraryDayDraft, type TourPickerItem } from '@/components/quotations/itinerary-builder';
 import { TagListInput } from '@/components/quotations/tag-list-input';
 import { createPackageAction, updatePackageAction } from '@/app/(app)/packages/actions';
@@ -267,13 +268,9 @@ function PackageFormFields({
       </section>
 
       <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => router.push('/packages')}
-          className="rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
-        >
+        <Button variant="outline" onClick={() => router.push('/packages')}>
           Cancel
-        </button>
+        </Button>
         <button
           type="button"
           onClick={handleSubmit}

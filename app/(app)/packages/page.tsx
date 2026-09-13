@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { Pagination } from '@/components/ui/pagination';
 import { AutoSubmitCheckbox } from '@/components/ui/auto-submit-checkbox';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { createClient } from '@/lib/supabase/server';
 import { listPackages } from '@/lib/services/packages';
 import { requireUser } from '@/lib/auth/session';
@@ -35,7 +36,7 @@ export default async function PackagesPage({
               name="q"
               defaultValue={params.q}
               placeholder="Search by name or destination…"
-              className="w-72 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              className="w-72 rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <AutoSubmitCheckbox name="all" defaultChecked={params.all === '1'} label="Show inactive" />
           </form>
@@ -74,15 +75,7 @@ export default async function PackagesPage({
                     {p.num_days}D{p.num_nights}N
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={
-                        p.is_active
-                          ? 'rounded-full bg-harbor-100 px-2 py-0.5 text-xs font-medium text-harbor-700'
-                          : 'rounded-full bg-sand-100 px-2 py-0.5 text-xs font-medium text-ink-500'
-                      }
-                    >
-                      {p.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                    <StatusBadge label={p.is_active ? 'Active' : 'Inactive'} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     {canManage && <ToggleActiveButton packageId={p.id} isActive={p.is_active} />}

@@ -275,7 +275,7 @@ export default async function SalesPage({
                       <td className="px-3 py-2">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            r.daysRemaining < 0 ? 'bg-coral-500/10 text-coral-600' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                            r.daysRemaining < 0 ? 'bg-coral-500/10 text-coral-600' : 'bg-warning-100 text-warning-700'
                           }`}
                         >
                           {SALES_PAYMENT_STATUS_LABELS[r.paymentStatus]}

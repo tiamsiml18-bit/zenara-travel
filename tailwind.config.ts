@@ -12,6 +12,18 @@ import type { Config } from 'tailwindcss';
 // "ink" is body text, several shades lighter than before so the overall
 // page reads soft rather than high-contrast-dark.
 //
+// "success" and "warning" (added in the Phase 1 design-token foundation
+// pass) close the one real gap in this system: several pages already
+// needed a green "confirmed/paid" tone and an amber "partial/pending"
+// tone, but had no token for either — so they fell back to raw Tailwind
+// green-*/amber-* with hand-written dark: pairs, the only place in the
+// app where color didn't flow through a CSS variable. These two tokens
+// are deliberately built from those exact same Tailwind green/amber
+// values already in use everywhere (see globals.css), so introducing
+// them changes nothing visually yet — they're additive tokens only.
+// Nothing has been migrated onto them in this pass; that's a later,
+// separate phase, done call-site by call-site.
+//
 // Every color below resolves through a CSS variable defined in
 // globals.css (":root" for light, ".dark" for dark) rather than a static
 // hex — this is what makes Dark Mode apply consistently everywhere
@@ -46,6 +58,18 @@ const config: Config = {
         coral: {
           500: 'rgb(var(--coral-500) / <alpha-value>)',
           600: 'rgb(var(--coral-600) / <alpha-value>)',
+        },
+        success: {
+          100: 'rgb(var(--success-100) / <alpha-value>)',
+          500: 'rgb(var(--success-500) / <alpha-value>)',
+          600: 'rgb(var(--success-600) / <alpha-value>)',
+          700: 'rgb(var(--success-700) / <alpha-value>)',
+        },
+        warning: {
+          100: 'rgb(var(--warning-100) / <alpha-value>)',
+          500: 'rgb(var(--warning-500) / <alpha-value>)',
+          600: 'rgb(var(--warning-600) / <alpha-value>)',
+          700: 'rgb(var(--warning-700) / <alpha-value>)',
         },
         ink: {
           900: 'rgb(var(--ink-900) / <alpha-value>)',

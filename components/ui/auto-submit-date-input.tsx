@@ -16,7 +16,7 @@ export function AutoSubmitDateInput({
       defaultValue={defaultValue}
       title={title}
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+      className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm"
     />
   );
 }

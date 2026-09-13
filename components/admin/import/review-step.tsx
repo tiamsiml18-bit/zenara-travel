@@ -79,7 +79,7 @@ function SummaryCard({
 }) {
   const toneClasses = {
     positive: 'text-harbor-700 bg-harbor-100',
-    warning: 'text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
+    warning: 'text-warning-700 bg-warning-100',
     negative: 'text-coral-600 bg-coral-500/10',
   }[tone];
 

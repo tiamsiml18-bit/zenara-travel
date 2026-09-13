@@ -72,7 +72,7 @@ export default async function QuotationDetailPage({
 
   return (
     <>
-      <Topbar title={quotation.quotation_number} showBack />
+      <Topbar title={quotation.quotation_number} showBack titleClassName="font-ticket text-lg font-semibold text-ink-900" />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="mb-6 flex items-start justify-between">
           <div>
@@ -178,7 +178,7 @@ export default async function QuotationDetailPage({
 
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2 space-y-6">
-            <section className="rounded-lg border border-sand-200 bg-surface p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Trip overview</h3>
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <Row label="Destination" value={viewedVersion.destination} />
@@ -202,7 +202,7 @@ export default async function QuotationDetailPage({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-sand-200 bg-surface p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Itinerary</h3>
               {itinerary.length === 0 && <p className="text-sm text-ink-500">No itinerary added.</p>}
               <div className="space-y-4">
@@ -227,7 +227,7 @@ export default async function QuotationDetailPage({
             </section>
 
             <div className="grid grid-cols-2 gap-6">
-              <section className="rounded-lg border border-sand-200 bg-surface p-5">
+              <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
                 <h3 className="mb-2 font-display text-sm font-semibold text-ink-900">Inclusions</h3>
                 <ul className="space-y-1 text-sm text-ink-700">
                   {inclusions.map((i) => (
@@ -236,7 +236,7 @@ export default async function QuotationDetailPage({
                   {inclusions.length === 0 && <li className="text-ink-500">None listed.</li>}
                 </ul>
               </section>
-              <section className="rounded-lg border border-sand-200 bg-surface p-5">
+              <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
                 <h3 className="mb-2 font-display text-sm font-semibold text-ink-900">Exclusions</h3>
                 <ul className="space-y-1 text-sm text-ink-700">
                   {exclusions.map((e) => (
@@ -249,7 +249,7 @@ export default async function QuotationDetailPage({
           </div>
 
           <div className="col-span-1 space-y-6">
-            <section className="rounded-lg border border-sand-200 bg-surface p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Client-facing price</h3>
               <p className="font-ticket text-2xl font-semibold text-ink-900">{formatMoney(viewedVersion.total_price)}</p>
               {viewedVersion.price_per_person && (
@@ -280,7 +280,7 @@ export default async function QuotationDetailPage({
               </section>
             )}
 
-            <section className="rounded-lg border border-sand-200 bg-surface p-5">
+            <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
               <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Version history</h3>
               <ul className="space-y-2">
                 {versions.map((v) => {
@@ -308,7 +308,7 @@ export default async function QuotationDetailPage({
             </section>
 
             {emailHistory.length > 0 && (
-              <section className="rounded-lg border border-sand-200 bg-surface p-5">
+              <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
                 <h3 className="mb-3 font-display text-sm font-semibold text-ink-900">Email history</h3>
                 <ul className="space-y-3">
                   {emailHistory.map((e: any) => (

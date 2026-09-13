@@ -4,6 +4,7 @@ import { Topbar } from '@/components/layout/topbar';
 import { Pagination } from '@/components/ui/pagination';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { AutoSubmitCheckbox } from '@/components/ui/auto-submit-checkbox';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { createClient } from '@/lib/supabase/server';
 import { listTours, listTourDestinations } from '@/lib/services/tours';
 import { requireUser } from '@/lib/auth/session';
@@ -79,28 +80,28 @@ export default async function ToursPage({
               name="q"
               defaultValue={params.q}
               placeholder="Search tours…"
-              className="w-56 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              className="w-56 rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <AutoSubmitSelect
               name="type"
               defaultValue={params.type}
               placeholder="All tour types"
               options={TOUR_TYPE_OPTIONS}
-              className="rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <AutoSubmitSelect
               name="destination"
               defaultValue={params.destination}
               placeholder="All destinations"
               options={destinations.map((d) => ({ value: d, label: d }))}
-              className="rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <AutoSubmitSelect
               name="price"
               defaultValue={params.price}
               placeholder="All prices"
               options={Object.entries(PRICE_RANGES).map(([value, r]) => ({ value, label: r.label }))}
-              className="rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
+              className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
             />
             <AutoSubmitCheckbox name="all" defaultChecked={params.all === '1'} label="Show archived" />
             {hasActiveFilters && (
@@ -154,15 +155,7 @@ export default async function ToursPage({
                       </td>
                       <td className="font-ticket px-4 py-3 text-ink-700">{formatMoney(t.price_adult)}</td>
                       <td className="px-4 py-3">
-                        <span
-                          className={
-                            t.is_active
-                              ? 'rounded-full bg-harbor-100 px-2 py-0.5 text-xs font-medium text-harbor-700'
-                              : 'rounded-full bg-sand-100 px-2 py-0.5 text-xs font-medium text-ink-500'
-                          }
-                        >
-                          {t.is_active ? 'Active' : 'Archived'}
-                        </span>
+                        <StatusBadge label={t.is_active ? 'Active' : 'Archived'} />
                       </td>
                       <td className="px-4 py-3 text-right">
                         {canManage && (

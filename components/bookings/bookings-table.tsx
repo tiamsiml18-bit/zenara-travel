@@ -17,7 +17,7 @@ function formatMoney(n?: number | null) {
 
 const PAYMENT_STATUS_STYLE: Record<string, string> = {
   unpaid: 'bg-coral-500/10 text-coral-600',
-  partial: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+  partial: 'bg-warning-100 text-warning-700',
   paid: 'bg-harbor-100 text-harbor-700',
   refunded: 'bg-sand-100 text-ink-500',
 };
@@ -87,7 +87,7 @@ export function BookingsTable({ bookings }: { bookings: any[] }) {
             <th className="px-4 py-3">Client</th>
             <th className="px-4 py-3">Destination</th>
             <th className="px-4 py-3">Travel dates</th>
-            <th className="px-4 py-3">Total</th>
+            <th className="px-4 py-3 text-right">Total</th>
             <th className="px-4 py-3">Payment</th>
             <th className="px-4 py-3">Status</th>
           </tr>
@@ -109,7 +109,7 @@ export function BookingsTable({ bookings }: { bookings: any[] }) {
               <td className="px-4 py-3 text-ink-700">
                 {formatDate(b.travel_start_date)} – {formatDate(b.travel_end_date)}
               </td>
-              <td className="font-ticket px-4 py-3 text-ink-900">{formatMoney(b.total_amount)}</td>
+              <td className="font-ticket px-4 py-3 text-right text-ink-900">{formatMoney(b.total_amount)}</td>
               <td className="px-4 py-3">
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${PAYMENT_STATUS_STYLE[b.payment_status] ?? ''}`}>
                   {b.payment_status}

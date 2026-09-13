@@ -7,8 +7,8 @@ const TONE_BY_STATUS: Record<string, string> = {
   'Quotation Sent': 'bg-harbor-100 text-harbor-700',
   'Follow-up Due': 'bg-coral-500/10 text-coral-600',
   Negotiating: 'bg-coral-500/10 text-coral-600',
-  Confirmed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-  Paid: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  Confirmed: 'bg-success-100 text-success-700',
+  Paid: 'bg-success-100 text-success-700',
   Cancelled: 'bg-sand-200 text-ink-500',
   Lost: 'bg-sand-200 text-ink-500',
   Expired: 'bg-sand-200 text-ink-500',
@@ -26,12 +26,18 @@ const TONE_BY_STATUS: Record<string, string> = {
   viewed: 'bg-harbor-100 text-harbor-700',
   follow_up: 'bg-coral-500/10 text-coral-600',
   negotiating: 'bg-coral-500/10 text-coral-600',
-  confirmed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-  paid: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  confirmed: 'bg-success-100 text-success-700',
+  paid: 'bg-success-100 text-success-700',
   cancelled: 'bg-sand-200 text-ink-500',
   lost: 'bg-sand-200 text-ink-500',
   expired: 'bg-sand-200 text-ink-500',
   no_response: 'bg-sand-200 text-ink-500',
+  // Active/inactive toggle status, shared by Packages and Tours (which
+  // previously each hand-rolled the identical bg-harbor-100/bg-sand-100
+  // span independently, just with different inactive-state wording).
+  Active: 'bg-harbor-100 text-harbor-700',
+  Inactive: 'bg-sand-100 text-ink-500',
+  Archived: 'bg-sand-100 text-ink-500',
 };
 
 export function StatusBadge({ label }: { label: string }) {

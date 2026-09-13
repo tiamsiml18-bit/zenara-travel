@@ -74,13 +74,13 @@ export function ClientsTable({ clients, duplicatesView }: { clients: any[]; dupl
       )}
 
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-sand-200 bg-sand-50 text-xs uppercase tracking-wide text-ink-500">
+        <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs uppercase tracking-wide text-ink-500">
           <tr>
             {duplicatesView && <th className="w-10 px-4 py-3" />}
             <th className="px-4 py-3 font-medium">Client</th>
             <th className="px-4 py-3 font-medium">Destination</th>
             <th className="px-4 py-3 font-medium">Travel date</th>
-            <th className="px-4 py-3 font-medium">Quoted price</th>
+            <th className="px-4 py-3 text-right font-medium">Quoted price</th>
             <th className="px-4 py-3 font-medium">Status</th>
             <th className="px-4 py-3 font-medium">Agent</th>
             <th className="px-4 py-3 font-medium">Updated</th>
@@ -121,7 +121,7 @@ export function ClientsTable({ clients, duplicatesView }: { clients: any[]; dupl
               </td>
               <td className="px-4 py-3 text-ink-700">{c.destination || '—'}</td>
               <td className="px-4 py-3 font-ticket text-ink-700">{formatDate(c.travel_start_date)}</td>
-              <td className="px-4 py-3 font-ticket text-ink-700">{formatMoney(c.quoted_price)}</td>
+              <td className="px-4 py-3 text-right font-ticket text-ink-700">{formatMoney(c.quoted_price)}</td>
               <td className="px-4 py-3">{c.status && <StatusBadge label={c.status.name} />}</td>
               <td className="px-4 py-3 text-ink-700">{c.agent?.full_name ?? '—'}</td>
               <td className="px-4 py-3 text-ink-500">{formatDate(c.updated_at)}</td>

@@ -26,7 +26,7 @@ export interface RecurringScheduleRow {
 
 const STATUS_STYLE: Record<RecurringStatus, string> = {
   active: 'bg-harbor-100 text-harbor-700',
-  paused: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+  paused: 'bg-warning-100 text-warning-700',
   ended: 'bg-sand-100 text-ink-500',
 };
 
@@ -48,11 +48,11 @@ export function RecurringExpensesSection({ schedules }: { schedules: RecurringSc
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-700">Recurring Expenses</h2>
       {error && <div className="mb-2 rounded-md border border-coral-500/30 bg-coral-500/10 px-3 py-2 text-sm text-coral-600">{error}</div>}
       {schedules.length === 0 ? (
-        <p className="rounded-lg border border-sand-200 bg-surface p-4 text-sm text-ink-500">
+        <p className="rounded-lg border border-sand-200 bg-surface p-4 text-sm text-ink-500 shadow-card">
           No recurring expenses yet — check &quot;Make this a recurring expense&quot; when adding one.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-sand-200 bg-surface">
+        <div className="overflow-x-auto rounded-lg border border-sand-200 bg-surface shadow-card">
           <table className="w-full text-sm">
             <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
               <tr>

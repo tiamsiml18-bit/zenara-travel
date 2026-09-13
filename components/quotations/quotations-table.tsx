@@ -72,7 +72,7 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
       )}
 
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-sand-200 bg-sand-50 text-xs uppercase tracking-wide text-ink-500">
+        <thead className="border-b border-sand-200 bg-sand-50 text-left text-xs uppercase tracking-wide text-ink-500">
           <tr>
             <th className="w-10 px-4 py-3">
               <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all quotations" />
@@ -81,7 +81,7 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
             <th className="px-4 py-3 font-medium">Client</th>
             <th className="px-4 py-3 font-medium">Destination</th>
             <th className="px-4 py-3 font-medium">Travel dates</th>
-            <th className="px-4 py-3 font-medium">Price</th>
+            <th className="px-4 py-3 text-right font-medium">Price</th>
             <th className="px-4 py-3 font-medium">Status</th>
             <th className="px-4 py-3 font-medium">Consultant</th>
             <th className="px-4 py-3 font-medium">Updated</th>
@@ -108,7 +108,7 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
               <td className="px-4 py-3 text-ink-700">{q.client?.full_name}</td>
               <td className="px-4 py-3 text-ink-700">{q.current_version?.destination ?? '—'}</td>
               <td className="px-4 py-3 font-ticket text-ink-700">{formatDate(q.current_version?.travel_start_date)}</td>
-              <td className="px-4 py-3 font-ticket text-ink-700">{formatMoney(q.current_version?.total_price)}</td>
+              <td className="px-4 py-3 text-right font-ticket text-ink-700">{formatMoney(q.current_version?.total_price)}</td>
               <td className="px-4 py-3">
                 <StatusBadge label={q.status ? PIPELINE_STAGE_LABELS[q.status as PipelineStage] : 'Draft'} />
               </td>

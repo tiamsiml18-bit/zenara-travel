@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
 import { upsertExpenseAction, upsertRecurringExpenseAction, searchQuotationsForExpenseAction } from '@/app/(app)/expenses/actions';
 import {
   EXPENSE_PAYMENT_STATUSES,
@@ -328,9 +329,9 @@ export function ExpenseForm({
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
+          </Button>
           <button
             type="button"
             onClick={handleSubmit}

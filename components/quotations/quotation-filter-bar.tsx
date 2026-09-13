@@ -42,7 +42,7 @@ export function QuotationFilterBar({ consultants }: { consultants: { id: string;
       <select
         value={status}
         onChange={(e) => updateFilter('status', e.target.value)}
-        className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+        className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm"
       >
         <option value="">All statuses</option>
         {STATUS_OPTIONS.map((s) => (
@@ -60,7 +60,7 @@ export function QuotationFilterBar({ consultants }: { consultants: { id: string;
       <select
         value={consultant}
         onChange={(e) => updateFilter('consultant', e.target.value)}
-        className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+        className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm"
       >
         <option value="">All consultants</option>
         {consultants.map((c) => (
@@ -75,14 +75,14 @@ export function QuotationFilterBar({ consultants }: { consultants: { id: string;
         value={from}
         onChange={(e) => updateFilter('from', e.target.value)}
         title="Travel date from"
-        className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+        className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm"
       />
       <input
         type="date"
         value={to}
         onChange={(e) => updateFilter('to', e.target.value)}
         title="Travel date to"
-        className="rounded-md border border-sand-200 px-3 py-2 text-sm"
+        className="rounded-md border border-sand-200 bg-surface px-3 py-2 text-sm"
       />
 
       {hasActiveFilters && (

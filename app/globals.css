@@ -31,6 +31,23 @@
   --coral-500: 244 123 115;
   --coral-600: 238 88 79;
 
+  /* success/warning — built from the exact Tailwind green/amber values
+     already used ad hoc across the app (see the Phase 1 audit: 15 files
+     currently hand-write raw green and amber utility classes with manual
+     dark: pairs instead of a token). These are new, additive tokens
+     only — nothing has been migrated onto them yet, so this changes
+     nothing visually until a later phase updates those call sites one
+     at a time. */
+  --success-100: 220 252 231;  /* Tailwind green-100 */
+  --success-500: 34 197 94;    /* Tailwind green-500 */
+  --success-600: 22 163 74;    /* Tailwind green-600 */
+  --success-700: 21 128 61;    /* Tailwind green-700 */
+
+  --warning-100: 254 243 199;  /* Tailwind amber-100 */
+  --warning-500: 245 158 11;   /* Tailwind amber-500 */
+  --warning-600: 217 119 6;    /* Tailwind amber-600 */
+  --warning-700: 180 83 9;     /* Tailwind amber-700 */
+
   --ink-900: 55 65 81;
   --ink-700: 87 98 117;
   --ink-500: 126 137 154;
@@ -61,6 +78,20 @@
   --coral-500: 246 143 135;
   --coral-600: 244 112 105;
 
+  /* Same relationship as harbor's dark-mode values above: the light,
+     near-white background tint (100) becomes a dark, muted version of
+     the same hue; the readable/text-facing tones (500/700) brighten so
+     they stay legible against the dark surface. */
+  --success-100: 20 66 45;
+  --success-500: 74 222 128;   /* Tailwind green-400, brightened for dark bg */
+  --success-600: 34 197 94;
+  --success-700: 134 239 172;  /* Tailwind green-300, brightened for dark bg */
+
+  --warning-100: 69 46 8;
+  --warning-500: 251 191 36;   /* Tailwind amber-400, brightened for dark bg */
+  --warning-600: 245 158 11;
+  --warning-700: 252 211 77;   /* Tailwind amber-300, brightened for dark bg */
+
   --ink-900: 232 234 240;
   --ink-700: 176 181 194;
   --ink-500: 122 129 148;
@@ -75,6 +106,21 @@
   }
   :focus-visible {
     @apply outline outline-2 outline-offset-2 outline-harbor-500;
+  }
+}
+
+@layer utilities {
+  /* Referenced across 28 files (booking/quotation numbers, prices, dates
+     in tables) but never actually defined until this Phase 1 pass — it
+     was a silent no-op class everywhere it appeared. Uses the existing
+     IBM Plex Mono font already loaded as --font-mono (no new font, no
+     new package), plus tabular-nums so columns of numbers/dates align
+     vertically instead of each digit taking its own proportional width.
+     Defining it here means every one of those 62 existing call sites
+     picks it up automatically — no page files needed to change. */
+  .font-ticket {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
   }
 }
 

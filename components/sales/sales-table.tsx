@@ -57,7 +57,7 @@ function formatDate(d: string | null) {
 
 const STATUS_STYLE: Record<SalesPaymentStatus, string> = {
   pending_payment: 'bg-coral-500/10 text-coral-600',
-  partially_paid: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+  partially_paid: 'bg-warning-100 text-warning-700',
   paid: 'bg-harbor-100 text-harbor-700',
   confirmed: 'bg-sand-100 text-ink-700',
 };

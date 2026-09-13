@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Button } from '@/components/ui/button';
 import { updateFollowUpScheduleAction } from '@/app/(app)/admin/settings/actions';
 
 export function FollowUpScheduleForm({ settingsId, currentDays }: { settingsId: string | null; currentDays: number[] }) {
@@ -33,14 +34,9 @@ export function FollowUpScheduleForm({ settingsId, currentDays }: { settingsId: 
           placeholder="2, 3, 5"
           className="flex-1 rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
         />
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={handleSubmit}
-          className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-50"
-        >
+        <Button disabled={isPending} onClick={handleSubmit}>
           {isPending ? 'Saving…' : 'Save'}
-        </button>
+        </Button>
       </div>
       {message && (
         <p className={`mt-2 text-xs ${message.type === 'error' ? 'text-coral-600' : 'text-harbor-600'}`}>{message.text}</p>

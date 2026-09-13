@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Button } from '@/components/ui/button';
 import { upsertHistoricalSaleAction } from '@/app/(app)/sales/actions';
 import { HISTORICAL_PAYMENT_STATUS_LABELS, HISTORICAL_PAYMENT_STATUSES, type HistoricalPaymentStatus } from '@/lib/validation/historical-sales';
 
@@ -166,9 +167,9 @@ export function HistoricalSaleForm({ initialValues, onClose }: { initialValues?:
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100">
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
+          </Button>
           <button
             type="button"
             onClick={handleSubmit}

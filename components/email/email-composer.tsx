@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { X, Paperclip } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export function EmailComposer({
   connectedEmail,
@@ -89,8 +90,7 @@ export function EmailComposer({
         <button type="button" onClick={onClose} className="rounded-md border border-sand-200 px-4 py-2 text-sm hover:bg-sand-100">
           Cancel
         </button>
-        <button
-          type="button"
+        <Button
           disabled={isPending}
           onClick={() =>
             startTransition(async () => {
@@ -103,10 +103,9 @@ export function EmailComposer({
               setSent(true);
             })
           }
-          className="rounded-md bg-harbor-700 px-4 py-2 text-sm font-medium text-sand-50 hover:bg-harbor-600 disabled:opacity-50"
         >
           {isPending ? 'Sending…' : 'Send Email'}
-        </button>
+        </Button>
       </div>
     </Modal>
   );

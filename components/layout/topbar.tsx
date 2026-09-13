@@ -7,7 +7,23 @@ import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
 import { listAttentionNeededFollowUps } from '@/lib/services/followups';
 
-export async function Topbar({ title, showBack = false }: { title: string; showBack?: boolean }) {
+export async function Topbar({
+  title,
+  showBack = false,
+  titleClassName,
+}: {
+  title: string;
+  showBack?: boolean;
+  /**
+   * Full replacement for the title's className, not a merge — avoids
+   * concatenating a conflicting font-family utility alongside the
+   * default font-display (there's no tailwind-merge installed to
+   * resolve that safely). Only pass this for pages whose title is a
+   * reference number (quotation/booking), not a human-readable label.
+   * Omitted entirely, the title renders exactly as it always has.
+   */
+  titleClassName?: string;
+}) {
   const user = await requireUser();
   const supabase = await createClient();
 
@@ -30,7 +46,7 @@ export async function Topbar({ title, showBack = false }: { title: string; showB
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-sand-200 bg-surface px-6">
       <div className="flex items-center gap-2">
         {showBack && <BackButton />}
-        <h1 className="font-display text-lg font-semibold text-ink-900">{title}</h1>
+        <h1 className={titleClassName ?? 'font-display text-lg font-semibold text-ink-900'}>{title}</h1>
       </div>
 
       <div className="flex items-center gap-3">
