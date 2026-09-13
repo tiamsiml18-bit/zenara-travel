@@ -7,36 +7,39 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* Light mode — the only mode. Color-system revision: returns to the
-     original Teal + Navy identity (a later brighter teal/Deep-Ocean
-     detour, and a subsequent dark-mode-specific correction, were both
-     reviewed and superseded by this version), and dark mode has been
-     removed entirely — see the bottom of this file for what was
-     deleted. Every CSS variable NAME is unchanged, so no component
-     needed to change; this is a value swap at the token layer only.
-     harbor-700 is exactly the specified Primary Teal (#0F766E);
-     harbor-600 is exactly the specified Primary Hover (#115E59) — note
-     hover is deliberately DARKER than the base color here (a
-     "press/darken" hover, not a "lighten" hover), per the exact values
-     given; harbor-950 is exactly the specified Deep Navy Blue
-     (#17324D). success/warning are UNCHANGED: the specified Success
-     (#15803D) and Warning (#B45309) are already exactly Tailwind's
-     green-700/amber-700, which success-700/warning-700 already
-     resolved to. */
-  --harbor-50: 240 253 250;
-  --harbor-100: 204 251 241;
-  --harbor-200: 153 246 228;
-  --harbor-400: 45 212 191;
-  --harbor-500: 20 184 166;
-  --harbor-600: 17 94 89;
-  --harbor-700: 15 118 110;
-  --harbor-800: 16 95 97;
-  --harbor-900: 17 72 84;
-  --harbor-950: 23 50 77;
+  /* Light mode — the only mode. Color-system revision: replaces the
+     Deep Navy + Blue B2B SaaS direction with a Warm Ember / Caramel
+     brand identity (a Deep Navy + Blue direction, a Teal + Navy
+     direction, and before that a brighter teal/Deep-Ocean attempt, were
+     all tried and superseded by this version). Every CSS variable NAME
+     is unchanged, so no component elsewhere needed to change; this is a
+     value swap at the token layer only. The four brand anchors are all
+     represented at meaningful points in the harbor scale: harbor-400 =
+     Caramel (#E9B48A, soft highlights/active backgrounds — deliberately
+     placed where the only consumers are focus rings/borders, never body
+     text, since Caramel must not be a text color); harbor-500 = Warm
+     Taupe (#956959, secondary accents); harbor-700 = Deep Brown
+     (#5C352C, PRIMARY — buttons, primary actions, important interactive
+     elements); harbor-950 = Dark Espresso (#2A1713, strongest
+     structural tone, also reused directly as ink-900/Primary Text and
+     sidebar-bg). harbor-600 is a darker Deep Brown hover step,
+     consistent with every earlier revision of this token. success/
+     warning/coral are UNCHANGED — none of them were named in this
+     palette, so none were touched. */
+  --harbor-50: 253 247 242;
+  --harbor-100: 247 231 219;
+  --harbor-200: 240 213 195;
+  --harbor-400: 233 180 138;
+  --harbor-500: 149 105 89;
+  --harbor-600: 74 42 35;
+  --harbor-700: 92 53 44;
+  --harbor-800: 75 42 35;
+  --harbor-900: 58 32 27;
+  --harbor-950: 42 23 19;
 
-  --sand-50: 248 250 252;
-  --sand-100: 241 245 249;
-  --sand-200: 226 232 240;
+  --sand-50: 250 249 247;
+  --sand-100: 243 239 235;
+  --sand-200: 231 224 220;
   --surface: 255 255 255;
 
   --coral-500: 231 111 81;
@@ -55,9 +58,26 @@
   --warning-600: 217 119 6;    /* Tailwind amber-600 */
   --warning-700: 180 83 9;     /* Tailwind amber-700 */
 
-  --ink-900: 31 41 55;
-  --ink-700: 71 85 105;
-  --ink-500: 100 116 139;
+  --ink-900: 42 23 19;
+  --ink-700: 75 62 56;
+  --ink-500: 107 98 94;
+
+  /* Sidebar-specific tokens — same dedicated family established when
+     the sidebar first became permanently dark; only the values change
+     here. sidebar-bg is exactly Dark Espresso (#2A1713). sidebar-active
+     is exactly Deep Brown (#5C352C) — the same primary-brand color used
+     for buttons elsewhere, so the sidebar's selected state visibly
+     shares the app's primary brand color, per the requested hierarchy
+     ("Deep Brown ... strong selected states where appropriate").
+     sidebar-active-text uses Caramel — its designated "selected/active
+     background... small visual emphasis" role, not body text. */
+  --sidebar-bg: 42 23 19;             /* #2A1713 */
+  --sidebar-hover: 58 32 27;
+  --sidebar-active: 92 53 44;         /* #5C352C */
+  --sidebar-border: 52 30 25;
+  --sidebar-text: 230 220 213;        /* warm off-white — default/inactive nav text */
+  --sidebar-text-muted: 168 151 143;  /* dimmer warm neutral — subtitle/role text */
+  --sidebar-active-text: 233 180 138; /* Caramel — active/selected nav item's text+icon */
 }
 
 /* Dark mode has been removed. There is no .dark CSS-variable block, no

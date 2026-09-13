@@ -2,7 +2,7 @@
 
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-const COLORS = { bar: '#E9EBFF', coral: '#F47B73', grid: '#E5E7EB' };
+const COLORS = { bar: 'rgb(var(--harbor-200))', coral: '#F47B73', grid: '#E5E7EB' };
 
 export interface MonthlyVolumePoint {
   month: string;

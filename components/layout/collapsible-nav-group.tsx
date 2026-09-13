@@ -63,7 +63,7 @@ export function CollapsibleNavGroup({
         aria-expanded={open}
         className={clsx(
           'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
-          isInsideGroup ? 'text-harbor-600' : 'text-ink-700 hover:bg-sand-100 hover:text-ink-900'
+          isInsideGroup ? 'text-sidebar-active-text' : 'text-sidebar-text hover:bg-sidebar-hover'
         )}
       >
         <span className="flex items-center gap-2.5">

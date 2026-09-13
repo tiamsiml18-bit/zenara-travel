@@ -23,7 +23,7 @@ export function NavLink({
       href={href}
       className={clsx(
         'group flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
-        isActive ? 'bg-harbor-100 text-harbor-600' : 'text-ink-700 hover:bg-sand-100 hover:text-ink-900'
+        isActive ? 'bg-sidebar-active text-sidebar-active-text' : 'text-sidebar-text hover:bg-sidebar-hover'
       )}
     >
       <span className="flex items-center gap-2.5">

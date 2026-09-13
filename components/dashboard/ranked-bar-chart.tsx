@@ -2,7 +2,7 @@
 
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-const COLORS = { bar: '#5961C7', grid: '#E5E7EB' };
+const COLORS = { bar: 'rgb(var(--harbor-700))', grid: '#E5E7EB' };
 
 export interface RankedBarDatum {
   label: string;
