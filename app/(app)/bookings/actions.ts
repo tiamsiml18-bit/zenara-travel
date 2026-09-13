@@ -110,3 +110,24 @@ export async function updatePaymentDetailsAction(input: PaymentDetailsInput): Pr
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to update payment details.' };
   }
 }
+
+/**
+ * Delete Selected — mirrors deleteQuotationsAction in
+ * app/(app)/quotations/actions.ts exactly. Soft delete only (sets
+ * deleted_at/deleted_by); never a permanent delete. The booking row and
+ * every related record (payments, client, quotation) are left untouched.
+ */
+export async function deleteBookingsAction(bookingIds: string[]): Promise<ActionResult> {
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  try {
+    await bookingsService.softDeleteBookings(supabase, bookingIds, user.id);
+    revalidatePath('/bookings');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
+    revalidatePath('/sales');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to delete booking(s).' };
+  }
+}

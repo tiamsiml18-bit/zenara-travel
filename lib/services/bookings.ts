@@ -221,3 +221,28 @@ export async function updateBookingStatus(
     await setClientStatusByName(supabase, booking.client_id, 'Cancelled', actingUserId);
   }
 }
+
+/**
+ * Soft delete — mirrors softDeleteQuotations in lib/services/quotations.ts
+ * exactly. Sets deleted_at/deleted_by only; the booking row and every
+ * related record (payments, the client, the quotation) are left completely
+ * untouched. Every existing bookings query already filters
+ * `deleted_at is null` (listBookings, getBookingById, listBookingsByClient,
+ * getBookingForQuotation), and Sales/Reports already do the same on their
+ * own bookings queries — so a soft-deleted booking disappears from all of
+ * those places automatically, with no additional filtering logic needed
+ * here or anywhere else. Never a real `DELETE FROM bookings` — see
+ * database/migrations/0005_bookings_soft_delete.sql, which also removes
+ * the RLS policy that would otherwise reject this exact update.
+ */
+export async function softDeleteBookings(supabase: SupabaseClient, bookingIds: string[], actingUserId: string) {
+  if (bookingIds.length === 0) return;
+  const { error } = await supabase
+    .from('bookings')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: actingUserId })
+    .in('id', bookingIds);
+  if (error) throw new Error(`Failed to delete booking(s): ${error.message}`);
+  for (const id of bookingIds) {
+    await writeAudit(supabase, { userId: actingUserId, action: 'booking.deleted', entityType: 'booking', entityId: id });
+  }
+}
