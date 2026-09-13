@@ -1,9 +1,32 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
-import { UserCircle, Settings, LogOut } from 'lucide-react';
+import { UserCircle, Settings, LogOut, Loader2 } from 'lucide-react';
 import { signOut } from '@/lib/auth/actions';
+
+/**
+ * Separate from ProfileMenu because useFormStatus only reports the
+ * status of the nearest enclosing <form> when called from a component
+ * nested INSIDE that form — calling it directly in ProfileMenu (which
+ * renders the <form> itself, not a descendant of it) would never see
+ * "pending". signOut() itself is untouched; this only adds visual
+ * feedback (disabled + spinner) while that existing action is in flight.
+ */
+function SignOutButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-ink-700 hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} /> : <LogOut className="h-3.5 w-3.5" />}
+      {pending ? 'Signing out…' : 'Sign out'}
+    </button>
+  );
+}
 
 export function ProfileMenu({ isAdmin }: { isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
@@ -40,12 +63,7 @@ export function ProfileMenu({ isAdmin }: { isAdmin: boolean }) {
             </Link>
           )}
           <form action={signOut}>
-            <button
-              type="submit"
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-ink-700 hover:bg-sand-50"
-            >
-              <LogOut className="h-3.5 w-3.5" /> Sign out
-            </button>
+            <SignOutButton />
           </form>
         </div>
       )}
