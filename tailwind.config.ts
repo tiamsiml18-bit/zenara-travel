@@ -1,35 +1,38 @@
 import type { Config } from 'tailwindcss';
 
 // Zenara design tokens
-// Palette: a Warm Ember / Caramel brand identity for a professional
-// travel-operations CRM (color-system revision; Deep Navy + Blue, Teal
-// + Navy, and a brighter teal/Deep-Ocean attempt were all tried and
-// superseded by this version). The four brand anchors sit at
-// meaningful points in the harbor scale: harbor-400 = Caramel (#E9B48A,
-// soft highlights/active backgrounds — placed where the only consumers
-// are focus rings/borders, never body text), harbor-500 = Warm Taupe
-// (#956959, secondary accents), harbor-700 = Deep Brown (#5C352C,
-// PRIMARY — buttons, active states, important numbers), harbor-950 =
-// Dark Espresso (#2A1713, strongest structural tone, also reused
-// directly as ink-900/Primary Text and sidebar-bg). "coral" is used
-// sparingly, for alerts, destructive actions, and one accent highlight
-// only — never a UI-wide color; "sand" is the light warm-neutral
+// Palette: a premium international travel-agency identity — Deep Navy +
+// Ocean Blue + Teal (color-system revision; a Deep Navy + Blue
+// direction, a Teal + Navy direction, a brighter teal/Deep-Ocean
+// attempt, and a Warm Ember/Caramel identity were all tried and
+// superseded by this version). The three brand anchors sit at
+// meaningful points in the harbor scale: harbor-400 = Refined Teal
+// (#2A8C8A, soft highlights/active backgrounds — placed where the only
+// consumers are focus rings/borders, never body text), harbor-500 =
+// Ocean Blue (#176B87, secondary accents), harbor-700 = Deep Navy
+// (#12304A, PRIMARY — buttons, active states, important numbers),
+// harbor-950 = near-black Deep Navy (#07121C, strongest structural
+// tone, used for sidebar-bg — kept distinct from ink-900/Primary Text
+// this time, since the palette specifies separate Primary and Primary
+// Text values). "coral" is used sparingly, for alerts, destructive
+// actions, and one accent highlight only — never a UI-wide color; its
+// value is now a professional muted red (Danger), matching that
+// existing, pre-established role. "sand" is the light warm-neutral
 // background/border family; "ink" is body text.
 //
 // "sidebar" is a small, dedicated family for the one permanently-dark
-// surface in this interface (Dark Espresso #2A1713) — harbor-50/ink-900
-// stay reserved for their existing light-context roles elsewhere in
-// the app (11+ other places use them as light tints/text), so the
-// sidebar's dark surface needed its own tokens rather than repointing
-// shared ones. Same pattern already established by success/warning: a
-// focused family for one specific need, not a second general-purpose
-// system.
+// surface in this interface (near-black Deep Navy #07121C) —
+// harbor-50/ink-900 stay reserved for their existing light-context
+// roles elsewhere in the app (11+ other places use them as light tints/
+// text), so the sidebar's dark surface needed its own tokens rather
+// than repointing shared ones. Same pattern already established by
+// success/warning: a focused family for one specific need, not a
+// second general-purpose system.
 //
-// "success" and "warning" needed no changes: the specified Success
-// (#15803D) and Warning (#B45309) are already exactly Tailwind's
-// green-700/amber-700, which success-700/warning-700 already resolved
-// to from the Phase 1 design-token foundation. Coral is unchanged too —
-// it wasn't named in this palette, so it wasn't touched.
+// "success" and "warning" needed no changes: the existing green-700/
+// amber-700 values already read as "professional, not overly
+// saturated" and "refined amber/gold" respectively, matching what this
+// revision's palette calls for without needing a value change.
 //
 // Dark mode has been removed entirely — there is no .dark CSS-variable
 // block (see globals.css), no theme toggle, and no next-themes

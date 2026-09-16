@@ -2,7 +2,7 @@
 
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-const COLORS = { bar: 'rgb(var(--harbor-200))', coral: '#F47B73', grid: '#E5E7EB' };
+const COLORS = { bar: 'rgb(var(--harbor-200))', accent: '#176B87', grid: '#E5E7EB' };
 
 export interface MonthlyVolumePoint {
   month: string;
@@ -35,7 +35,7 @@ export function MonthlyVolumeChart({ data, title }: { data: MonthlyVolumePoint[]
             contentStyle={{ fontSize: 12, borderRadius: 6, borderColor: COLORS.grid }}
           />
           <Bar dataKey="created" name="Created" fill={COLORS.bar} radius={[3, 3, 0, 0]} />
-          <Line type="monotone" dataKey="confirmed" name="Confirmed" stroke={COLORS.coral} strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="confirmed" name="Confirmed" stroke={COLORS.accent} strokeWidth={2} dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

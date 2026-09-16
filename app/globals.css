@@ -8,42 +8,60 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   /* Light mode — the only mode. Color-system revision: replaces the
-     Deep Navy + Blue B2B SaaS direction with a Warm Ember / Caramel
-     brand identity (a Deep Navy + Blue direction, a Teal + Navy
-     direction, and before that a brighter teal/Deep-Ocean attempt, were
-     all tried and superseded by this version). Every CSS variable NAME
-     is unchanged, so no component elsewhere needed to change; this is a
-     value swap at the token layer only. The four brand anchors are all
-     represented at meaningful points in the harbor scale: harbor-400 =
-     Caramel (#E9B48A, soft highlights/active backgrounds — deliberately
-     placed where the only consumers are focus rings/borders, never body
-     text, since Caramel must not be a text color); harbor-500 = Warm
-     Taupe (#956959, secondary accents); harbor-700 = Deep Brown
-     (#5C352C, PRIMARY — buttons, primary actions, important interactive
-     elements); harbor-950 = Dark Espresso (#2A1713, strongest
-     structural tone, also reused directly as ink-900/Primary Text and
-     sidebar-bg). harbor-600 is a darker Deep Brown hover step,
-     consistent with every earlier revision of this token. success/
-     warning/coral are UNCHANGED — none of them were named in this
-     palette, so none were touched. */
-  --harbor-50: 253 247 242;
-  --harbor-100: 247 231 219;
-  --harbor-200: 240 213 195;
-  --harbor-400: 233 180 138;
-  --harbor-500: 149 105 89;
-  --harbor-600: 74 42 35;
-  --harbor-700: 92 53 44;
-  --harbor-800: 75 42 35;
-  --harbor-900: 58 32 27;
-  --harbor-950: 42 23 19;
+     Warm Ember / Caramel brand identity with a premium international
+     travel-agency palette — Deep Navy + Ocean Blue + Teal, on a warm
+     off-white background with cool-gray borders (a Deep Navy + Blue
+     direction, a Teal + Navy direction, a brighter teal/Deep-Ocean
+     attempt, and the Warm Ember/Caramel identity above were all tried
+     and superseded by this version). Every CSS variable NAME is
+     unchanged, so no component elsewhere needed to change; this is a
+     value swap at the token layer only. The three brand anchors sit at
+     the same meaningful points in the harbor scale the previous
+     revision used: harbor-700 = Deep Navy (#12304A, PRIMARY — buttons,
+     active states, important numbers, sidebar's selected-item
+     background); harbor-500 = Ocean Blue (#176B87, secondary accents,
+     focus-visible outline); harbor-400 = Refined Teal (#2A8C8A, soft
+     highlights/active backgrounds — deliberately placed where the only
+     consumers are focus rings/borders, never body text, matching the
+     previous revision's same constraint on this token). harbor-600/800/
+     900/950 are progressively darker steps of the same Deep Navy hue
+     (600 is the hover step for the harbor-700 primary button — darker
+     than 700, consistent with every earlier revision of this token;
+     950 is the strongest structural tone, used for the sidebar's own
+     background, distinct from ink-900 this time since the palette
+     specifies separate Primary and Primary Text values). sand-50 is the
+     Warm Off-White background (#F8F7F4); sand-200 is the Soft Cool Gray
+     border (#D9E0E5) — both exact palette values, since these are the
+     app's most-used background/border tokens (65 and 92 files
+     respectively). ink-900 is Primary Text (#17212B); ink-500 is
+     Secondary Text/Muted Slate (#667085) — both exact palette values.
+     coral is now a professional muted red for danger/destructive
+     actions (its existing, pre-established role — see tailwind.config.ts
+     — was already "alerts, destructive actions, one accent highlight",
+     never the primary UI accent, so this only replaces its value to
+     match the requested Danger character, not its usage). success/
+     warning are UNCHANGED — the existing green-700/amber-700 values
+     already read as "professional, not overly saturated" and "refined
+     amber/gold" respectively, matching what was requested without
+     needing a value change. */
+  --harbor-50: 243 248 249;    /* #F3F8F9 */
+  --harbor-100: 232 240 243;   /* #E8F0F3 */
+  --harbor-200: 213 228 233;   /* #D5E4E9 */
+  --harbor-400: 42 140 138;    /* #2A8C8A — Refined Teal */
+  --harbor-500: 23 107 135;    /* #176B87 — Ocean Blue */
+  --harbor-600: 14 36 56;      /* #0E2438 — primary button hover (darker than 700) */
+  --harbor-700: 18 48 74;      /* #12304A — Deep Navy, PRIMARY */
+  --harbor-800: 13 35 53;      /* #0D2335 */
+  --harbor-900: 10 26 41;      /* #0A1A29 */
+  --harbor-950: 7 18 28;       /* #07121C */
 
-  --sand-50: 250 249 247;
-  --sand-100: 243 239 235;
-  --sand-200: 231 224 220;
+  --sand-50: 248 247 244;      /* #F8F7F4 — Warm Off-White */
+  --sand-100: 228 232 232;     /* #E4E8E8 */
+  --sand-200: 217 224 229;     /* #D9E0E5 — Soft Cool Gray */
   --surface: 255 255 255;
 
-  --coral-500: 231 111 81;
-  --coral-600: 214 95 63;
+  --coral-500: 179 65 62;      /* #B3413E — professional muted red (danger) */
+  --coral-600: 156 57 54;      /* #9C3936 */
 
   /* success/warning — built from the exact Tailwind green/amber values
      already used ad hoc across the app (see the Phase 1 audit: 15 files
@@ -58,26 +76,34 @@
   --warning-600: 217 119 6;    /* Tailwind amber-600 */
   --warning-700: 180 83 9;     /* Tailwind amber-700 */
 
-  --ink-900: 42 23 19;
-  --ink-700: 75 62 56;
-  --ink-500: 107 98 94;
+  --ink-900: 23 33 43;         /* #17212B — Primary Text */
+  --ink-700: 62 72 88;         /* #3E4858 */
+  --ink-500: 102 112 133;      /* #667085 — Secondary Text/Muted Slate */
 
   /* Sidebar-specific tokens — same dedicated family established when
      the sidebar first became permanently dark; only the values change
-     here. sidebar-bg is exactly Dark Espresso (#2A1713). sidebar-active
-     is exactly Deep Brown (#5C352C) — the same primary-brand color used
-     for buttons elsewhere, so the sidebar's selected state visibly
-     shares the app's primary brand color, per the requested hierarchy
-     ("Deep Brown ... strong selected states where appropriate").
-     sidebar-active-text uses Caramel — its designated "selected/active
-     background... small visual emphasis" role, not body text. */
-  --sidebar-bg: 42 23 19;             /* #2A1713 */
-  --sidebar-hover: 58 32 27;
-  --sidebar-active: 92 53 44;         /* #5C352C */
-  --sidebar-border: 52 30 25;
-  --sidebar-text: 230 220 213;        /* warm off-white — default/inactive nav text */
-  --sidebar-text-muted: 168 151 143;  /* dimmer warm neutral — subtitle/role text */
-  --sidebar-active-text: 233 180 138; /* Caramel — active/selected nav item's text+icon */
+     here. sidebar-bg is a near-black Deep Navy (#07121C, harbor-950) —
+     deliberately darker than sidebar-active so the selected nav item
+     visibly stands out against the surrounding panel, exactly the
+     relationship the previous revision established. sidebar-active is
+     exactly Deep Navy (#12304A, harbor-700) — the same primary-brand
+     color used for buttons elsewhere, so the sidebar's selected state
+     visibly shares the app's primary brand color. sidebar-active-text
+     uses a lightened tint of the Teal accent (#6AAEAD, not the raw
+     #2A8C8A harbor-400 value) specifically because plain harbor-400 on
+     the sidebar-active navy background only reaches ~3.4:1 contrast —
+     below WCAG AA for normal text and a measurable regression from the
+     previous revision's 5.7:1 on this same role. This tint restores
+     ~5.3:1, back in line with that standard, while staying clearly the
+     same teal hue — its designated "selected/active background...
+     small visual emphasis" role, not body text. */
+  --sidebar-bg: 7 18 28;               /* #07121C */
+  --sidebar-hover: 9 24 37;            /* #091825 */
+  --sidebar-active: 18 48 74;          /* #12304A */
+  --sidebar-border: 8 20 31;           /* #08141F */
+  --sidebar-text: 227 237 241;         /* #E3EDF1 — light cool neutral — default/inactive nav text */
+  --sidebar-text-muted: 125 133 151;   /* #7D8597 — dimmer muted slate — subtitle/role text */
+  --sidebar-active-text: 106 174 173;  /* #6AAEAD — lightened Teal tint — active/selected nav item's text+icon */
 }
 
 /* Dark mode has been removed. There is no .dark CSS-variable block, no
