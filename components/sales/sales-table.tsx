@@ -48,7 +48,7 @@ export interface SalesRow {
 }
 
 function formatMoney(n: number) {
-  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
+  return `PHP ${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function formatDate(d: string | null) {
   if (!d) return '—';

@@ -14,7 +14,7 @@ import { listHistoricalSales } from '@/lib/services/historical-sales';
 import { listAgents } from '@/lib/services/lookups';
 
 function formatMoney(n: number) {
-  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
+  return `PHP ${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function formatDate(d: string | null) {
   if (!d) return '—';

@@ -115,7 +115,7 @@ export function HistoricalSaleForm({ initialValues, onClose }: { initialValues?:
             <input type="number" value={values.amountPaid} onChange={(e) => set('amountPaid', Number(e.target.value))} className={inputClass} />
           </Field>
           <Field label="Balance (calculated)">
-            <input readOnly value={`PHP ${Math.round(balance).toLocaleString('en-PH')}`} className={`${inputClass} bg-sand-50 text-ink-500`} />
+            <input readOnly value={`PHP ${balance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} className={`${inputClass} bg-sand-50 text-ink-500`} />
           </Field>
           <Field label="Payment Status">
             <select value={values.paymentStatus} onChange={(e) => set('paymentStatus', e.target.value as HistoricalPaymentStatus)} className={inputClass}>
@@ -145,10 +145,10 @@ export function HistoricalSaleForm({ initialValues, onClose }: { initialValues?:
             <input type="number" value={values.refund} onChange={(e) => set('refund', Number(e.target.value))} className={inputClass} />
           </Field>
           <Field label="Total Cost (calculated)">
-            <input readOnly value={`PHP ${Math.round(totalCost).toLocaleString('en-PH')}`} className={`${inputClass} bg-sand-50 text-ink-500`} />
+            <input readOnly value={`PHP ${totalCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} className={`${inputClass} bg-sand-50 text-ink-500`} />
           </Field>
           <Field label="Net Profit (calculated)">
-            <input readOnly value={`PHP ${Math.round(netProfit).toLocaleString('en-PH')}`} className={`${inputClass} bg-sand-50 text-ink-500`} />
+            <input readOnly value={`PHP ${netProfit.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} className={`${inputClass} bg-sand-50 text-ink-500`} />
           </Field>
           <Field label="Agent">
             <input value={values.agentName} onChange={(e) => set('agentName', e.target.value)} className={inputClass} />

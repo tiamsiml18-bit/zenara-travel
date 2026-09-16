@@ -6,7 +6,7 @@ import { updateRecurringStatusAction } from '@/app/(app)/expenses/actions';
 import { RECURRING_FREQUENCY_LABELS, RECURRING_STATUS_LABELS, type RecurringFrequency, type RecurringStatus } from '@/lib/validation/expenses';
 
 function formatMoney(n: number) {
-  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
+  return `PHP ${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function formatDate(d: string | null) {
   if (!d) return '—';

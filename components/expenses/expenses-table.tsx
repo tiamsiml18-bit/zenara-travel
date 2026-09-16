@@ -9,7 +9,7 @@ import { EXPENSE_PAYMENT_STATUS_LABELS } from '@/lib/validation/expenses';
 import type { ExpenseRow } from '@/lib/services/expenses';
 
 function formatMoney(n: number) {
-  return `PHP ${Math.round(n).toLocaleString('en-PH')}`;
+  return `PHP ${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function formatDate(d: string | null) {
   if (!d) return '—';
