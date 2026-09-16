@@ -50,6 +50,17 @@ export interface SalesRow {
 function formatMoney(n: number) {
   return `PHP ${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+// Display-only formatter for the cost-breakdown columns (Airfare/Hotel/
+// Transfer/Tour/Bank Charge/Refund) — same comma + 2-decimal rule as
+// formatMoney above, but without the "PHP" prefix, matching how these
+// columns have always been displayed (unlike Total Sale/Balance/Total
+// Cost/Net Profit, which do carry the prefix). Never touches the
+// underlying numeric value — CostCell still saves and edits the raw
+// number exactly as before; this only changes what's shown while the
+// cell isn't focused.
+function formatNumber(n: number) {
+  return n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function formatDate(d: string | null) {
   if (!d) return '—';
   return new Date(`${d}T00:00:00`).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -90,10 +101,12 @@ function CostCell({
   onError: (message: string) => void;
 }) {
   const [draft, setDraft] = useState(String(Math.round(value)));
+  const [isFocused, setIsFocused] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function save() {
     const parsed = draft === '' ? 0 : Number(draft);
+    setIsFocused(false);
     if (Number.isNaN(parsed) || parsed === value) return;
     onSaved({ [field]: parsed });
     startTransition(async () => {
@@ -104,8 +117,19 @@ function CostCell({
 
   return (
     <input
-      type="number"
-      value={draft}
+      // Same <input> the whole time — clicking or tabbing in still goes
+      // straight to editing, exactly as before, no extra step. Only the
+      // type/value toggle on focus: unfocused shows the formatted
+      // display text (type="text", since type="number" cannot hold a
+      // comma-formatted string), focused swaps to a genuine
+      // type="number" input holding the raw, editable value — so a
+      // live edit in progress is never a comma-formatted string.
+      type={isFocused ? 'number' : 'text'}
+      value={isFocused ? draft : formatNumber(value)}
+      onFocus={() => {
+        setDraft(String(Math.round(value)));
+        setIsFocused(true);
+      }}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={save}
       disabled={isPending}
