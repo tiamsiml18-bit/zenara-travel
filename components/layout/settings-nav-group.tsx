@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ChevronRight, Settings, SlidersHorizontal, UserRoundCog, CloudUpload, ShieldCheck } from 'lucide-react';
 import { clsx } from 'clsx';
 import { NavLink } from './nav-link';
+import { SidebarTooltip } from './sidebar-tooltip';
 
 const CHILD_ROUTES = ['/admin/settings', '/admin/users', '/admin/import', '/settings/privacy-security'];
 
@@ -34,8 +35,13 @@ const CHILD_ROUTES = ['/admin/settings', '/admin/users', '/admin/import', '/sett
  * plain boolean prop, same as before). Privacy & Security always
  * renders, since every authenticated user needs to reach it, not just
  * admins.
+ *
+ * `sidebarCollapsed` mirrors the same prop on CollapsibleNavGroup — the
+ * whole sidebar's icon-only rail state, not this group's own `open`.
+ * When true, the header shows icon-only with a hover tooltip and the
+ * children lose their indent, but `open`'s logic is untouched.
  */
-export function SettingsNavGroup({ isAdmin }: { isAdmin: boolean }) {
+export function SettingsNavGroup({ isAdmin, sidebarCollapsed = false }: { isAdmin: boolean; sidebarCollapsed?: boolean }) {
   const pathname = usePathname();
   const isInsideGroup = CHILD_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const [open, setOpen] = useState(isInsideGroup);
@@ -45,37 +51,61 @@ export function SettingsNavGroup({ isAdmin }: { isAdmin: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  const header = (
+    <button
+      type="button"
+      onClick={() => setOpen((o) => !o)}
+      aria-expanded={open}
+      aria-label={sidebarCollapsed ? 'Settings' : undefined}
+      className={clsx(
+        'flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        sidebarCollapsed ? 'justify-center' : 'justify-between',
+        isInsideGroup ? 'text-sidebar-active-text' : 'text-sidebar-text hover:bg-sidebar-hover'
+      )}
+    >
+      <span className={clsx('flex items-center', !sidebarCollapsed && 'gap-2.5')}>
+        <Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+        {!sidebarCollapsed && 'Settings'}
+      </span>
+      {!sidebarCollapsed && (
+        <ChevronRight className={clsx('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-90')} strokeWidth={1.75} />
+      )}
+    </button>
+  );
+
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className={clsx(
-          'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors',
-          isInsideGroup ? 'text-sidebar-active-text' : 'text-sidebar-text hover:bg-sidebar-hover'
-        )}
-      >
-        <span className="flex items-center gap-2.5">
-          <Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-          Settings
-        </span>
-        <ChevronRight className={clsx('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-90')} strokeWidth={1.75} />
-      </button>
+      {sidebarCollapsed ? <SidebarTooltip label="Settings">{header}</SidebarTooltip> : header}
 
       {open && (
-        <div className="mt-1 flex flex-col gap-1 pl-4">
+        <div className={clsx('mt-1 flex flex-col gap-1', !sidebarCollapsed && 'pl-4')}>
           {isAdmin && (
             <>
-              <NavLink href="/admin/settings" label="General" icon={<SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-              <NavLink href="/admin/users" label="Users" icon={<UserRoundCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
-              <NavLink href="/admin/import" label="Import clients" icon={<CloudUpload className="h-4 w-4 shrink-0" strokeWidth={1.75} />} />
+              <NavLink
+                href="/admin/settings"
+                label="General"
+                icon={<SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+                collapsed={sidebarCollapsed}
+              />
+              <NavLink
+                href="/admin/users"
+                label="Users"
+                icon={<UserRoundCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+                collapsed={sidebarCollapsed}
+              />
+              <NavLink
+                href="/admin/import"
+                label="Import clients"
+                icon={<CloudUpload className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+                collapsed={sidebarCollapsed}
+              />
             </>
           )}
           <NavLink
             href="/settings/privacy-security"
             label="Privacy & Security"
             icon={<ShieldCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+            collapsed={sidebarCollapsed}
           />
         </div>
       )}
