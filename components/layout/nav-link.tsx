@@ -26,7 +26,7 @@ export function NavLink({
       href={href}
       aria-label={collapsed ? label : undefined}
       className={clsx(
-        'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
         collapsed ? 'justify-center' : 'justify-between',
         isActive ? 'bg-sidebar-active text-sidebar-active-text' : 'text-sidebar-text hover:bg-sidebar-hover'
       )}
