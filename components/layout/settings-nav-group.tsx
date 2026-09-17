@@ -86,18 +86,21 @@ export function SettingsNavGroup({ isAdmin, sidebarCollapsed = false }: { isAdmi
                 label="General"
                 icon={<SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
                 collapsed={sidebarCollapsed}
+                indent
               />
               <NavLink
                 href="/admin/users"
                 label="Users"
                 icon={<UserRoundCog className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
                 collapsed={sidebarCollapsed}
+                indent
               />
               <NavLink
                 href="/admin/import"
                 label="Import clients"
                 icon={<CloudUpload className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
                 collapsed={sidebarCollapsed}
+                indent
               />
             </>
           )}
@@ -106,6 +109,7 @@ export function SettingsNavGroup({ isAdmin, sidebarCollapsed = false }: { isAdmi
             label="Privacy & Security"
             icon={<ShieldCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
             collapsed={sidebarCollapsed}
+            indent
           />
         </div>
       )}

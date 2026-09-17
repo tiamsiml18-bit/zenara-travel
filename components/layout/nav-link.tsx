@@ -11,12 +11,19 @@ export function NavLink({
   icon,
   badge,
   collapsed = false,
+  indent = false,
 }: {
   href: string;
   label: string;
   icon: React.ReactNode;
   badge?: number;
   collapsed?: boolean;
+  // Only meaningful when collapsed — a small rightward shift so a
+  // sub-navigation item (e.g. Sales/Expenses under the Finance group)
+  // reads as a child of its parent group icon rather than a sibling of
+  // it. Top-level items (Dashboard, Reports) never pass this, so their
+  // existing centered alignment is completely untouched.
+  indent?: boolean;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(`${href}/`);
@@ -31,7 +38,7 @@ export function NavLink({
         isActive ? 'bg-sidebar-active text-sidebar-active-text' : 'text-sidebar-text hover:bg-sidebar-hover'
       )}
     >
-      <span className={clsx('flex items-center', !collapsed && 'gap-2.5')}>
+      <span className={clsx('flex items-center', !collapsed && 'gap-2.5', collapsed && indent && 'ml-3.5')}>
         {icon}
         {!collapsed && label}
       </span>

@@ -123,16 +123,17 @@ export function Sidebar({
           childRoutes={['/clients', '/quotations', '/followups', '/bookings']}
           sidebarCollapsed={collapsed}
         >
-          <NavLink href="/clients" label="Clients" icon={<UsersRound className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} />
-          <NavLink href="/quotations" label="Quotations" icon={<FileText className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} />
+          <NavLink href="/clients" label="Clients" icon={<UsersRound className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
+          <NavLink href="/quotations" label="Quotations" icon={<FileText className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
           <NavLink
             href="/followups"
             label="Follow-ups"
             icon={<Bell className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
             badge={followUpsDueCount}
             collapsed={collapsed}
+            indent
           />
-          <NavLink href="/bookings" label="Bookings" icon={<BriefcaseBusiness className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} />
+          <NavLink href="/bookings" label="Bookings" icon={<BriefcaseBusiness className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
         </CollapsibleNavGroup>
 
         <CollapsibleNavGroup
@@ -141,8 +142,8 @@ export function Sidebar({
           childRoutes={['/packages', '/tours']}
           sidebarCollapsed={collapsed}
         >
-          <NavLink href="/packages" label="Packages" icon={<PackageCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} />
-          <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} />
+          <NavLink href="/packages" label="Packages" icon={<PackageCheck className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
+          <NavLink href="/tours" label="Tours" icon={<Map className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
         </CollapsibleNavGroup>
 
         <CollapsibleNavGroup
@@ -151,8 +152,8 @@ export function Sidebar({
           childRoutes={['/sales', '/expenses']}
           sidebarCollapsed={collapsed}
         >
-          <NavLink href="/sales" label="Sales" icon={<TrendingUp className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} />
-          <NavLink href="/expenses" label="Expenses" icon={<Receipt className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} />
+          <NavLink href="/sales" label="Sales" icon={<TrendingUp className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
+          <NavLink href="/expenses" label="Expenses" icon={<Receipt className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
         </CollapsibleNavGroup>
 
         <NavLink
