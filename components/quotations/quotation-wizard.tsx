@@ -287,7 +287,7 @@ export function QuotationWizard({
     destination: initialData?.destination ?? '',
     travelStartDate: initialData?.travelStartDate ?? '',
     travelEndDate: initialData?.travelEndDate ?? '',
-    validUntil: initialData?.validUntil ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    validUntil: initialData?.validUntil ?? defaultValidUntil(),
     numAdults: initialData?.numAdults ?? 2,
     numChildren: initialData?.numChildren ?? 0,
     numSeniors: initialData?.numSeniors ?? 0,
@@ -2697,6 +2697,26 @@ export function QuotationWizard({
       )}
     </div>
   );
+}
+
+// New-quotation default for "Quotation valid until" — 3 calendar days
+// after today's LOCAL date. Deliberately NOT `Date.now() + 3*24*60*60*1000`
+// (the pattern this replaces): that adds milliseconds to the current UTC
+// timestamp, then reads the UTC calendar date back out via
+// toISOString(), which can land on the wrong LOCAL day for anyone ahead
+// of UTC (e.g. Philippines, UTC+8) — e.g. at 2am local on the 20th, UTC
+// is still the 19th, so that approach would compute "3 days after the
+// 19th" instead of "3 days after the 20th" the user is actually seeing.
+// setDate()/getDate() operate on local calendar-date components
+// directly, side-stepping that entirely, and normalize month/year
+// rollovers automatically (e.g. Sep 30 + 3 -> Oct 3).
+function defaultValidUntil(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 3);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
