@@ -336,7 +336,21 @@ export async function getLeadSourceBreakdown(supabase: SupabaseClient, filters: 
   if (!hasAnyFilter(filters)) {
     const { data, error } = await supabase.from('v_lead_source_summary').select('*').order('client_count', { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+
+    // v_lead_source_summary left-joins every client_sources row to
+    // clients regardless of is_active (confirmed directly against the
+    // view's definition — it selects only source_id/source_name/
+    // client_count, with no is_active column at all), so a deactivated
+    // source still produces a row here, even at zero clients. Filtering
+    // that out requires this separate lookup rather than a single query,
+    // since the view itself can't be changed here (that would be a
+    // database schema/migration change) and doesn't expose is_active to
+    // filter on directly.
+    const { data: activeSources, error: sourcesError } = await supabase.from('client_sources').select('id').eq('is_active', true);
+    if (sourcesError) throw new Error(sourcesError.message);
+    const activeSourceIds = new Set((activeSources ?? []).map((s) => s.id));
+
+    return (data ?? []).filter((row) => activeSourceIds.has(row.source_id));
   }
 
   // Filtered view: "clients with at least one quotation matching the
