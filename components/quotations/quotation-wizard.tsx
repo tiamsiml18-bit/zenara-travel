@@ -2935,17 +2935,32 @@ function PriceField({
   onChange: (v: number | '') => void;
   disabled?: boolean;
 }) {
+  // Display-only comma formatting, matching the pattern used elsewhere
+  // in this file (e.g. the CostCell-style approach): the SAME <input>
+  // stays type="number" (raw, editable value, native stepper/validation)
+  // whenever it's focused or empty — comma-formatted text can't be typed
+  // into or parsed by a type="number" input, so the underlying value/
+  // onChange/calculations are completely untouched either way. Only
+  // when blurred with a real value does it briefly become a type="text"
+  // input showing the formatted string, purely for readability. A
+  // disabled field can never receive focus, so it always shows
+  // formatted, which is the desired read-only presentation.
+  const [isFocused, setIsFocused] = useState(false);
+  const showFormatted = !isFocused && value !== '';
+
   return (
     <div>
       <label className="mb-1.5 block text-xs font-medium text-ink-700">{label}</label>
       <div className="relative">
         <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-500">PHP</span>
         <input
-          type="number"
+          type={showFormatted ? 'text' : 'number'}
           min={0}
-          value={value}
+          value={showFormatted ? value.toLocaleString('en-PH', { maximumFractionDigits: 0 }) : value}
           placeholder="0"
           disabled={disabled}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
           className="w-full rounded-md border border-sand-200 py-1.5 pl-9 pr-2 text-sm outline-none ring-harbor-400 focus:ring-2 disabled:cursor-not-allowed disabled:bg-sand-50 disabled:text-ink-500"
         />
