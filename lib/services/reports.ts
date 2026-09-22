@@ -235,15 +235,78 @@ export async function getMonthlyBookingVolume(supabase: SupabaseClient, filters:
   }));
 }
 
+// Top Destinations report grouping ONLY — never persisted, never read
+// anywhere else, and never touches the stored `destination` value on any
+// quotation. An explicit, literal map of known text variants to their
+// approved canonical label, built from actually inspecting the real
+// destination values in production (not guessed): confirmed via direct
+// query that no structured field (package_id, hotel_name) reliably
+// distinguishes these variants from one another, so the only available
+// signal is this deliberately narrow text mapping.
+//
+// This is NOT a general normalization rule (no country-suffix
+// stripping, no lowercase-everything, no substring/fuzzy matching) —
+// each entry is a specific, approved string. Anything not listed here
+// groups exactly as it always has (case-sensitive exact match),
+// including genuinely ambiguous cases like "Hanoi" vs. "Hanoi and Sapa"
+// or "Malaysia" vs. "Kuala Lumpur, Malaysia", which stay separate
+// because merging them was explicitly NOT approved — the real data
+// shows no way to tell those apart reliably (e.g. a "Hanoi"-only trip
+// and a "Hanoi and Sapa" trip can have the identical 4-day duration).
+const DESTINATION_CANONICAL_MAP: Record<string, string> = {
+  boracay: 'Boracay',
+  'boracay, philippines': 'Boracay',
+
+  'da nang': 'Da Nang',
+  danang: 'Da Nang',
+  'da nang, vietnam': 'Da Nang',
+  'danang, vitenam': 'Da Nang', // typo variant seen in production data
+
+  bangkok: 'Bangkok',
+  'bangkok, thailand': 'Bangkok',
+  bkk: 'Bangkok',
+};
+
+/**
+ * Canonicalizes a destination string for Top Destinations report
+ * grouping only. Looks up the trimmed, lowercased value in the explicit
+ * approved map above; anything not found is returned exactly as
+ * entered (still trimmed, but otherwise untouched) so it continues to
+ * group precisely as it did before this change.
+ */
+function canonicalizeDestinationForReport(raw: string): string {
+  const trimmed = raw.trim();
+  return DESTINATION_CANONICAL_MAP[trimmed.toLowerCase()] ?? trimmed;
+}
+
+type DestinationTotals = { quotation_count: number; confirmed_count: number; confirmed_value: number };
+
 export async function getTopDestinations(supabase: SupabaseClient, limit = 8, filters: DashboardFilters = {}) {
   if (!hasAnyFilter(filters)) {
-    const { data, error } = await supabase
-      .from('v_destination_summary')
-      .select('*')
-      .order('quotation_count', { ascending: false })
-      .limit(limit);
+    // No .limit() here deliberately: the view is already pre-aggregated
+    // by raw destination string (one row per distinct string, not per
+    // quotation), so this is a small result set — fetching it in full
+    // and merging approved variants in JS before applying `limit` is
+    // what guarantees a variant that only ranks in the SQL view's top N
+    // by raw string (but would combine into a true top-N group once
+    // merged with its approved variants) is never silently dropped.
+    const { data, error } = await supabase.from('v_destination_summary').select('*');
     if (error) throw new Error(error.message);
-    return data ?? [];
+
+    const merged = new Map<string, DestinationTotals & { label: string }>();
+    for (const row of data ?? []) {
+      const label = canonicalizeDestinationForReport(row.destination);
+      const entry = merged.get(label) ?? { label, quotation_count: 0, confirmed_count: 0, confirmed_value: 0 };
+      entry.quotation_count += Number(row.quotation_count ?? 0);
+      entry.confirmed_count += Number(row.confirmed_count ?? 0);
+      entry.confirmed_value += Number(row.confirmed_value ?? 0);
+      merged.set(label, entry);
+    }
+
+    return Array.from(merged.values())
+      .map(({ label, ...totals }) => ({ destination: label, ...totals }))
+      .sort((a, b) => b.quotation_count - a.quotation_count)
+      .slice(0, limit);
   }
 
   let query = supabase.from('v_quotation_summary').select('destination, status, total_price');
@@ -251,15 +314,16 @@ export async function getTopDestinations(supabase: SupabaseClient, limit = 8, fi
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  const byDestination = new Map<string, { quotation_count: number; confirmed_count: number; confirmed_value: number }>();
+  const byDestination = new Map<string, DestinationTotals>();
   for (const row of data ?? []) {
-    const entry = byDestination.get(row.destination) ?? { quotation_count: 0, confirmed_count: 0, confirmed_value: 0 };
+    const label = canonicalizeDestinationForReport(row.destination);
+    const entry = byDestination.get(label) ?? { quotation_count: 0, confirmed_count: 0, confirmed_value: 0 };
     entry.quotation_count += 1;
     if (['confirmed', 'paid'].includes(row.status)) {
       entry.confirmed_count += 1;
       entry.confirmed_value += Number(row.total_price ?? 0);
     }
-    byDestination.set(row.destination, entry);
+    byDestination.set(label, entry);
   }
 
   return Array.from(byDestination.entries())
