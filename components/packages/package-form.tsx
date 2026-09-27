@@ -17,6 +17,14 @@ export interface PackageFormInitialData {
   defaultNotes: string;
   isActive: boolean;
   packageType: 'all_in' | 'land_arrangement';
+  // Nullable — existing packages saved before this field existed stay
+  // NULL until an admin manually classifies them (no automatic guess).
+  // Required going forward for every new/edited package via the form's
+  // own validation below and the Zod schema server-side. Distinct from
+  // the quotation wizard's "Trip Type" (Round Trip/One Way) — an
+  // unrelated concept that happens to sound similar, which is why this
+  // is named packageCategory, not tripType.
+  packageCategory: 'domestic' | 'international' | null;
   itinerary: ItineraryDayDraft[];
   inclusions: string[];
   exclusions: string[];
@@ -89,6 +97,7 @@ function packageFormInputToInitialData(input: PackageFormInput): PackageFormInit
     defaultNotes: input.defaultNotes ?? '',
     isActive: input.isActive,
     packageType: input.packageType,
+    packageCategory: input.packageCategory,
     itinerary: input.itinerary.map((day) => ({ ...day, dayDate: day.dayDate ?? '', description: day.description ?? '' })),
     inclusions: input.inclusions,
     exclusions: input.exclusions,
@@ -119,6 +128,7 @@ function PackageFormFields({
   const [defaultNotes, setDefaultNotes] = useState(initialData?.defaultNotes ?? '');
   const [isActive, setIsActive] = useState(initialData?.isActive ?? true);
   const [packageType, setPackageType] = useState<'all_in' | 'land_arrangement'>(initialData?.packageType ?? 'all_in');
+  const [packageCategory, setPackageCategory] = useState<'domestic' | 'international' | null>(initialData?.packageCategory ?? null);
   const [itinerary, setItinerary] = useState<ItineraryDayDraft[]>(initialData?.itinerary ?? []);
   const [inclusions, setInclusions] = useState<string[]>(initialData?.inclusions ?? []);
   const [exclusions, setExclusions] = useState<string[]>(initialData?.exclusions ?? []);
@@ -137,6 +147,10 @@ function PackageFormFields({
       setError('Package name and destination are required.');
       return;
     }
+    if (!packageCategory) {
+      setError('Package category (Domestic or International) is required.');
+      return;
+    }
 
     const input: PackageFormInput = {
       name,
@@ -146,6 +160,7 @@ function PackageFormFields({
       defaultNotes,
       isActive,
       packageType,
+      packageCategory,
       itinerary,
       inclusions,
       exclusions,
@@ -242,6 +257,24 @@ function PackageFormFields({
           <p className="mt-1 text-xs text-ink-500">
             When this package is selected in a quotation, the agent's quotation defaults to this type — they can still
             change it for that specific quotation without affecting this package.
+          </p>
+        </div>
+
+        <div className="mt-3">
+          <label className="mb-1.5 block text-sm font-medium text-ink-700">Package category</label>
+          <div className="flex h-[38px] items-center gap-4 rounded-md border border-sand-200 px-3">
+            <label className="flex items-center gap-1.5 text-sm text-ink-700">
+              <input type="radio" checked={packageCategory === 'domestic'} onChange={() => setPackageCategory('domestic')} />
+              Domestic
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-ink-700">
+              <input type="radio" checked={packageCategory === 'international'} onChange={() => setPackageCategory('international')} />
+              International
+            </label>
+          </div>
+          <p className="mt-1 text-xs text-ink-500">
+            Used only to suggest a starting Zenara Markup (Domestic PHP 2,000 / International PHP 5,000) when this
+            package is selected in a quotation — the agent can still change that markup for any specific quotation.
           </p>
         </div>
 

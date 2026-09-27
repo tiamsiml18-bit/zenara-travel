@@ -21,6 +21,16 @@ export const packageFormSchema = z.object({
   // calculation), so this default preserves that behavior for the many
   // packages that don't explicitly set it.
   packageType: z.enum(['all_in', 'land_arrangement']).default('all_in'),
+  // No .default() here, deliberately — unlike packageType above, this is
+  // required for every new/edited package (existing packages saved
+  // before this field existed stay NULL in the database until an admin
+  // manually classifies them; this schema only governs the create/edit
+  // form going forward, it doesn't touch those existing rows). Distinct
+  // from "Trip Type" (Round Trip/One Way) in the quotation wizard's
+  // Flight Details step — a different, unrelated concept that happens
+  // to share a similar-sounding name, which is exactly why this field
+  // is called packageCategory rather than tripType.
+  packageCategory: z.enum(['domestic', 'international'], { required_error: 'Package category is required.' }),
   itinerary: z.array(itineraryDaySchema).default([]),
   inclusions: z.array(z.string().trim().min(1)).default([]),
   exclusions: z.array(z.string().trim().min(1)).default([]),

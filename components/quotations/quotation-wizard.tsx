@@ -40,6 +40,14 @@ import {
   DEFAULT_HOTEL_MARKUP_PCT,
 } from '@/lib/utils/guest-pricing';
 
+// Zenara Markup safety defaults, by Package Category — purely a starting
+// value pre-filled into the (always fully editable) Markup Per Person
+// field, never itself part of any pricing calculation. Not related to
+// the Airfare/Hotel/Transfer markup constants above, which are
+// percentages applied at an earlier, separate calculation stage.
+const DOMESTIC_MARKUP_DEFAULT = 2000;
+const INTERNATIONAL_MARKUP_DEFAULT = 5000;
+
 const PAYMENT_METHOD_LABELS: Record<'credit_card' | 'paypal' | 'none', string> = {
   credit_card: 'Credit Card',
   paypal: 'PayPal',
@@ -280,6 +288,21 @@ export function QuotationWizard({
 
   // Step 2
   const [packageMode, setPackageMode] = useState<'existing' | 'custom' | 'import'>('custom');
+  // Custom/imported quotations have no package_id, so there's no saved
+  // Package Category to read — this transient selector (never persisted
+  // anywhere) lets the agent classify the trip anyway, purely so the
+  // Zenara Markup default below can apply the same way it would for an
+  // Existing Package. Independent of trip.packageType (All-In/Land
+  // Arrangement) and of the quotation wizard's separate "Trip Type"
+  // (Round Trip/One Way) in Flight Details — three different concepts
+  // that happen to use similar-sounding words.
+  const [customPackageCategory, setCustomPackageCategory] = useState<'domestic' | 'international' | null>(null);
+  // Guards the Zenara Markup auto-default below: true the moment the
+  // agent types into Markup directly, OR from the very first render
+  // whenever this quotation already has a saved markup (Edit/Revise/
+  // Duplicate) — both cases mean "this value is spoken for," so package
+  // selection must never touch it again.
+  const [markupTouched, setMarkupTouched] = useState(() => typeof initialData?.markup === 'number');
   const [packageId, setPackageId] = useState('');
 
   // Step 3
@@ -1045,7 +1068,24 @@ export function QuotationWizard({
     setPackageId(id);
     setError(null);
     const pkg = await getPackageDetailsAction(id);
-    setTrip((t) => ({ ...t, destination: pkg.package.destination, packageType: pkg.package.package_type }));
+    // Zenara Markup safety default: only ever fills an UNTOUCHED field
+    // (never overwrites a manual entry — see markupTouched above), and
+    // only when the package actually has a Package Category. An old,
+    // unclassified package (package_category still NULL — see the
+    // investigation this was designed from) intentionally leaves markup
+    // exactly as-is rather than guessing.
+    const markupDefault =
+      !markupTouched && pkg.package.package_category === 'domestic'
+        ? DOMESTIC_MARKUP_DEFAULT
+        : !markupTouched && pkg.package.package_category === 'international'
+          ? INTERNATIONAL_MARKUP_DEFAULT
+          : undefined;
+    setTrip((t) => ({
+      ...t,
+      destination: pkg.package.destination,
+      packageType: pkg.package.package_type,
+      ...(markupDefault !== undefined ? { markup: markupDefault } : {}),
+    }));
     setItinerary(pkg.itinerary as ItineraryDayDraft[]);
     setInclusions(pkg.inclusions);
     setExclusions(pkg.exclusions);
@@ -1733,10 +1773,47 @@ export function QuotationWizard({
             )}
 
             {packageMode === 'custom' && (
-              <p className="text-sm text-ink-500">
-                You'll build the destination, itinerary, inclusions, and exclusions manually in the next steps.
-                This won't modify any existing package template.
-              </p>
+              <div>
+                <p className="text-sm text-ink-500">
+                  You'll build the destination, itinerary, inclusions, and exclusions manually in the next steps.
+                  This won't modify any existing package template.
+                </p>
+                {/* Transient, wizard-only — never saved anywhere. A custom
+                    quotation has no package_id/Package Category to read,
+                    so this exists purely to give the same Zenara Markup
+                    safety default (see handleSelectPackage) to
+                    custom-built quotations too. */}
+                <div className="mt-3 rounded-md border border-sand-200 bg-surface p-3">
+                  <label className="mb-1.5 block text-sm font-medium text-ink-700">Package category</label>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-1.5 text-sm text-ink-700">
+                      <input
+                        type="radio"
+                        checked={customPackageCategory === 'domestic'}
+                        onChange={() => {
+                          setCustomPackageCategory('domestic');
+                          if (!markupTouched) setTrip((t) => ({ ...t, markup: DOMESTIC_MARKUP_DEFAULT }));
+                        }}
+                      />
+                      Domestic
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm text-ink-700">
+                      <input
+                        type="radio"
+                        checked={customPackageCategory === 'international'}
+                        onChange={() => {
+                          setCustomPackageCategory('international');
+                          if (!markupTouched) setTrip((t) => ({ ...t, markup: INTERNATIONAL_MARKUP_DEFAULT }));
+                        }}
+                      />
+                      International
+                    </label>
+                  </div>
+                  <p className="mt-1.5 text-xs text-ink-500">
+                    Used only to suggest a starting Zenara Markup below — optional, and never saved to a package.
+                  </p>
+                </div>
+              </div>
             )}
 
             {packageMode === 'import' && (
@@ -2462,7 +2539,14 @@ export function QuotationWizard({
                   <p className="mb-2 text-xs text-ink-500">
                     One shared amount, entered once — applied identically to every guest type&apos;s Adjusted Package rate.
                   </p>
-                  <PriceField label="Markup Per Person" value={trip.markup} onChange={(v) => setTrip((t) => ({ ...t, markup: v }))} />
+                  <PriceField
+                    label="Markup Per Person"
+                    value={trip.markup}
+                    onChange={(v) => {
+                      setMarkupTouched(true);
+                      setTrip((t) => ({ ...t, markup: v }));
+                    }}
+                  />
                 </div>
 
                 <SummaryBar label="Final Client Rate Per PAX" rates={clientRateMap} counts={guestCounts} tone="final" />
