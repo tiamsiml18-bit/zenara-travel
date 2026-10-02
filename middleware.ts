@@ -4,6 +4,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password', '/privacy'];
 
 export async function middleware(request: NextRequest) {
+  // Vercel Cron invokes these routes server-to-server with an
+  // `Authorization: Bearer <CRON_SECRET>` header, never a browser session
+  // cookie — each cron route handler (app/api/cron/*/route.ts) already
+  // authenticates that header itself and rejects a missing/incorrect
+  // secret with 401. Without this, the session check below would bounce
+  // every real Cron invocation to /login before it ever reached that
+  // check. Scoped to this one prefix only: it does not make /api/* in
+  // general public, and every other route below still requires a session.
+  if (request.nextUrl.pathname.startsWith('/api/cron/')) {
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({ request: { headers: request.headers } });
 
   const supabase = createServerClient(
