@@ -40,6 +40,20 @@ export async function listAgents(supabase: SupabaseClient) {
   return data ?? [];
 }
 
+// Powers the Hotel Name autocomplete in the quotation wizard only — a
+// lightweight read of the existing `hotels` lookup table (added per spec as
+// "lightweight lookup only"). Free-text entry in the wizard is unaffected;
+// this only ever offers suggestions.
+export async function listActiveHotels(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from('hotels')
+    .select('id, name, destination')
+    .eq('is_active', true)
+    .order('name');
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function getAgencySettings(supabase: SupabaseClient) {
   const { data, error } = await supabase.from('agency_settings').select('*').limit(1).single();
   if (error) throw new Error(`Failed to load agency settings: ${error.message}`);

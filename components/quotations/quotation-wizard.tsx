@@ -54,7 +54,21 @@ const PAYMENT_METHOD_LABELS: Record<'credit_card' | 'paypal' | 'none', string> =
   none: 'No Fee',
 };
 
-type Client = { id: string; full_name: string; email: string | null; mobile_number: string | null };
+type Client = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  mobile_number: string | null;
+  // Optional — only ever present on the "New quotation" page's client list
+  // (see app/(app)/quotations/new/page.tsx), which is the only place
+  // handleSelectClient's auto-fill applies. Absent anywhere else (e.g. the
+  // Edit page's client list), so those callers are unaffected.
+  destination?: string | null;
+  travel_start_date?: string | null;
+  travel_end_date?: string | null;
+  num_adults?: number | null;
+  num_children?: number | null;
+};
 type PackageOption = { id: string; name: string; destination: string; num_days: number; num_nights: number };
 type Source = { id: string; name: string };
 
@@ -233,6 +247,7 @@ export function QuotationWizard({
   sources,
   consultants,
   tours = [],
+  hotels = [],
   feePercentages = { creditCard: 0.029, paypal: 0.039 },
   defaultTransferMarkupPct,
   initialClientId,
@@ -247,6 +262,11 @@ export function QuotationWizard({
   sources: Source[];
   consultants: { id: string; full_name: string }[];
   tours?: TourPickerItem[];
+  // Suggestions only, for the Hotel Name field's autocomplete — free-text
+  // entry is always still allowed (see the Hotel section below). Optional
+  // and defaulted to [] so any caller that doesn't pass it (none currently
+  // need updating) simply gets no suggestions, never an error.
+  hotels?: { id: string; name: string; destination: string | null }[];
   // Admin-configurable (agency_settings) — passed in so the wizard's live
   // preview computes the exact same Bank Fee the server will, rather than
   // guessing at a hardcoded percentage.
@@ -285,6 +305,13 @@ export function QuotationWizard({
   // list UI only appears once the agent explicitly asks to change it.
   const [isChangingClient, setIsChangingClient] = useState(false);
   const [newClient, setNewClient] = useState({ fullName: '', mobileNumber: '', email: '', sourceId: '' });
+  // Guards the Client auto-fill below, exactly like markupTouched guards
+  // the Zenara Markup default: true the moment the agent manually edits
+  // Destination, either travel date, or the Adult/Children guest counts —
+  // from then on, selecting a (different) client never touches those
+  // fields again. Only relevant in `create` mode; edit/revise/duplicate
+  // never call handleSelectClient at all.
+  const [clientAutoFillTouched, setClientAutoFillTouched] = useState(false);
 
   // Step 2
   const [packageMode, setPackageMode] = useState<'existing' | 'custom' | 'import'>('custom');
@@ -304,6 +331,12 @@ export function QuotationWizard({
   // selection must never touch it again.
   const [markupTouched, setMarkupTouched] = useState(() => typeof initialData?.markup === 'number');
   const [packageId, setPackageId] = useState('');
+  // Purely informational display next to Destination — num_days/num_nights
+  // were already being fetched (select('*')) in handleSelectPackage below
+  // but previously dropped on the floor. Never written anywhere, never
+  // affects any saved field, cleared whenever a different/no package is
+  // selected so it can't show stale info.
+  const [selectedPackageDuration, setSelectedPackageDuration] = useState<{ numDays: number; numNights: number } | null>(null);
 
   // Step 3
   const [trip, setTrip] = useState({
@@ -1064,6 +1097,31 @@ export function QuotationWizard({
     ? clients.filter((c) => c.full_name.toLowerCase().includes(clientFilter.toLowerCase()))
     : clients;
 
+  /**
+   * Fires when the agent picks an existing client from the list on a
+   * brand-new quotation. Pre-fills Destination, both travel dates, and the
+   * Adult/Children guest counts from that client's own intake record —
+   * never overwriting a manual edit (clientAutoFillTouched), never
+   * guessing a field the client record doesn't have (the `||`/typeof
+   * fallbacks below keep whatever was already in `trip` when the client's
+   * own value is missing), and never touched in edit/revise/duplicate
+   * (mode !== 'create' bails out immediately — those flows pass their own
+   * initialData and must behave exactly as before).
+   */
+  function handleSelectClient(c: Client) {
+    setClientId(c.id);
+    setIsChangingClient(false);
+    if (mode !== 'create' || clientAutoFillTouched) return;
+    setTrip((t) => ({
+      ...t,
+      destination: c.destination || t.destination,
+      travelStartDate: c.travel_start_date || t.travelStartDate,
+      travelEndDate: c.travel_end_date || t.travelEndDate,
+      numAdults: typeof c.num_adults === 'number' ? c.num_adults : t.numAdults,
+      numChildren: typeof c.num_children === 'number' ? c.num_children : t.numChildren,
+    }));
+  }
+
   async function handleSelectPackage(id: string) {
     setPackageId(id);
     setError(null);
@@ -1085,7 +1143,15 @@ export function QuotationWizard({
       destination: pkg.package.destination,
       packageType: pkg.package.package_type,
       ...(markupDefault !== undefined ? { markup: markupDefault } : {}),
+      // default_notes only ever fills a still-empty Notes field — exactly
+      // the same "never overwrite a manual edit" guard as Markup above,
+      // just keyed on emptiness rather than a touched flag, since Notes
+      // has no other default to protect against.
+      ...(!t.notes && pkg.package.default_notes ? { notes: pkg.package.default_notes } : {}),
     }));
+    setSelectedPackageDuration(
+      pkg.package.num_days ? { numDays: pkg.package.num_days, numNights: pkg.package.num_nights ?? 0 } : null
+    );
     setItinerary(pkg.itinerary as ItineraryDayDraft[]);
     setInclusions(pkg.inclusions);
     setExclusions(pkg.exclusions);
@@ -1662,10 +1728,7 @@ export function QuotationWizard({
                     <button
                       key={c.id}
                       type="button"
-                      onClick={() => {
-                        setClientId(c.id);
-                        setIsChangingClient(false);
-                      }}
+                      onClick={() => handleSelectClient(c)}
                       className={clsx(
                         'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-sand-50',
                         clientId === c.id && 'bg-harbor-50'
@@ -1891,12 +1954,25 @@ export function QuotationWizard({
             <LabeledInput
               label="Destination"
               value={trip.destination}
-              onChange={(v) => setTrip((t) => ({ ...t, destination: v }))}
+              onChange={(v) => {
+                setClientAutoFillTouched(true);
+                setTrip((t) => ({ ...t, destination: v }));
+              }}
             />
+            {packageMode === 'existing' && selectedPackageDuration && (
+              <p className="-mt-2 text-xs text-ink-500">
+                Package duration: {selectedPackageDuration.numDays} day{selectedPackageDuration.numDays !== 1 ? 's' : ''} /{' '}
+                {selectedPackageDuration.numNights} night{selectedPackageDuration.numNights !== 1 ? 's' : ''} (from the selected
+                package — travel dates below are entered separately)
+              </p>
+            )}
             <DateRangePicker
               startDate={trip.travelStartDate}
               endDate={trip.travelEndDate}
-              onChange={({ startDate, endDate }) => setTrip((t) => ({ ...t, travelStartDate: startDate, travelEndDate: endDate }))}
+              onChange={({ startDate, endDate }) => {
+                setClientAutoFillTouched(true);
+                setTrip((t) => ({ ...t, travelStartDate: startDate, travelEndDate: endDate }));
+              }}
             />
             <LabeledInput
               label="Quotation valid until"
@@ -1917,13 +1993,19 @@ export function QuotationWizard({
                   label="Adults"
                   type="number"
                   value={String(trip.numAdults)}
-                  onChange={(v) => setTrip((t) => ({ ...t, numAdults: Number(v) }))}
+                  onChange={(v) => {
+                    setClientAutoFillTouched(true);
+                    setTrip((t) => ({ ...t, numAdults: Number(v) }));
+                  }}
                 />
                 <LabeledInput
                   label="Children"
                   type="number"
                   value={String(trip.numChildren)}
-                  onChange={(v) => setTrip((t) => ({ ...t, numChildren: Number(v) }))}
+                  onChange={(v) => {
+                    setClientAutoFillTouched(true);
+                    setTrip((t) => ({ ...t, numChildren: Number(v) }));
+                  }}
                 />
                 <LabeledInput
                   label="Infant / toddler"
@@ -1983,11 +2065,21 @@ export function QuotationWizard({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <LabeledInput
-                label="Hotel name"
-                value={trip.hotelName}
-                onChange={(v) => setTrip((t) => ({ ...t, hotelName: v }))}
-              />
+              <div>
+                <LabeledInput
+                  label="Hotel name"
+                  value={trip.hotelName}
+                  onChange={(v) => setTrip((t) => ({ ...t, hotelName: v }))}
+                  list="hotel-name-suggestions"
+                />
+                {/* Suggestions only (see `hotels` prop note) — typing any
+                    name not in this list is always still accepted as-is. */}
+                <datalist id="hotel-name-suggestions">
+                  {Array.from(new Set(hotels.map((h) => h.name))).map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </div>
               <LabeledInput
                 label="Number of bedrooms"
                 type="number"
@@ -3058,11 +3150,16 @@ function LabeledInput({
   value,
   onChange,
   type = 'text',
+  list,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  // Native HTML5 autocomplete only — the id of a sibling <datalist>.
+  // Offers suggestions on focus/typing but never restricts what can be
+  // typed; omitted entirely, this is identical to before.
+  list?: string;
 }) {
   return (
     <div>
@@ -3071,6 +3168,7 @@ function LabeledInput({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        list={list}
         className="w-full rounded-md border border-sand-200 px-3 py-2 text-sm outline-none ring-harbor-400 focus:ring-2"
       />
     </div>

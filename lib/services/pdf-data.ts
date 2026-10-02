@@ -45,8 +45,15 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
     .single();
   if (vError || !version) throw new Error('Quotation has no version to render.');
 
-  const [{ data: itinerary }, { data: inclusions }, { data: exclusions }, { data: fees }, { data: guestPricing }, { data: flightSegments }] =
-    await Promise.all([
+  const [
+    { data: itinerary },
+    { data: inclusions },
+    { data: exclusions },
+    { data: fees },
+    { data: guestPricing },
+    { data: flightSegments },
+    { data: agency },
+  ] = await Promise.all([
       supabase
         .from('quotation_itinerary_days')
         .select('day_number, title, description, activities')
@@ -77,9 +84,13 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
         .select('airline, flight_number, departure_time, arrival_time, route')
         .eq('quotation_version_id', version.id)
         .order('sort_order'),
+      // Doesn't depend on quotation/version at all (just the one agency-wide
+      // settings row) — previously fetched in a separate sequential request
+      // after this batch; folded in here since nothing here depends on it
+      // either, saving one network round trip per PDF render. Same query,
+      // same data, no change to PDF output.
+      supabase.from('agency_settings').select('*').limit(1).single(),
     ]);
-
-  const { data: agency } = await supabase.from('agency_settings').select('*').limit(1).single();
 
   // Prefer the named consultant selected on the quotation (see
   // agency_consultants) — the agency shares one login across three people,

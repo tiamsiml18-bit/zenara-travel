@@ -4,7 +4,7 @@ import { QuotationWizard } from '@/components/quotations/quotation-wizard';
 import { createClient } from '@/lib/supabase/server';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { listActivePackages } from '@/lib/services/packages';
-import { listClientSources, listConsultants, getAgencySettings } from '@/lib/services/lookups';
+import { listClientSources, listConsultants, getAgencySettings, listActiveHotels } from '@/lib/services/lookups';
 import { listToursForPicker } from '@/lib/services/tours';
 import { requireUser } from '@/lib/auth/session';
 
@@ -23,7 +23,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
     redirect(`/quotations/${id}`);
   }
 
-  const [{ itinerary, inclusions, exclusions, flightSegments, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer }, pricing, packages, sources, consultants, tours, agencySettings] =
+  const [{ itinerary, inclusions, exclusions, flightSegments, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer }, pricing, packages, sources, consultants, tours, agencySettings, hotels] =
     await Promise.all([
       getVersionDetail(supabase, currentVersion.id),
       getPricingForVersion(supabase, currentVersion.id),
@@ -32,6 +32,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
       listConsultants(supabase),
       listToursForPicker(supabase),
       getAgencySettings(supabase),
+      listActiveHotels(supabase),
     ]);
 
   return (
@@ -50,6 +51,7 @@ export default async function ReviseQuotationPage({ params }: { params: Promise<
           sources={sources}
           consultants={consultants}
           tours={tours}
+          hotels={hotels}
           feePercentages={{
             creditCard: agencySettings?.credit_card_fee_pct ?? 0.029,
             paypal: agencySettings?.paypal_fee_pct ?? 0.039,

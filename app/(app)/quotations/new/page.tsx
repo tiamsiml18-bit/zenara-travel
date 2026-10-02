@@ -1,7 +1,7 @@
 import { Topbar } from '@/components/layout/topbar';
 import { QuotationWizard } from '@/components/quotations/quotation-wizard';
 import { createClient } from '@/lib/supabase/server';
-import { listClientSources, listConsultants, getAgencySettings } from '@/lib/services/lookups';
+import { listClientSources, listConsultants, getAgencySettings, listActiveHotels } from '@/lib/services/lookups';
 import { listActivePackages } from '@/lib/services/packages';
 import { listToursForPicker } from '@/lib/services/tours';
 import { requireUser } from '@/lib/auth/session';
@@ -18,10 +18,16 @@ export default async function NewQuotationPage({
   // A capped, recency-ordered list keeps this fast even at 10k+ clients; the
   // wizard's search box filters within it. A fully server-searched combobox
   // is a reasonable upgrade once agent feedback asks for it.
-  const [{ data: clients }, sources, packages, consultants, tours, agencySettings] = await Promise.all([
+  const [{ data: clients }, sources, packages, consultants, tours, agencySettings, hotels] = await Promise.all([
     supabase
       .from('clients')
-      .select('id, full_name, email, mobile_number')
+      // Destination/dates/guest counts are included alongside the existing
+      // columns (no extra query — same single select) purely so a brand-new
+      // quotation can pre-fill those fields from what was already captured
+      // at this client's intake, rather than asking the agent to retype
+      // data the CRM already has. See handleSelectClient in
+      // quotation-wizard.tsx — it only ever fills an untouched field.
+      .select('id, full_name, email, mobile_number, destination, travel_start_date, travel_end_date, num_adults, num_children')
       .is('deleted_at', null)
       .is('merged_into_client_id', null)
       .order('updated_at', { ascending: false })
@@ -31,6 +37,7 @@ export default async function NewQuotationPage({
     listConsultants(supabase),
     listToursForPicker(supabase),
     getAgencySettings(supabase),
+    listActiveHotels(supabase),
   ]);
 
   return (
@@ -43,6 +50,7 @@ export default async function NewQuotationPage({
           sources={sources}
           consultants={consultants}
           tours={tours}
+          hotels={hotels}
           feePercentages={{
             creditCard: agencySettings?.credit_card_fee_pct ?? 0.029,
             paypal: agencySettings?.paypal_fee_pct ?? 0.039,

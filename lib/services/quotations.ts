@@ -611,21 +611,46 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
 async function insertVersionChildren(
   supabase: SupabaseClient,
   versionId: string,
-  input: QuotationDraftInput
+  input: QuotationDraftInput,
+  // Every caller (createDraftQuotation, updateDraftQuotation,
+  // reviseQuotation) already calls computeFullPricing() once of its own,
+  // before this function, to get the numbers it needs for the
+  // quotation_versions row itself. Passing that same result in here means
+  // it's computed exactly once per save instead of twice — same shared
+  // function, same deterministic inputs, so the numbers can never disagree;
+  // this is purely removing a redundant second calculation (and its own
+  // extra agency_settings query) from the hot path.
+  precomputedPricing: Awaited<ReturnType<typeof computeFullPricing>>
 ) {
+  // These 10 writes are each independent — every one only needs the
+  // already-created versionId, none reads another's result, and each goes
+  // to its own table — so they run concurrently instead of one at a time.
+  // Each keeps its own exact insert payload, upsert/insert choice, and
+  // error message exactly as before; Promise.all surfaces the first
+  // rejection it sees, same as the sequential version threw on the first
+  // failing step, so error handling is unchanged. This is purely a
+  // latency fix (fewer round trips end-to-end), not a behavior change.
+  const childWrites: PromiseLike<void>[] = [];
+
   if (input.itinerary.length > 0) {
-    const { error } = await supabase.from('quotation_itinerary_days').insert(
-      input.itinerary.map((d) => ({
-        quotation_version_id: versionId,
-        day_number: d.dayNumber,
-        day_date: d.dayDate || null,
-        title: d.title,
-        description: d.description || null,
-        activities: d.activities,
-        source_tour_id: d.sourceTourId || null,
-      }))
+    childWrites.push(
+      supabase
+        .from('quotation_itinerary_days')
+        .insert(
+          input.itinerary.map((d) => ({
+            quotation_version_id: versionId,
+            day_number: d.dayNumber,
+            day_date: d.dayDate || null,
+            title: d.title,
+            description: d.description || null,
+            activities: d.activities,
+            source_tour_id: d.sourceTourId || null,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save itinerary: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save itinerary: ${error.message}`);
   }
 
   // Each selected Tour's own editable per-person rates for this quotation
@@ -636,21 +661,27 @@ async function insertVersionChildren(
   // first, but an upsert here means a future caller that forgets that
   // step fails safe (overwrites the existing row) instead of throwing.
   if (input.tourPricing.length > 0) {
-    const { error } = await supabase.from('quotation_tour_pricing').upsert(
-      input.tourPricing.map((t, i) => ({
-        quotation_version_id: versionId,
-        source_tour_id: t.sourceTourId || null,
-        tour_name: t.tourName,
-        rate_senior: t.rateSenior ?? null,
-        rate_adult: t.rateAdult ?? null,
-        rate_child: t.rateChild ?? null,
-        rate_infant: t.rateInfant ?? null,
-        rate_pwd: t.ratePwd ?? null,
-        sort_order: i,
-      })),
-      { onConflict: 'quotation_version_id,source_tour_id' }
+    childWrites.push(
+      supabase
+        .from('quotation_tour_pricing')
+        .upsert(
+          input.tourPricing.map((t, i) => ({
+            quotation_version_id: versionId,
+            source_tour_id: t.sourceTourId || null,
+            tour_name: t.tourName,
+            rate_senior: t.rateSenior ?? null,
+            rate_adult: t.rateAdult ?? null,
+            rate_child: t.rateChild ?? null,
+            rate_infant: t.rateInfant ?? null,
+            rate_pwd: t.ratePwd ?? null,
+            sort_order: i,
+          })),
+          { onConflict: 'quotation_version_id,source_tour_id' }
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save tour pricing: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save tour pricing: ${error.message}`);
   }
 
   // Additional Airfare/Hotel/Transfer sections (2, 3, 4...) — plain insert,
@@ -660,112 +691,150 @@ async function insertVersionChildren(
   // deleted the old rows for this version first, so a plain insert here
   // is correct and never risks a duplicate-key error.
   if (input.additionalAirfare.length > 0) {
-    const { error } = await supabase.from('quotation_airfare_items').insert(
-      input.additionalAirfare.map((a, i) => ({
-        quotation_version_id: versionId,
-        label: a.label,
-        rate_senior: a.rateSenior ?? null,
-        rate_adult: a.rateAdult ?? null,
-        rate_child: a.rateChild ?? null,
-        rate_infant: a.rateInfant ?? null,
-        rate_pwd: a.ratePwd ?? null,
-        markup_pct: a.markupPct,
-        markup_enabled: a.markupEnabled,
-        sort_order: i,
-      }))
+    childWrites.push(
+      supabase
+        .from('quotation_airfare_items')
+        .insert(
+          input.additionalAirfare.map((a, i) => ({
+            quotation_version_id: versionId,
+            label: a.label,
+            rate_senior: a.rateSenior ?? null,
+            rate_adult: a.rateAdult ?? null,
+            rate_child: a.rateChild ?? null,
+            rate_infant: a.rateInfant ?? null,
+            rate_pwd: a.ratePwd ?? null,
+            markup_pct: a.markupPct,
+            markup_enabled: a.markupEnabled,
+            sort_order: i,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save additional airfare: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save additional airfare: ${error.message}`);
   }
   if (input.additionalHotel.length > 0) {
-    const { error } = await supabase.from('quotation_hotel_items').insert(
-      input.additionalHotel.map((h, i) => ({
-        quotation_version_id: versionId,
-        label: h.label,
-        // Trusted directly from the submitted value (auto-calculated by
-        // the wizard, but manually editable) — not recomputed
-        // server-side, so a manual per-hotel edit is never silently
-        // overwritten.
-        rate_senior: h.rateSenior,
-        rate_adult: h.rateAdult,
-        rate_child: h.rateChild,
-        rate_infant: 0,
-        rate_pwd: h.ratePwd,
-        total_amount: h.totalAmount,
-        markup_pct: h.markupPct,
-        markup_enabled: h.markupEnabled,
-        sort_order: i,
-      }))
+    childWrites.push(
+      supabase
+        .from('quotation_hotel_items')
+        .insert(
+          input.additionalHotel.map((h, i) => ({
+            quotation_version_id: versionId,
+            label: h.label,
+            // Trusted directly from the submitted value (auto-calculated by
+            // the wizard, but manually editable) — not recomputed
+            // server-side, so a manual per-hotel edit is never silently
+            // overwritten.
+            rate_senior: h.rateSenior,
+            rate_adult: h.rateAdult,
+            rate_child: h.rateChild,
+            rate_infant: 0,
+            rate_pwd: h.ratePwd,
+            total_amount: h.totalAmount,
+            markup_pct: h.markupPct,
+            markup_enabled: h.markupEnabled,
+            sort_order: i,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save additional hotel: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save additional hotel: ${error.message}`);
   }
   if (input.additionalTransfer.length > 0) {
-    const { error } = await supabase.from('quotation_transfer_items').insert(
-      input.additionalTransfer.map((t, i) => ({
-        quotation_version_id: versionId,
-        label: t.label,
-        // Trusted directly from the submitted value (auto-calculated by
-        // the wizard, but manually editable) — not recomputed
-        // server-side, so a manual per-item edit is never silently
-        // overwritten. No rate_infant — Infant/Toddler is never a
-        // paying guest and has no rate field at all.
-        rate_senior: t.rateSenior,
-        rate_adult: t.rateAdult,
-        rate_child: t.rateChild,
-        rate_infant: 0,
-        rate_pwd: t.ratePwd,
-        total_amount: t.totalAmount,
-        markup_pct: t.markupPct,
-        markup_enabled: t.markupEnabled,
-        sort_order: i,
-      }))
+    childWrites.push(
+      supabase
+        .from('quotation_transfer_items')
+        .insert(
+          input.additionalTransfer.map((t, i) => ({
+            quotation_version_id: versionId,
+            label: t.label,
+            // Trusted directly from the submitted value (auto-calculated by
+            // the wizard, but manually editable) — not recomputed
+            // server-side, so a manual per-item edit is never silently
+            // overwritten. No rate_infant — Infant/Toddler is never a
+            // paying guest and has no rate field at all.
+            rate_senior: t.rateSenior,
+            rate_adult: t.rateAdult,
+            rate_child: t.rateChild,
+            rate_infant: 0,
+            rate_pwd: t.ratePwd,
+            total_amount: t.totalAmount,
+            markup_pct: t.markupPct,
+            markup_enabled: t.markupEnabled,
+            sort_order: i,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save additional transfer: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save additional transfer: ${error.message}`);
   }
 
   if (input.inclusions.length > 0) {
-    const { error } = await supabase.from('quotation_inclusions').insert(
-      input.inclusions.map((item, i) => ({ quotation_version_id: versionId, item, sort_order: i }))
+    childWrites.push(
+      supabase
+        .from('quotation_inclusions')
+        .insert(input.inclusions.map((item, i) => ({ quotation_version_id: versionId, item, sort_order: i })))
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save inclusions: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save inclusions: ${error.message}`);
   }
 
   if (input.exclusions.length > 0) {
-    const { error } = await supabase.from('quotation_exclusions').insert(
-      input.exclusions.map((item, i) => ({ quotation_version_id: versionId, item, sort_order: i }))
+    childWrites.push(
+      supabase
+        .from('quotation_exclusions')
+        .insert(input.exclusions.map((item, i) => ({ quotation_version_id: versionId, item, sort_order: i })))
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save exclusions: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save exclusions: ${error.message}`);
   }
 
   if (input.flightSegments.length > 0) {
-    const { error } = await supabase.from('quotation_flight_segments').insert(
-      input.flightSegments.map((f, i) => ({
-        quotation_version_id: versionId,
-        airline: f.airline || '',
-        flight_number: f.flightNumber || '',
-        departure: f.departure || '',
-        arrival: f.arrival || '',
-        departure_time: f.departureTime || '',
-        arrival_time: f.arrivalTime || '',
-        route: f.route || '',
-        sort_order: i,
-      }))
+    childWrites.push(
+      supabase
+        .from('quotation_flight_segments')
+        .insert(
+          input.flightSegments.map((f, i) => ({
+            quotation_version_id: versionId,
+            airline: f.airline || '',
+            flight_number: f.flightNumber || '',
+            departure: f.departure || '',
+            arrival: f.arrival || '',
+            departure_time: f.departureTime || '',
+            arrival_time: f.arrivalTime || '',
+            route: f.route || '',
+            sort_order: i,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save flight details: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save flight details: ${error.message}`);
   }
 
   // Client-facing additional fees / taxes — a separate table from
   // quotation_items (internal cost breakdown) since one is meant to be shown
   // to the client (via the PDF) and the other must never be.
   if (input.feeItems.length > 0) {
-    const { error } = await supabase.from('quotation_fees').insert(
-      input.feeItems.map((item, i) => ({
-        quotation_version_id: versionId,
-        label: item.label,
-        amount: item.amount,
-        sort_order: i,
-      }))
+    childWrites.push(
+      supabase
+        .from('quotation_fees')
+        .insert(
+          input.feeItems.map((item, i) => ({
+            quotation_version_id: versionId,
+            label: item.label,
+            amount: item.amount,
+            sort_order: i,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save additional fees: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save additional fees: ${error.message}`);
   }
 
   // "Other Supplier Costs" — reserved for genuinely additional costs
@@ -775,21 +844,29 @@ async function insertVersionChildren(
   // client-facing query (see quotation_pricing_internal's isolation note
   // below for the same guarantee on the summed total).
   if (input.costItems.length > 0) {
-    const { error } = await supabase.from('quotation_items').insert(
-      input.costItems.map((item, i) => ({
-        quotation_version_id: versionId,
-        label: item.label,
-        rate_senior: item.rateSenior ?? null,
-        rate_adult: item.rateAdult ?? null,
-        rate_child: item.rateChild ?? null,
-        rate_infant: item.rateInfant ?? null,
-        rate_pwd: item.ratePwd ?? null,
-        quantity: 1,
-        sort_order: i,
-      }))
+    childWrites.push(
+      supabase
+        .from('quotation_items')
+        .insert(
+          input.costItems.map((item, i) => ({
+            quotation_version_id: versionId,
+            label: item.label,
+            rate_senior: item.rateSenior ?? null,
+            rate_adult: item.rateAdult ?? null,
+            rate_child: item.rateChild ?? null,
+            rate_infant: item.rateInfant ?? null,
+            rate_pwd: item.ratePwd ?? null,
+            quantity: 1,
+            sort_order: i,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) throw new Error(`Failed to save cost breakdown: ${error.message}`);
+        })
     );
-    if (error) throw new Error(`Failed to save cost breakdown: ${error.message}`);
   }
+
+  await Promise.all(childWrites);
 
   // ==========================================================================
   // Pricing — replicates the agency's Excel quotation formula chain exactly
@@ -797,9 +874,8 @@ async function insertVersionChildren(
   // computeFullPricing() above — the single calculation path shared with the
   // quotation_versions row itself, so the two can never disagree.
   // ==========================================================================
-  const { counts, clientRates, tourSupplierRates, supplierCost } = await computeFullPricing(supabase, input);
+  const { counts, clientRates, tourSupplierRates, supplierCost, totalPrice } = precomputedPricing;
   const active = activeGuestTypes(counts);
-  const totalPrice = calculateTotalPrice(counts, clientRates);
 
   if (active.length > 0) {
     const { error: guestPricingError } = await supabase.from('quotation_guest_pricing').insert(
@@ -915,7 +991,10 @@ export async function updateDraftQuotation(
 
   const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
-  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = await computeFullPricing(supabase, input);
+  // Computed once here and reused by insertVersionChildren below — see the
+  // comment on insertVersionChildren's precomputedPricing parameter.
+  const pricingResult = await computeFullPricing(supabase, input);
+  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = pricingResult;
 
   const { error: quotationUpdateError } = await supabase
     .from('quotations')
@@ -976,7 +1055,7 @@ export async function updateDraftQuotation(
   ]);
   await supabase.from('quotation_pricing_internal').delete().eq('quotation_version_id', versionId);
 
-  await insertVersionChildren(supabase, versionId, input);
+  await insertVersionChildren(supabase, versionId, input, pricingResult);
 
   await writeAudit(supabase, {
     userId: actingUserId,
@@ -1025,8 +1104,10 @@ export async function createDraftQuotation(
   // Computed here (not read from the request) so the version row's
   // total_price is never anything the agent typed — see
   // lib/utils/guest-pricing.ts for the one formula this and
-  // insertVersionChildren() both use.
-  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = await computeFullPricing(supabase, input);
+  // insertVersionChildren() both use. Computed exactly once and reused by
+  // insertVersionChildren below (see its precomputedPricing parameter).
+  const pricingResult = await computeFullPricing(supabase, input);
+  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = pricingResult;
 
   try {
     const { data: version, error: vError } = await supabase
@@ -1065,7 +1146,7 @@ export async function createDraftQuotation(
       .single();
     if (vError || !version) throw new Error(`Failed to create quotation version: ${vError?.message}`);
 
-    await insertVersionChildren(supabase, version.id, input);
+    await insertVersionChildren(supabase, version.id, input, pricingResult);
 
     const { error: linkError } = await supabase
       .from('quotations')
@@ -1182,7 +1263,10 @@ export async function reviseQuotation(
   const { data: client } = await supabase.from('clients').select('full_name').eq('id', quotation.client_id).single();
   const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
-  const { clientRates: revisedClientRates, totalPrice: revisedTotalPrice } = await computeFullPricing(supabase, input);
+  // Computed exactly once and reused by insertVersionChildren below (see
+  // its precomputedPricing parameter).
+  const pricingResult = await computeFullPricing(supabase, input);
+  const { clientRates: revisedClientRates, totalPrice: revisedTotalPrice } = pricingResult;
 
   const { data: version, error: vError } = await supabase
     .from('quotation_versions')
@@ -1215,7 +1299,7 @@ export async function reviseQuotation(
     .single();
   if (vError || !version) throw new Error(`Failed to create revision: ${vError?.message}`);
 
-  await insertVersionChildren(supabase, version.id, input);
+  await insertVersionChildren(supabase, version.id, input, pricingResult);
 
   await supabase
     .from('quotations')
@@ -1468,14 +1552,15 @@ export async function duplicateQuotation(
   actingUserId: string,
   overrides?: { clientId?: string; travelStartDate?: string; travelEndDate?: string }
 ) {
-  const { currentVersion } = await getQuotationById(supabase, sourceQuotationId);
+  // Reused for both the version lookup below and sourceQuotation further
+  // down — previously fetched twice (identical call, same sourceQuotationId,
+  // nothing changes in between), now fetched once.
+  const { quotation: sourceQuotation, currentVersion } = await getQuotationById(supabase, sourceQuotationId);
   if (!currentVersion) throw new Error('Source quotation has no version to duplicate.');
 
   const { itinerary, inclusions, exclusions, flightSegments, costItems, feeItems, guestRates, tourPricing, additionalAirfare, additionalHotel, additionalTransfer } =
     await getVersionDetail(supabase, currentVersion.id);
   const pricing = await getPricingForVersion(supabase, currentVersion.id);
-
-  const { quotation: sourceQuotation } = await getQuotationById(supabase, sourceQuotationId);
 
   const input: QuotationDraftInput = {
     clientId: overrides?.clientId ?? sourceQuotation.client_id,
