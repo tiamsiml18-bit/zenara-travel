@@ -38,6 +38,12 @@ const TONE_BY_STATUS: Record<string, string> = {
   Active: 'bg-harbor-100 text-harbor-700',
   Inactive: 'bg-sand-100 text-ink-500',
   Archived: 'bg-sand-100 text-ink-500',
+
+  // Detailed Itinerary status workflow (draft/sent already covered above,
+  // shared with Quotation Status — reused here rather than redefined).
+  ready_for_review: 'bg-warning-100 text-warning-700',
+  approved: 'bg-success-100 text-success-700',
+  updated: 'bg-coral-500/10 text-coral-600',
 };
 
 export function StatusBadge({ label }: { label: string }) {

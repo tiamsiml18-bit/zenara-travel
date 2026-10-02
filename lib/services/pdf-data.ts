@@ -196,3 +196,124 @@ export async function getQuotationPdfData(supabase: SupabaseClient, quotationId:
 }
 
 export type QuotationPdfData = Awaited<ReturnType<typeof getQuotationPdfData>>;
+
+// ============================================================================
+// Detailed Itinerary PDF data — a completely separate document from the
+// quotation PDF above. Shares only the agency_settings lookup (logo,
+// contact info, footer defaults); everything else is read through
+// getInheritedQuotationData() (bookings.quotation_version_id, never
+// quotations.current_version_id) plus the itinerary's own operational
+// tables. Nothing here is ever reused by, or shared with, the quotation
+// PDF's render path.
+// ============================================================================
+import { getInheritedQuotationData } from './detailed-itineraries';
+
+export async function getDetailedItineraryPdfData(supabase: SupabaseClient, detailedItineraryId: string) {
+  const { data: parent, error } = await supabase
+    .from('detailed_itineraries')
+    .select(
+      `id, booking_id, status, sent_at,
+       airport_instructions, contact_instructions, important_reminders, guide_instructions,
+       hotel_address, hotel_phone, hotel_checkin_info, hotel_confirmation_number, hotel_booking_number, hotel_pin,
+       custom_notes`
+    )
+    .eq('id', detailedItineraryId)
+    .single();
+  if (error || !parent) throw new Error('Detailed itinerary not found.');
+
+  const [inherited, { data: flightDetails }, { data: dailyDetails }, { data: transfers }, { data: agency }] = await Promise.all([
+    getInheritedQuotationData(supabase, parent.booking_id as string),
+    supabase
+      .from('detailed_itinerary_flight_details')
+      .select('quotation_flight_segment_id, booking_reference, terminal, special_instructions')
+      .eq('detailed_itinerary_id', detailedItineraryId),
+    supabase
+      .from('detailed_itinerary_daily_details')
+      .select('quotation_itinerary_day_id, pickup_time, meeting_point, meals, free_time, operational_notes')
+      .eq('detailed_itinerary_id', detailedItineraryId),
+    supabase
+      .from('detailed_itinerary_transfers')
+      .select('pickup_location, pickup_time, driver_guide_name, contact_number, meeting_point, vehicle_info')
+      .eq('detailed_itinerary_id', detailedItineraryId)
+      .order('sort_order'),
+    supabase.from('agency_settings').select('*').limit(1).single(),
+  ]);
+
+  const flightDetailBySegmentId = new Map((flightDetails ?? []).map((f) => [f.quotation_flight_segment_id as string, f]));
+  const dailyDetailByDayId = new Map((dailyDetails ?? []).map((d) => [d.quotation_itinerary_day_id as string, d]));
+
+  return {
+    status: parent.status as string,
+    sentAt: parent.sent_at as string | null,
+    bookingNumber: inherited.booking.bookingNumber,
+    quotationNumber: inherited.quotationNumber,
+    packageName: inherited.packageName,
+    client: inherited.client,
+    consultant: inherited.consultant,
+    trip: inherited.trip,
+    // Day-by-day, each inherited quotation day merged with its optional
+    // operational overlay — never duplicated, read live and joined here.
+    itinerary: inherited.itinerary.map((day) => {
+      const detail = dailyDetailByDayId.get(day.id);
+      return {
+        dayNumber: day.dayNumber,
+        dayDate: day.dayDate,
+        title: day.title,
+        description: day.description,
+        activities: day.activities,
+        pickupTime: (detail?.pickup_time as string | null) ?? null,
+        meetingPoint: (detail?.meeting_point as string | null) ?? null,
+        meals: (detail?.meals as string | null) ?? null,
+        freeTime: (detail?.free_time as string | null) ?? null,
+        operationalNotes: (detail?.operational_notes as string | null) ?? null,
+      };
+    }),
+    flightSegments: inherited.flightSegments.map((seg) => {
+      const detail = flightDetailBySegmentId.get(seg.id);
+      return {
+        airline: seg.airline,
+        flightNumber: seg.flightNumber,
+        departureTime: seg.departureTime,
+        arrivalTime: seg.arrivalTime,
+        route: seg.route,
+        bookingReference: (detail?.booking_reference as string | null) ?? null,
+        terminal: (detail?.terminal as string | null) ?? null,
+        specialInstructions: (detail?.special_instructions as string | null) ?? null,
+      };
+    }),
+    hotel: {
+      name: inherited.trip.hotelName,
+      address: parent.hotel_address as string | null,
+      phone: parent.hotel_phone as string | null,
+      checkinInfo: parent.hotel_checkin_info as string | null,
+      confirmationNumber: parent.hotel_confirmation_number as string | null,
+      bookingNumber: parent.hotel_booking_number as string | null,
+      pin: parent.hotel_pin as string | null,
+    },
+    travelReminders: {
+      airportInstructions: parent.airport_instructions as string | null,
+      contactInstructions: parent.contact_instructions as string | null,
+      importantReminders: parent.important_reminders as string | null,
+      guideInstructions: parent.guide_instructions as string | null,
+    },
+    transfers: (transfers ?? []).map((t) => ({
+      pickupLocation: t.pickup_location as string | null,
+      pickupTime: t.pickup_time as string | null,
+      driverGuideName: t.driver_guide_name as string | null,
+      contactNumber: t.contact_number as string | null,
+      meetingPoint: t.meeting_point as string | null,
+      vehicleInfo: t.vehicle_info as string | null,
+    })),
+    customNotes: parent.custom_notes as string | null,
+    agency: {
+      name: agency?.agency_name ?? 'Zenara Travel and Tours',
+      logoUrl: agency?.logo_url ?? null,
+      phone: agency?.phone ?? null,
+      email: agency?.email ?? null,
+      whatsapp: agency?.whatsapp ?? null,
+      website: agency?.website ?? null,
+    },
+  };
+}
+
+export type DetailedItineraryPdfData = Awaited<ReturnType<typeof getDetailedItineraryPdfData>>;

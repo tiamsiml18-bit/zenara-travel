@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Bell,
   BriefcaseBusiness,
+  ClipboardList,
   Package,
   PackageCheck,
   Map,
@@ -120,7 +121,7 @@ export function Sidebar({
         <CollapsibleNavGroup
           label="Pipeline"
           icon={<GitBranch className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
-          childRoutes={['/clients', '/quotations', '/followups', '/bookings']}
+          childRoutes={['/clients', '/quotations', '/followups', '/bookings', '/detailed-itineraries']}
           sidebarCollapsed={collapsed}
         >
           <NavLink href="/clients" label="Clients" icon={<UsersRound className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
@@ -134,6 +135,13 @@ export function Sidebar({
             indent
           />
           <NavLink href="/bookings" label="Bookings" icon={<BriefcaseBusiness className="h-4 w-4 shrink-0" strokeWidth={1.75} />} collapsed={collapsed} indent />
+          <NavLink
+            href="/detailed-itineraries"
+            label="Detailed Itineraries"
+            icon={<ClipboardList className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
+            collapsed={collapsed}
+            indent
+          />
         </CollapsibleNavGroup>
 
         <CollapsibleNavGroup
