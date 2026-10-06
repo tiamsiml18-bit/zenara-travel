@@ -8,6 +8,7 @@ import { ArchiveClientButton } from '@/components/clients/archive-client-button'
 import { createClient } from '@/lib/supabase/server';
 import { getClientById, getClientTimeline, getClientNotes } from '@/lib/services/clients';
 import { listQuotationsByClient } from '@/lib/services/quotations';
+import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeline';
 import { addClientNoteAction } from '../actions';
 import { requireUser } from '@/lib/auth/session';
 
@@ -114,7 +115,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
                           <p className="text-xs text-ink-500">{q.current_version?.destination}</p>
                         </div>
                         <div className="text-right">
-                          <StatusBadge label={q.status} />
+                          <StatusBadge label={q.status ? PIPELINE_STAGE_LABELS[q.status as PipelineStage] : 'Draft'} />
                           <p className="mt-0.5 font-ticket text-xs text-ink-500">
                             {formatMoney(q.current_version?.total_price)}
                           </p>

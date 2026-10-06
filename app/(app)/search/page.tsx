@@ -3,6 +3,7 @@ import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
+import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeline';
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   await requireUser();
@@ -75,7 +76,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                       {qt.client?.full_name} · {qt.current_version?.destination ?? 'No destination set'}
                     </p>
                   </div>
-                  <StatusBadge label={qt.status} />
+                  <StatusBadge label={qt.status ? PIPELINE_STAGE_LABELS[qt.status as PipelineStage] : 'Draft'} />
                 </Link>
               ))}
             </div>
