@@ -2,6 +2,9 @@ import { Document, Page, Text, View, StyleSheet, Image, Link } from '@react-pdf/
 import type { QuotationPdfData } from '@/lib/services/pdf-data';
 import { ZENARA_LOGO_DATA_URI } from './zenara-logo';
 import { GUEST_TYPE_LABELS } from '@/lib/utils/guest-pricing';
+import { BIR_BADGE_DATA_URI, BIR_BADGE_ASPECT_RATIO } from './bir-badge';
+
+const BIR_BADGE_WIDTH = 200;
 
 // Harbor/sand palette, matched to the app's design tokens, rendered as flat
 // hex since @react-pdf/renderer doesn't read CSS variables.
@@ -196,6 +199,16 @@ const styles = StyleSheet.create({
   },
   termsLink: { fontSize: 9.5, color: COLORS.harbor700, textDecoration: 'underline' },
   termsAcknowledgment: { fontSize: 9, color: COLORS.ink500, fontStyle: 'italic', lineHeight: 1.4 },
+
+  // BIR Registration Seal: small, centered, true aspect ratio (never stretched).
+  // marginBottom is deliberately negative: the page reserves 46pt at the
+  // bottom for the fixed footer, but the footer itself is only ~30pt tall,
+  // leaving a ~16pt empty strip above it. Letting the seal use up to 10pt
+  // of that strip (still ~6pt clear of the footer) means it fits on the
+  // last page in cases where it otherwise would have been pushed onto an
+  // extra page, without shrinking it or touching any other content.
+  birBadgeWrap: { marginTop: 14, marginBottom: -10, alignItems: 'center' },
+  birBadge: { width: BIR_BADGE_WIDTH, height: BIR_BADGE_WIDTH / BIR_BADGE_ASPECT_RATIO },
 
   footer: {
     position: 'absolute',
@@ -507,10 +520,26 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
               View Full Terms and Conditions
             </Link>
 
-            <Text style={[styles.termsAcknowledgment, { marginTop: 8 }]}>
-              By confirming the booking, the client acknowledges and agrees to Zenara Travel and Tours&apos; full Terms and
-              Conditions.
-            </Text>
+            {/* The acknowledgment line and the BIR Registration Seal are one
+                unbreakable unit and the very last thing in the normal flow,
+                so the seal lands on whichever page actually ends up being
+                the final one (1, 2, 3+ pages) -- no page number is
+                hardcoded. It is in-flow (never absolutely positioned) so it
+                cannot overlap other content, and not `fixed`, so it never
+                repeats on earlier pages. Grouping it with the acknowledgment
+                means that if the last page is too full for the seal, the
+                seal is carried onto the next page together with that line
+                rather than stranded alone. Size comes from the image's true
+                aspect ratio, so it is never stretched. */}
+            <View wrap={false}>
+              <Text style={[styles.termsAcknowledgment, { marginTop: 8 }]}>
+                By confirming the booking, the client acknowledges and agrees to Zenara Travel and Tours&apos; full Terms and
+                Conditions.
+              </Text>
+              <View style={styles.birBadgeWrap}>
+                <Image src={BIR_BADGE_DATA_URI} style={styles.birBadge} />
+              </View>
+            </View>
           </View>
         </View>
 
