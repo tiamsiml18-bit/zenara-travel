@@ -159,6 +159,7 @@ interface FlightSegmentState {
 export interface QuotationWizardInitialData {
   clientId: string;
   clientLabel: string;
+  packageId?: string;
   destination: string;
   packageType?: 'all_in' | 'land_arrangement' | null;
   travelStartDate: string;
@@ -314,7 +315,7 @@ export function QuotationWizard({
   const [clientAutoFillTouched, setClientAutoFillTouched] = useState(false);
 
   // Step 2
-  const [packageMode, setPackageMode] = useState<'existing' | 'custom' | 'import'>('custom');
+  const [packageMode, setPackageMode] = useState<'existing' | 'custom' | 'import'>(initialData?.packageId ? 'existing' : 'custom');
   // Custom/imported quotations have no package_id, so there's no saved
   // Package Category to read — this transient selector (never persisted
   // anywhere) lets the agent classify the trip anyway, purely so the
@@ -330,7 +331,7 @@ export function QuotationWizard({
   // Duplicate) — both cases mean "this value is spoken for," so package
   // selection must never touch it again.
   const [markupTouched, setMarkupTouched] = useState(() => typeof initialData?.markup === 'number');
-  const [packageId, setPackageId] = useState('');
+  const [packageId, setPackageId] = useState(initialData?.packageId ?? '');
   // Purely informational display next to Destination — num_days/num_nights
   // were already being fetched (select('*')) in handleSelectPackage below
   // but previously dropped on the floor. Never written anywhere, never

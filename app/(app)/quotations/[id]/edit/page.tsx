@@ -81,6 +81,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
           initialData={{
             clientId: quotation.client_id,
             clientLabel: quotation.client?.full_name ?? '',
+            packageId: quotation.package_id ?? '',
             destination: currentVersion.destination,
             packageType: currentVersion.package_type,
             travelStartDate: currentVersion.travel_start_date,
