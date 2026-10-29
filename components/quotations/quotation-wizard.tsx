@@ -20,6 +20,7 @@ import {
 import { quickCreateClientAction } from '@/app/(app)/clients/actions';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { QuotationDraftInput, CostItemInput, OtherSupplierCostItemInput } from '@/lib/validation/quotation';
+import { quotationDraftSchema } from '@/lib/validation/quotation';
 import {
   GUEST_TYPES,
   GUEST_TYPE_DISPLAY_ORDER,
@@ -1349,17 +1350,58 @@ export function QuotationWizard({
   const buildDraftInputRef = useRef<() => QuotationDraftInput>();
   buildDraftInputRef.current = buildDraftInput;
 
+  // Create-mode autosave (new quotations only). It never saves anything the
+  // normal step-by-step wizard would not already let the agent save: the
+  // draft must satisfy the same requirements canAdvance() enforces for the
+  // client / package / trip-details steps (including a computed total above
+  // zero) AND pass the exact same quotationDraftSchema the server action
+  // validates with. Until then nothing is saved and no status is shown.
+  // These values are mirrored into refs on every render for the same
+  // stale-closure reason as buildDraftInputRef above.
+  const createReadyNow =
+    mode === 'create' &&
+    Boolean(clientId) &&
+    (packageMode === 'custom' || Boolean(packageId)) &&
+    trip.packageType !== null &&
+    Boolean(trip.destination && trip.travelStartDate && trip.travelEndDate) &&
+    trip.numAdults > 0 &&
+    computedTotalPrice > 0;
+  const createReadyRef = useRef(false);
+  createReadyRef.current = createReadyNow;
+  // The quotation created by this session's first autosave. Every later save
+  // (autosave or the final "Save draft" click) updates THIS quotation in
+  // place — it must never create a second one.
+  const createdQuotationIdRef = useRef<string | null>(null);
+  // The currently running autosave chain (including any queued re-run), so
+  // the final "Save draft" click can wait for it instead of racing it.
+  const savePromiseRef = useRef<Promise<void> | null>(null);
+
   async function performAutosave() {
     isSavingRef.current = true;
-    setSaveStatus('saving');
+    if (mode !== 'create') setSaveStatus('saving');
     try {
       const input = buildDraftInputRef.current!();
+      if (mode === 'create') {
+        if (!createReadyRef.current || !quotationDraftSchema.safeParse(input).success) {
+          setSaveStatus('idle');
+          return;
+        }
+        setSaveStatus('saving');
+      }
       const result =
         mode === 'revise' && !hasCreatedRevisionRef.current
           ? await reviseQuotationAction(quotationId!, input)
-          : await updateDraftQuotationAction(quotationId!, input);
+          : mode === 'create'
+            ? createdQuotationIdRef.current
+              ? await updateDraftQuotationAction(createdQuotationIdRef.current, input)
+              : await createQuotationDraftAction(input)
+            : await updateDraftQuotationAction(quotationId!, input);
       if (result.ok) {
         if (mode === 'revise') hasCreatedRevisionRef.current = true;
+        if (mode === 'create') {
+          createdQuotationIdRef.current = result.quotationId;
+          setError(null);
+        }
         setSaveStatus('saved');
       } else {
         setSaveStatus('error');
@@ -1391,7 +1433,7 @@ export function QuotationWizard({
   }
 
   useEffect(() => {
-    if (!isSinglePageMode || !quotationId) return;
+    if (!((isSinglePageMode && quotationId) || mode === 'create')) return;
     // Computed inside the effect — so it only ever runs when one of the
     // dependencies below has actually changed reference, not on every
     // render of the wizard (e.g. toggling "Show internal pricing",
@@ -1414,7 +1456,7 @@ export function QuotationWizard({
     if (snapshot === baselineSnapshotRef.current) return;
     baselineSnapshotRef.current = snapshot;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    setSaveStatus('saving');
+    if (mode !== 'create') setSaveStatus('saving');
     autosaveTimerRef.current = setTimeout(() => {
       if (isSavingRef.current) {
         // A previous save's network round-trip hasn't finished yet —
@@ -1425,7 +1467,7 @@ export function QuotationWizard({
         pendingSaveRef.current = true;
         return;
       }
-      void performAutosave();
+      savePromiseRef.current = performAutosave();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, 1500);
     return () => {
@@ -1606,12 +1648,27 @@ export function QuotationWizard({
     }
 
     startTransition(async () => {
+      if (mode === 'create') {
+        // Never race an autosave: drop any not-yet-fired debounce / queued
+        // re-run (this click saves the latest input itself) and wait for a
+        // request already in flight, so its quotation id is known and this
+        // save updates that quotation instead of creating a second one.
+        if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+        pendingSaveRef.current = false;
+        try {
+          await savePromiseRef.current;
+        } catch {
+          // performAutosave never rejects (it catches internally); defensive only.
+        }
+      }
       const result =
         mode === 'revise' && quotationId
           ? await reviseQuotationAction(quotationId, input)
           : mode === 'edit' && quotationId
             ? await updateDraftQuotationAction(quotationId, input)
-            : await createQuotationDraftAction(input);
+            : mode === 'create' && createdQuotationIdRef.current
+              ? await updateDraftQuotationAction(createdQuotationIdRef.current, input)
+              : await createQuotationDraftAction(input);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -1647,6 +1704,13 @@ export function QuotationWizard({
             </button>
           </div>
         </div>
+      )}
+      {mode === 'create' && saveStatus !== 'idle' && (
+        <p className="mb-4 text-sm text-ink-500">
+          {saveStatus === 'saving' && 'Saving draft…'}
+          {saveStatus === 'saved' && <span className="text-harbor-700">Draft saved automatically ✓</span>}
+          {saveStatus === 'error' && <span className="text-coral-600">Autosave failed — use Save draft to save manually</span>}
+        </p>
       )}
       {/* Step indicator — only for the step-by-step create-new wizard; the
           single-page edit/revise layout below never shows this. */}
