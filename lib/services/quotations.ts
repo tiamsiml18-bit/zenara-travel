@@ -472,9 +472,9 @@ function sumAdditionalWithMarkup(items: QuotationDraftInput['additionalAirfare']
  * system divides across headcount. Airfare/Hotel/Transfer each apply their
  * own editable markup percentage directly to the entered rate; Tours are
  * used exactly as entered. Called from every place a version's pricing
- * needs to be known (the version row's total_price, insertVersionChildren's
- * guest_pricing rows) so there is exactly one calculation path, never three
- * drifting copies of it.
+ * needs to be known (the version row's total_price,
+ * buildQuotationChildrenPayload's guest_pricing rows) so there is exactly
+ * one calculation path, never three drifting copies of it.
  */
 async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraftInput) {
   const counts = guestCountsOf(input);
@@ -608,233 +608,152 @@ async function computeFullPricing(supabase: SupabaseClient, input: QuotationDraf
   return { counts, clientRates, tourSupplierRates: tourRates, totalPrice, supplierCost };
 }
 
-async function insertVersionChildren(
-  supabase: SupabaseClient,
-  versionId: string,
+// ============================================================================
+// ATOMICITY NOTE: this used to be insertVersionChildren(), which issued its
+// ~10 child-table writes directly against Supabase (concurrently, via
+// Promise.all). That had no way to undo a partial failure — the Supabase
+// JS client has no multi-statement transaction, so if e.g. the 6th write
+// failed, the 5 before it stayed committed with no way to roll them back,
+// while the caller was told the save had failed. Combined with
+// createDraftQuotation's "compensating delete" being a silent no-op in
+// production (quotations has no DELETE policy for any role — confirmed via
+// pg_policy), this meant a failure could leave a partially-created or
+// partially-rebuilt quotation in the database while reporting an error.
+//
+// Fix: this function now only *builds* the plain-object payload (no DB
+// calls at all) — every table name/row shape below is identical to the
+// old childWrites entries, just without quotation_version_id (the new
+// database/migrations/0008_atomic_quotation_writes.sql functions stamp
+// that in server-side, since for create the version doesn't exist yet at
+// the moment this payload is built). The actual writes now happen inside
+// create_quotation_draft_atomic / update_quotation_draft_atomic /
+// revise_quotation_draft_atomic — single Postgres functions, each one
+// transaction, so a failure anywhere rolls back everything that function
+// touched. See that migration file for the full rationale.
+// ============================================================================
+function buildQuotationChildrenPayload(
   input: QuotationDraftInput,
-  // Every caller (createDraftQuotation, updateDraftQuotation,
-  // reviseQuotation) already calls computeFullPricing() once of its own,
-  // before this function, to get the numbers it needs for the
-  // quotation_versions row itself. Passing that same result in here means
-  // it's computed exactly once per save instead of twice — same shared
-  // function, same deterministic inputs, so the numbers can never disagree;
-  // this is purely removing a redundant second calculation (and its own
-  // extra agency_settings query) from the hot path.
   precomputedPricing: Awaited<ReturnType<typeof computeFullPricing>>
-) {
-  // These 10 writes are each independent — every one only needs the
-  // already-created versionId, none reads another's result, and each goes
-  // to its own table — so they run concurrently instead of one at a time.
-  // Each keeps its own exact insert payload, upsert/insert choice, and
-  // error message exactly as before; Promise.all surfaces the first
-  // rejection it sees, same as the sequential version threw on the first
-  // failing step, so error handling is unchanged. This is purely a
-  // latency fix (fewer round trips end-to-end), not a behavior change.
-  const childWrites: PromiseLike<void>[] = [];
+): Record<string, unknown[]> {
+  const payload: Record<string, unknown[]> = {};
 
   if (input.itinerary.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_itinerary_days')
-        .insert(
-          input.itinerary.map((d) => ({
-            quotation_version_id: versionId,
-            day_number: d.dayNumber,
-            day_date: d.dayDate || null,
-            title: d.title,
-            description: d.description || null,
-            activities: d.activities,
-            source_tour_id: d.sourceTourId || null,
-          }))
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save itinerary: ${error.message}`);
-        })
-    );
+    payload.quotation_itinerary_days = input.itinerary.map((d) => ({
+      day_number: d.dayNumber,
+      day_date: d.dayDate || null,
+      title: d.title,
+      description: d.description || null,
+      activities: d.activities,
+      source_tour_id: d.sourceTourId || null,
+    }));
   }
 
   // Each selected Tour's own editable per-person rates for this quotation
   // — one row per unique Tour, never re-pulled from or written back to the
-  // Tours library (source_tour_id is for traceability only). upsert
-  // rather than a plain insert as a defense-in-depth measure: the actual
-  // fix for the "duplicate key" bug is the caller deleting old rows
-  // first, but an upsert here means a future caller that forgets that
-  // step fails safe (overwrites the existing row) instead of throwing.
+  // Tours library (source_tour_id is for traceability only). Written via
+  // upsert (onConflict quotation_version_id,source_tour_id) by the SQL
+  // function, same as before — defense-in-depth in case some future caller
+  // reuses a version id without deleting old rows first.
   if (input.tourPricing.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_tour_pricing')
-        .upsert(
-          input.tourPricing.map((t, i) => ({
-            quotation_version_id: versionId,
-            source_tour_id: t.sourceTourId || null,
-            tour_name: t.tourName,
-            rate_senior: t.rateSenior ?? null,
-            rate_adult: t.rateAdult ?? null,
-            rate_child: t.rateChild ?? null,
-            rate_infant: t.rateInfant ?? null,
-            rate_pwd: t.ratePwd ?? null,
-            sort_order: i,
-          })),
-          { onConflict: 'quotation_version_id,source_tour_id' }
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save tour pricing: ${error.message}`);
-        })
-    );
+    payload.quotation_tour_pricing = input.tourPricing.map((t, i) => ({
+      source_tour_id: t.sourceTourId || null,
+      tour_name: t.tourName,
+      rate_senior: t.rateSenior ?? null,
+      rate_adult: t.rateAdult ?? null,
+      rate_child: t.rateChild ?? null,
+      rate_infant: t.rateInfant ?? null,
+      rate_pwd: t.ratePwd ?? null,
+      sort_order: i,
+    }));
   }
 
   // Additional Airfare/Hotel/Transfer sections (2, 3, 4...) — plain insert,
   // not upsert, since these have no natural unique key to upsert against
   // (unlike Tours' source_tour_id). Always called either on a brand new
-  // version (nothing to delete) or after updateQuotation has already
+  // version (nothing to delete) or after updateDraftQuotation has already
   // deleted the old rows for this version first, so a plain insert here
   // is correct and never risks a duplicate-key error.
   if (input.additionalAirfare.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_airfare_items')
-        .insert(
-          input.additionalAirfare.map((a, i) => ({
-            quotation_version_id: versionId,
-            label: a.label,
-            rate_senior: a.rateSenior ?? null,
-            rate_adult: a.rateAdult ?? null,
-            rate_child: a.rateChild ?? null,
-            rate_infant: a.rateInfant ?? null,
-            rate_pwd: a.ratePwd ?? null,
-            markup_pct: a.markupPct,
-            markup_enabled: a.markupEnabled,
-            sort_order: i,
-          }))
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save additional airfare: ${error.message}`);
-        })
-    );
+    payload.quotation_airfare_items = input.additionalAirfare.map((a, i) => ({
+      label: a.label,
+      rate_senior: a.rateSenior ?? null,
+      rate_adult: a.rateAdult ?? null,
+      rate_child: a.rateChild ?? null,
+      rate_infant: a.rateInfant ?? null,
+      rate_pwd: a.ratePwd ?? null,
+      markup_pct: a.markupPct,
+      markup_enabled: a.markupEnabled,
+      sort_order: i,
+    }));
   }
   if (input.additionalHotel.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_hotel_items')
-        .insert(
-          input.additionalHotel.map((h, i) => ({
-            quotation_version_id: versionId,
-            label: h.label,
-            // Trusted directly from the submitted value (auto-calculated by
-            // the wizard, but manually editable) — not recomputed
-            // server-side, so a manual per-hotel edit is never silently
-            // overwritten.
-            rate_senior: h.rateSenior,
-            rate_adult: h.rateAdult,
-            rate_child: h.rateChild,
-            rate_infant: 0,
-            rate_pwd: h.ratePwd,
-            total_amount: h.totalAmount,
-            markup_pct: h.markupPct,
-            markup_enabled: h.markupEnabled,
-            sort_order: i,
-          }))
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save additional hotel: ${error.message}`);
-        })
-    );
+    payload.quotation_hotel_items = input.additionalHotel.map((h, i) => ({
+      label: h.label,
+      // Trusted directly from the submitted value (auto-calculated by
+      // the wizard, but manually editable) — not recomputed
+      // server-side, so a manual per-hotel edit is never silently
+      // overwritten.
+      rate_senior: h.rateSenior,
+      rate_adult: h.rateAdult,
+      rate_child: h.rateChild,
+      rate_infant: 0,
+      rate_pwd: h.ratePwd,
+      total_amount: h.totalAmount,
+      markup_pct: h.markupPct,
+      markup_enabled: h.markupEnabled,
+      sort_order: i,
+    }));
   }
   if (input.additionalTransfer.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_transfer_items')
-        .insert(
-          input.additionalTransfer.map((t, i) => ({
-            quotation_version_id: versionId,
-            label: t.label,
-            // Trusted directly from the submitted value (auto-calculated by
-            // the wizard, but manually editable) — not recomputed
-            // server-side, so a manual per-item edit is never silently
-            // overwritten. No rate_infant — Infant/Toddler is never a
-            // paying guest and has no rate field at all.
-            rate_senior: t.rateSenior,
-            rate_adult: t.rateAdult,
-            rate_child: t.rateChild,
-            rate_infant: 0,
-            rate_pwd: t.ratePwd,
-            total_amount: t.totalAmount,
-            markup_pct: t.markupPct,
-            markup_enabled: t.markupEnabled,
-            sort_order: i,
-          }))
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save additional transfer: ${error.message}`);
-        })
-    );
+    payload.quotation_transfer_items = input.additionalTransfer.map((t, i) => ({
+      label: t.label,
+      // Trusted directly from the submitted value (auto-calculated by
+      // the wizard, but manually editable) — not recomputed
+      // server-side, so a manual per-item edit is never silently
+      // overwritten. No rate_infant — Infant/Toddler is never a
+      // paying guest and has no rate field at all.
+      rate_senior: t.rateSenior,
+      rate_adult: t.rateAdult,
+      rate_child: t.rateChild,
+      rate_infant: 0,
+      rate_pwd: t.ratePwd,
+      total_amount: t.totalAmount,
+      markup_pct: t.markupPct,
+      markup_enabled: t.markupEnabled,
+      sort_order: i,
+    }));
   }
 
   if (input.inclusions.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_inclusions')
-        .insert(input.inclusions.map((item, i) => ({ quotation_version_id: versionId, item, sort_order: i })))
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save inclusions: ${error.message}`);
-        })
-    );
+    payload.quotation_inclusions = input.inclusions.map((item, i) => ({ item, sort_order: i }));
   }
 
   if (input.exclusions.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_exclusions')
-        .insert(input.exclusions.map((item, i) => ({ quotation_version_id: versionId, item, sort_order: i })))
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save exclusions: ${error.message}`);
-        })
-    );
+    payload.quotation_exclusions = input.exclusions.map((item, i) => ({ item, sort_order: i }));
   }
 
   if (input.flightSegments.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_flight_segments')
-        .insert(
-          input.flightSegments.map((f, i) => ({
-            quotation_version_id: versionId,
-            airline: f.airline || '',
-            flight_number: f.flightNumber || '',
-            departure: f.departure || '',
-            arrival: f.arrival || '',
-            departure_time: f.departureTime || '',
-            arrival_time: f.arrivalTime || '',
-            route: f.route || '',
-            sort_order: i,
-          }))
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save flight details: ${error.message}`);
-        })
-    );
+    payload.quotation_flight_segments = input.flightSegments.map((f, i) => ({
+      airline: f.airline || '',
+      flight_number: f.flightNumber || '',
+      departure: f.departure || '',
+      arrival: f.arrival || '',
+      departure_time: f.departureTime || '',
+      arrival_time: f.arrivalTime || '',
+      route: f.route || '',
+      sort_order: i,
+    }));
   }
 
   // Client-facing additional fees / taxes — a separate table from
   // quotation_items (internal cost breakdown) since one is meant to be shown
   // to the client (via the PDF) and the other must never be.
   if (input.feeItems.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_fees')
-        .insert(
-          input.feeItems.map((item, i) => ({
-            quotation_version_id: versionId,
-            label: item.label,
-            amount: item.amount,
-            sort_order: i,
-          }))
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save additional fees: ${error.message}`);
-        })
-    );
+    payload.quotation_fees = input.feeItems.map((item, i) => ({
+      label: item.label,
+      amount: item.amount,
+      sort_order: i,
+    }));
   }
 
   // "Other Supplier Costs" — reserved for genuinely additional costs
@@ -844,29 +763,17 @@ async function insertVersionChildren(
   // client-facing query (see quotation_pricing_internal's isolation note
   // below for the same guarantee on the summed total).
   if (input.costItems.length > 0) {
-    childWrites.push(
-      supabase
-        .from('quotation_items')
-        .insert(
-          input.costItems.map((item, i) => ({
-            quotation_version_id: versionId,
-            label: item.label,
-            rate_senior: item.rateSenior ?? null,
-            rate_adult: item.rateAdult ?? null,
-            rate_child: item.rateChild ?? null,
-            rate_infant: item.rateInfant ?? null,
-            rate_pwd: item.ratePwd ?? null,
-            quantity: 1,
-            sort_order: i,
-          }))
-        )
-        .then(({ error }) => {
-          if (error) throw new Error(`Failed to save cost breakdown: ${error.message}`);
-        })
-    );
+    payload.quotation_items = input.costItems.map((item, i) => ({
+      label: item.label,
+      rate_senior: item.rateSenior ?? null,
+      rate_adult: item.rateAdult ?? null,
+      rate_child: item.rateChild ?? null,
+      rate_infant: item.rateInfant ?? null,
+      rate_pwd: item.ratePwd ?? null,
+      quantity: 1,
+      sort_order: i,
+    }));
   }
-
-  await Promise.all(childWrites);
 
   // ==========================================================================
   // Pricing — replicates the agency's Excel quotation formula chain exactly
@@ -878,86 +785,81 @@ async function insertVersionChildren(
   const active = activeGuestTypes(counts);
 
   if (active.length > 0) {
-    const { error: guestPricingError } = await supabase.from('quotation_guest_pricing').insert(
-      active.map((guestType) => ({
-        quotation_version_id: versionId,
-        guest_type: guestType,
-        price_per_person: clientRates[guestType] ?? 0,
-      }))
-    );
-    if (guestPricingError) throw new Error(`Failed to save guest pricing: ${guestPricingError.message}`);
-
-    const { error: guestPricingInternalError } = await supabase.from('quotation_guest_pricing_internal').insert(
-      active.map((guestType) => ({
-        quotation_version_id: versionId,
-        guest_type: guestType,
-        supplier_cost_per_person: tourSupplierRates[guestType] ?? 0,
-      }))
-    );
-    if (guestPricingInternalError) {
-      throw new Error(`Failed to save internal guest pricing: ${guestPricingInternalError.message}`);
-    }
+    payload.quotation_guest_pricing = active.map((guestType) => ({
+      guest_type: guestType,
+      price_per_person: clientRates[guestType] ?? 0,
+    }));
+    payload.quotation_guest_pricing_internal = active.map((guestType) => ({
+      guest_type: guestType,
+      supplier_cost_per_person: tourSupplierRates[guestType] ?? 0,
+    }));
   }
 
-  const { error: pricingError } = await supabase.from('quotation_pricing_internal').insert({
-    quotation_version_id: versionId,
-    supplier_cost: supplierCost,
-    markup: input.markup,
-    selling_price: totalPrice,
-    airfare_adult_rate: input.airfareAdultRate,
-    airfare_senior_rate: input.airfareSeniorRate,
-    airfare_child_rate: input.airfareChildRate,
-    airfare_infant_rate: input.airfareInfantRate,
-    airfare_pwd_rate: input.airfarePwdRate,
-    airfare_markup_pct: input.airfareMarkupPct,
-    airfare_markup_enabled: input.airfareMarkupEnabled,
-    // The wizard now auto-calculates these from hotelTotalAmount but
-    // allows direct manual editing (persisting until totalAmount, markup,
-    // or that guest type's quantity changes again) — the submitted value
-    // is trusted directly here, matching how Airfare/Transfer already
-    // work, rather than being recomputed and silently overriding an
-    // agent's intentional manual edit.
-    hotel_senior_rate: input.hotelSeniorRate,
-    hotel_adult_rate: input.hotelAdultRate,
-    hotel_child_rate: input.hotelChildRate,
-    hotel_infant_rate: 0,
-    hotel_pwd_rate: input.hotelPwdRate,
-    hotel_total_amount: input.hotelTotalAmount,
-    hotel_markup_pct: input.hotelMarkupPct,
-    hotel_markup_enabled: input.hotelMarkupEnabled,
-    transfer_senior_rate: input.transferSeniorRate,
-    transfer_adult_rate: input.transferAdultRate,
-    transfer_child_rate: input.transferChildRate,
-    transfer_infant_rate: input.transferInfantRate,
-    transfer_pwd_rate: input.transferPwdRate,
-    transfer_total_amount: input.transferTotalAmount,
-    transfer_markup_pct: input.transferMarkupPct,
-    transfer_markup_enabled: input.transferMarkupEnabled,
-    payment_method: input.paymentMethod,
-  });
-  if (pricingError) throw new Error(`Failed to save pricing: ${pricingError.message}`);
+  payload.quotation_pricing_internal = [
+    {
+      supplier_cost: supplierCost,
+      markup: input.markup,
+      selling_price: totalPrice,
+      airfare_adult_rate: input.airfareAdultRate,
+      airfare_senior_rate: input.airfareSeniorRate,
+      airfare_child_rate: input.airfareChildRate,
+      airfare_infant_rate: input.airfareInfantRate,
+      airfare_pwd_rate: input.airfarePwdRate,
+      airfare_markup_pct: input.airfareMarkupPct,
+      airfare_markup_enabled: input.airfareMarkupEnabled,
+      // The wizard now auto-calculates these from hotelTotalAmount but
+      // allows direct manual editing (persisting until totalAmount, markup,
+      // or that guest type's quantity changes again) — the submitted value
+      // is trusted directly here, matching how Airfare/Transfer already
+      // work, rather than being recomputed and silently overriding an
+      // agent's intentional manual edit.
+      hotel_senior_rate: input.hotelSeniorRate,
+      hotel_adult_rate: input.hotelAdultRate,
+      hotel_child_rate: input.hotelChildRate,
+      hotel_infant_rate: 0,
+      hotel_pwd_rate: input.hotelPwdRate,
+      hotel_total_amount: input.hotelTotalAmount,
+      hotel_markup_pct: input.hotelMarkupPct,
+      hotel_markup_enabled: input.hotelMarkupEnabled,
+      transfer_senior_rate: input.transferSeniorRate,
+      transfer_adult_rate: input.transferAdultRate,
+      transfer_child_rate: input.transferChildRate,
+      transfer_infant_rate: input.transferInfantRate,
+      transfer_pwd_rate: input.transferPwdRate,
+      transfer_total_amount: input.transferTotalAmount,
+      transfer_markup_pct: input.transferMarkupPct,
+      transfer_markup_enabled: input.transferMarkupEnabled,
+      payment_method: input.paymentMethod,
+    },
+  ];
 
-  return { totalPrice };
+  return payload;
 }
 
 /**
  * Creates a brand-new quotation (envelope + version 1, status draft).
  *
- * NOTE ON ATOMICITY: this performs several sequential inserts rather than a
- * single DB transaction, because the Supabase JS client does not expose
- * multi-statement transactions. If a later insert fails, we best-effort
- * delete the quotation row (cascade removes the version + children). For
- * stronger guarantees under high concurrency, migrate this to a single
- * `create_quotation_draft(jsonb)` Postgres function — flagged in
- * ARCHITECTURE.md as a hardening item before scaling past the pilot team.
+ * NOTE ON ATOMICITY: the quotations row, the quotation_versions row, and
+ * every child table are all written inside the create_quotation_draft_atomic
+ * Postgres function (database/migrations/0008_atomic_quotation_writes.sql),
+ * which runs as a single transaction — a failure anywhere rolls the whole
+ * thing back. This used to be several sequential/concurrent inserts from
+ * this file with a best-effort "delete the quotation row on failure" as a
+ * substitute for a real rollback; that delete was a silent no-op in
+ * production (quotations has no DELETE policy for any role), so a failure
+ * could leave a partially-created quotation behind while reporting an
+ * error. See that migration file for the full history.
  */
 /**
  * Edits a DRAFT quotation in place — no new version, no revision number
  * bump. This is only safe because a draft was never sent to a client; the
  * revision system (reviseQuotation, below) exists specifically for the
- * case where that's no longer true. Reuses insertVersionChildren after
- * clearing the existing children, so the exact same pricing/snapshot logic
- * that powers creation also powers this edit.
+ * case where that's no longer true. The field updates, the clearing of
+ * every child table, and their re-insert from buildQuotationChildrenPayload
+ * all happen inside update_quotation_draft_atomic (same migration as
+ * above), so a failure partway through never leaves the quotation
+ * half-edited — it previously could, since there was no rollback here at
+ * all before this fix.
  */
 export async function updateDraftQuotation(
   supabase: SupabaseClient,
@@ -991,20 +893,25 @@ export async function updateDraftQuotation(
 
   const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
-  // Computed once here and reused by insertVersionChildren below — see the
-  // comment on insertVersionChildren's precomputedPricing parameter.
+  // Computed once here and reused below — see buildQuotationChildrenPayload.
   const pricingResult = await computeFullPricing(supabase, input);
   const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = pricingResult;
 
-  const { error: quotationUpdateError } = await supabase
-    .from('quotations')
-    .update({ client_id: input.clientId, package_id: input.packageId || null })
-    .eq('id', quotationId);
-  if (quotationUpdateError) throw new Error(`Failed to update quotation: ${quotationUpdateError.message}`);
-
-  const { error: vError } = await supabase
-    .from('quotation_versions')
-    .update({
+  // The quotations/quotation_versions field updates, the clear of every
+  // child table, and the re-insert from buildQuotationChildrenPayload all
+  // now happen inside one Postgres function (update_quotation_draft_atomic
+  // — see database/migrations/0008_atomic_quotation_writes.sql), which
+  // runs as a single transaction. Previously there was no rollback at all
+  // here: a failure partway through the child-table rebuild left the
+  // quotation's top-level fields already changed and its old child rows
+  // already deleted, while the agent was told the save had failed. Now,
+  // any failure anywhere in this chain restores the quotation to exactly
+  // what it was before the edit.
+  const { error: rpcError } = await supabase.rpc('update_quotation_draft_atomic', {
+    p_quotation_id: quotationId,
+    p_version_id: versionId,
+    p_quotation: { client_id: input.clientId, package_id: input.packageId || null },
+    p_version: {
       client_name_snapshot: client.full_name,
       destination: input.destination,
       package_type: input.packageType,
@@ -1023,39 +930,10 @@ export async function updateDraftQuotation(
       notes: input.notes || null,
       consultant_id: input.consultantId || null,
       consultant_name_snapshot: consultantName,
-    })
-    .eq('id', versionId);
-  if (vError) throw new Error(`Failed to update quotation version: ${vError.message}`);
-
-  // Clear and rebuild every child table — safe only while still a draft;
-  // the prevent_child_mutation_if_version_locked() trigger would reject
-  // this the moment status moves past 'draft'.
-  await Promise.all([
-    supabase.from('quotation_itinerary_days').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_inclusions').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_exclusions').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_flight_segments').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_fees').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_items').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_guest_pricing').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_guest_pricing_internal').delete().eq('quotation_version_id', versionId),
-    // Missing here previously — quotation_tour_pricing has a unique
-    // constraint on (quotation_version_id, source_tour_id), so editing an
-    // existing quotation a second time (reusing the same version id)
-    // always hit "duplicate key" the moment any tour pricing row from the
-    // first save was still there when insertVersionChildren tried to
-    // insert it again.
-    supabase.from('quotation_tour_pricing').delete().eq('quotation_version_id', versionId),
-    // Same reasoning applies to these three — added from the start this
-    // time rather than being found as a bug later, since insertVersionChildren
-    // does a plain insert (not upsert) for all three.
-    supabase.from('quotation_airfare_items').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_hotel_items').delete().eq('quotation_version_id', versionId),
-    supabase.from('quotation_transfer_items').delete().eq('quotation_version_id', versionId),
-  ]);
-  await supabase.from('quotation_pricing_internal').delete().eq('quotation_version_id', versionId);
-
-  await insertVersionChildren(supabase, versionId, input, pricingResult);
+    },
+    p_children: buildQuotationChildrenPayload(input, pricingResult),
+  });
+  if (rpcError) throw new Error(`Failed to update quotation: ${rpcError.message}`);
 
   await writeAudit(supabase, {
     userId: actingUserId,
@@ -1086,9 +964,23 @@ export async function createDraftQuotation(
   });
   if (numError || !quotationNumber) throw new Error('Failed to allocate a quotation number.');
 
-  const { data: quotation, error: qError } = await supabase
-    .from('quotations')
-    .insert({
+  // Computed here (not read from the request) so the version row's
+  // total_price is never anything the agent typed — see
+  // lib/utils/guest-pricing.ts for the one formula this and
+  // buildQuotationChildrenPayload() both use.
+  const pricingResult = await computeFullPricing(supabase, input);
+  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = pricingResult;
+
+  // The quotations row, the quotation_versions row, and every child table
+  // are now all written inside one Postgres function
+  // (create_quotation_draft_atomic — see
+  // database/migrations/0008_atomic_quotation_writes.sql), which runs as a
+  // single transaction. If anything fails anywhere in that chain, nothing
+  // is left behind — no more best-effort "insert, then delete on failure"
+  // (that delete never actually worked in production: quotations has no
+  // DELETE policy for any role, so it silently matched 0 rows).
+  const { data: rpcData, error: rpcError } = await supabase.rpc('create_quotation_draft_atomic', {
+    p_quotation: {
       quotation_number: quotationNumber,
       client_id: input.clientId,
       package_id: input.packageId || null,
@@ -1096,86 +988,58 @@ export async function createDraftQuotation(
       // pipeline_stage's existing "null means draft" meaning exactly.
       status: null,
       assigned_agent_id: actingUserId,
-    })
-    .select('id')
-    .single();
-  if (qError || !quotation) throw new Error(`Failed to create quotation: ${qError?.message}`);
+    },
+    p_version: {
+      version_number: 1,
+      version_label: 'Original',
+      status: 'draft',
+      client_name_snapshot: client.full_name,
+      destination: input.destination,
+      package_type: input.packageType,
+      travel_start_date: input.travelStartDate,
+      travel_end_date: input.travelEndDate,
+      valid_until: input.validUntil,
+      num_adults: input.numAdults,
+      num_children: input.numChildren,
+      num_seniors: input.numSeniors,
+      num_infants: input.numInfants,
+      num_pwd: input.numPwd,
+      hotel_name: input.hotelName || null,
+      num_bedrooms: input.numBedrooms ?? null,
+      // Legacy single-rate field — kept populated with the adult rate
+      // (the closest thing to a "primary" rate) purely so any old report
+      // or view still expecting a single number has something sane to
+      // read; it's no longer shown as the quotation's real pricing
+      // anywhere, which is now always the per-guest-type breakdown.
+      price_per_person: clientRatesForTotal.adult ?? null,
+      total_price: computedTotalPrice,
+      notes: input.notes || null,
+      created_by: actingUserId,
+      consultant_id: input.consultantId || null,
+      consultant_name_snapshot: consultantName,
+    },
+    p_children: buildQuotationChildrenPayload(input, pricingResult),
+  });
+  if (rpcError || !rpcData) throw new Error(`Failed to create quotation: ${rpcError?.message}`);
+  const quotationId = (rpcData as { quotationId: string }).quotationId;
 
-  // Computed here (not read from the request) so the version row's
-  // total_price is never anything the agent typed — see
-  // lib/utils/guest-pricing.ts for the one formula this and
-  // insertVersionChildren() both use. Computed exactly once and reused by
-  // insertVersionChildren below (see its precomputedPricing parameter).
-  const pricingResult = await computeFullPricing(supabase, input);
-  const { clientRates: clientRatesForTotal, totalPrice: computedTotalPrice } = pricingResult;
+  await supabase.from('client_activities').insert({
+    client_id: input.clientId,
+    activity_type: 'quotation_created',
+    description: `Quotation ${quotationNumber} created.`,
+    user_id: actingUserId,
+    related_quotation_id: quotationId,
+  });
 
-  try {
-    const { data: version, error: vError } = await supabase
-      .from('quotation_versions')
-      .insert({
-        quotation_id: quotation.id,
-        version_number: 1,
-        version_label: 'Original',
-        status: 'draft',
-        client_name_snapshot: client.full_name,
-        destination: input.destination,
-        package_type: input.packageType,
-        travel_start_date: input.travelStartDate,
-        travel_end_date: input.travelEndDate,
-        valid_until: input.validUntil,
-        num_adults: input.numAdults,
-        num_children: input.numChildren,
-        num_seniors: input.numSeniors,
-        num_infants: input.numInfants,
-        num_pwd: input.numPwd,
-        hotel_name: input.hotelName || null,
-        num_bedrooms: input.numBedrooms ?? null,
-        // Legacy single-rate field — kept populated with the adult rate
-        // (the closest thing to a "primary" rate) purely so any old report
-        // or view still expecting a single number has something sane to
-        // read; it's no longer shown as the quotation's real pricing
-        // anywhere, which is now always the per-guest-type breakdown.
-        price_per_person: clientRatesForTotal.adult ?? null,
-        total_price: computedTotalPrice,
-        notes: input.notes || null,
-        created_by: actingUserId,
-        consultant_id: input.consultantId || null,
-        consultant_name_snapshot: consultantName,
-      })
-      .select('id')
-      .single();
-    if (vError || !version) throw new Error(`Failed to create quotation version: ${vError?.message}`);
+  await writeAudit(supabase, {
+    userId: actingUserId,
+    action: 'quotation.created',
+    entityType: 'quotation',
+    entityId: quotationId,
+    metadata: { quotationNumber },
+  });
 
-    await insertVersionChildren(supabase, version.id, input, pricingResult);
-
-    const { error: linkError } = await supabase
-      .from('quotations')
-      .update({ current_version_id: version.id })
-      .eq('id', quotation.id);
-    if (linkError) throw new Error(linkError.message);
-
-    await supabase.from('client_activities').insert({
-      client_id: input.clientId,
-      activity_type: 'quotation_created',
-      description: `Quotation ${quotationNumber} created.`,
-      user_id: actingUserId,
-      related_quotation_id: quotation.id,
-    });
-
-    await writeAudit(supabase, {
-      userId: actingUserId,
-      action: 'quotation.created',
-      entityType: 'quotation',
-      entityId: quotation.id,
-      metadata: { quotationNumber },
-    });
-
-    return { quotationId: quotation.id as string, quotationNumber: quotationNumber as string };
-  } catch (err) {
-    // Compensating cleanup — see atomicity note above.
-    await supabase.from('quotations').delete().eq('id', quotation.id);
-    throw err;
-  }
+  return { quotationId, quotationNumber: quotationNumber as string };
 }
 
 /**
@@ -1263,14 +1127,18 @@ export async function reviseQuotation(
   const { data: client } = await supabase.from('clients').select('full_name').eq('id', quotation.client_id).single();
   const consultantName = await resolveConsultantName(supabase, input.consultantId);
 
-  // Computed exactly once and reused by insertVersionChildren below (see
-  // its precomputedPricing parameter).
+  // Computed exactly once and reused below — see buildQuotationChildrenPayload.
   const pricingResult = await computeFullPricing(supabase, input);
   const { clientRates: revisedClientRates, totalPrice: revisedTotalPrice } = pricingResult;
 
-  const { data: version, error: vError } = await supabase
-    .from('quotation_versions')
-    .insert({
+  // The new quotation_versions row and every child table are written
+  // inside one Postgres function (revise_quotation_draft_atomic — see
+  // database/migrations/0008_atomic_quotation_writes.sql), which runs as a
+  // single transaction — a failure anywhere in the child-table writes
+  // rolls back the new version row too, instead of leaving a half-written
+  // revision behind.
+  const { data: versionId, error: vError } = await supabase.rpc('revise_quotation_draft_atomic', {
+    p_version: {
       quotation_id: quotationId,
       version_number: nextVersionNumber,
       version_label: `Rev ${nextVersionNumber}`,
@@ -1294,12 +1162,10 @@ export async function reviseQuotation(
       created_by: actingUserId,
       consultant_id: input.consultantId || null,
       consultant_name_snapshot: consultantName,
-    })
-    .select('id')
-    .single();
-  if (vError || !version) throw new Error(`Failed to create revision: ${vError?.message}`);
-
-  await insertVersionChildren(supabase, version.id, input, pricingResult);
+    },
+    p_children: buildQuotationChildrenPayload(input, pricingResult),
+  });
+  if (vError || !versionId) throw new Error(`Failed to create revision: ${vError?.message}`);
 
   await supabase
     .from('quotations')
@@ -1307,7 +1173,7 @@ export async function reviseQuotation(
     // sent yet" (null on both) — the existing behavior already reset
     // status alone; leaving pipeline_stage at its old value here would
     // immediately re-create the exact drift this unification exists to fix.
-    .update({ current_version_id: version.id, status: null, pipeline_stage: null })
+    .update({ current_version_id: versionId, status: null, pipeline_stage: null })
     .eq('id', quotationId);
 
   await supabase.from('client_activities').insert({
@@ -1378,7 +1244,7 @@ export async function reviseQuotation(
     }
   }
 
-  return version.id as string;
+  return versionId as string;
 }
 
 /**
