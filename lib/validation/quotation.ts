@@ -148,7 +148,9 @@ export const quotationDraftSchema = z
     travelEndDate: z.string().min(1, 'End date is required.'),
     // Real, stored, editable — never computed on the fly at PDF-render time.
     validUntil: z.string().min(1, 'Validity date is required.'),
-    numAdults: z.coerce.number().int().min(1, 'At least one adult is required.'),
+    // Zero adults is allowed — the "at least one guest" rule (adults +
+    // children + seniors + PWD) is enforced by the refine below.
+    numAdults: z.coerce.number().int().min(0),
     numChildren: z.coerce.number().int().min(0).default(0),
     numSeniors: z.coerce.number().int().min(0).default(0),
     numInfants: z.coerce.number().int().min(0).default(0),
@@ -257,6 +259,10 @@ export const quotationDraftSchema = z
   .refine((d) => new Date(d.travelEndDate) >= new Date(d.travelStartDate), {
     message: 'Travel end date cannot be before the start date.',
     path: ['travelEndDate'],
+  })
+  .refine((d) => d.numAdults + d.numChildren + d.numSeniors + d.numPwd >= 1, {
+    message: 'At least one guest is required.',
+    path: ['numAdults'],
   });
 
 export type CostItemInput = z.infer<typeof costItemSchema>;

@@ -43,8 +43,46 @@ describe('quotationDraftSchema — guest-type pricing and required fields', () =
     expect(result.success).toBe(false);
   });
 
-  it('rejects zero adults', () => {
-    const result = quotationDraftSchema.safeParse({ ...validDraft, numAdults: 0 });
+  it('rejects zero guests across all categories', () => {
+    const result = quotationDraftSchema.safeParse({
+      ...validDraft,
+      numAdults: 0,
+      numChildren: 0,
+      numSeniors: 0,
+      numPwd: 0,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('At least one guest is required.');
+    }
+  });
+
+  it('accepts a senior-only quotation (zero adults)', () => {
+    const result = quotationDraftSchema.safeParse({ ...validDraft, numAdults: 0, numSeniors: 2 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.numAdults).toBe(0);
+      expect(result.data.numSeniors).toBe(2);
+    }
+  });
+
+  it('accepts a children-only quotation (zero adults)', () => {
+    const result = quotationDraftSchema.safeParse({ ...validDraft, numAdults: 0, numChildren: 2 });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a PWD-only quotation (zero adults)', () => {
+    const result = quotationDraftSchema.safeParse({ ...validDraft, numAdults: 0, numPwd: 1 });
+    expect(result.success).toBe(true);
+  });
+
+  it('still accepts adults with no other guests', () => {
+    const result = quotationDraftSchema.safeParse({ ...validDraft, numAdults: 1, numSeniors: 0 });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a negative adult count', () => {
+    const result = quotationDraftSchema.safeParse({ ...validDraft, numAdults: -1, numSeniors: 2 });
     expect(result.success).toBe(false);
   });
 

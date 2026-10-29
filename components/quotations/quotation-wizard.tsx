@@ -1260,7 +1260,11 @@ export function QuotationWizard({
     }
     if (step === 2) {
       return Boolean(
-        trip.destination && trip.travelStartDate && trip.travelEndDate && trip.numAdults > 0 && computedTotalPrice > 0
+        trip.destination &&
+          trip.travelStartDate &&
+          trip.travelEndDate &&
+          trip.numAdults + trip.numChildren + trip.numSeniors + trip.numPwd > 0 &&
+          computedTotalPrice > 0
       );
     }
     return true;
@@ -1364,7 +1368,7 @@ export function QuotationWizard({
     (packageMode === 'custom' || Boolean(packageId)) &&
     trip.packageType !== null &&
     Boolean(trip.destination && trip.travelStartDate && trip.travelEndDate) &&
-    trip.numAdults > 0 &&
+    trip.numAdults + trip.numChildren + trip.numSeniors + trip.numPwd > 0 &&
     computedTotalPrice > 0;
   const createReadyRef = useRef(false);
   createReadyRef.current = createReadyNow;
