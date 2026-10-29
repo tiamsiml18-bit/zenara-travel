@@ -15,21 +15,31 @@ import { Eye, X, ExternalLink } from 'lucide-react';
  * inline viewing — so "Open in a new tab" stays available inside the modal
  * as a one-click fallback rather than being the only option.
  */
-export function PdfPreviewButton({ quotationId }: { quotationId: string }) {
+export function PdfPreviewButton({
+  quotationId,
+  query = '',
+  disabled = false,
+}: {
+  quotationId: string;
+  /** Extra query string selecting a document option (e.g. "doc=itinerary"). Empty = the Full Quotation, as before. */
+  query?: string;
+  disabled?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
-  const pdfUrl = `/api/quotations/${quotationId}/pdf?preview=1`;
+  const pdfUrl = `/api/quotations/${quotationId}/pdf?preview=1${query ? `&${query}` : ''}`;
 
   return (
     <>
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
+        disabled={disabled}
+        className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
       >
         <Eye className="h-4 w-4" /> Preview
       </button>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50 p-4 sm:p-8">
           <div className="flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-surface shadow-xl">
             <div className="flex items-center justify-between border-b border-sand-200 px-4 py-2.5">

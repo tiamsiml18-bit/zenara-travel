@@ -1,14 +1,15 @@
 import Link from 'next/link';
-import { Download, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { Topbar } from '@/components/layout/topbar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { PIPELINE_STAGE_LABELS, type PipelineStage } from '@/lib/services/pipeline';
 import { SendQuotationButton, DuplicateQuotationButton } from '@/components/quotations/quotation-actions';
 import { QuotationStatusControls, ConvertToBookingButton } from '@/components/quotations/quotation-status-controls';
 import { ArchiveQuotationButton } from '@/components/quotations/archive-quotation-button';
-import { PdfPreviewButton } from '@/components/quotations/pdf-preview-button';
+import { DocumentOutputMenu } from '@/components/quotations/document-output-menu';
 import { SendQuotationEmailButton } from '@/components/quotations/send-quotation-email-button';
 import { createClient } from '@/lib/supabase/server';
+import { getPdfSectionAvailability } from '@/lib/services/pdf-availability';
 import { getQuotationById, getVersionDetail, getPricingForVersion } from '@/lib/services/quotations';
 import { getLinkedExpensesTotal } from '@/lib/services/expenses';
 import { getBookingForQuotation } from '@/lib/services/bookings';
@@ -50,13 +51,14 @@ export default async function QuotationDetailPage({
   const viewedVersion = (viewedVersionId && versions.find((v) => v.id === viewedVersionId)) || currentVersion;
   const isViewingPastVersion = viewedVersion.id !== currentVersion.id;
 
-  const [{ itinerary, inclusions, exclusions }, pricing, existingBooking, gmailConnection, emailHistory, linkedExpensesTotal] = await Promise.all([
+  const [{ itinerary, inclusions, exclusions }, pricing, existingBooking, gmailConnection, emailHistory, linkedExpensesTotal, pdfAvailability] = await Promise.all([
     getVersionDetail(supabase, viewedVersion.id),
     getPricingForVersion(supabase, viewedVersion.id),
     getBookingForQuotation(supabase, id),
     getGmailConnection(supabase),
     getEmailHistory(supabase, id),
     getLinkedExpensesTotal(supabase, id),
+    getPdfSectionAvailability(supabase, id),
   ]);
 
   const isDraft = currentVersion.status === 'draft';
@@ -101,13 +103,7 @@ export default async function QuotationDetailPage({
                 as though it were current. PDF/download still work since
                 viewing a past revision's own PDF is a legitimate,
                 non-destructive thing to want. */}
-            <PdfPreviewButton quotationId={id} />
-            <a
-              href={`/api/quotations/${id}/pdf`}
-              className="flex items-center gap-1.5 rounded-md border border-sand-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-sand-100"
-            >
-              <Download className="h-4 w-4" /> Download PDF
-            </a>
+            <DocumentOutputMenu quotationId={id} availability={pdfAvailability} />
             {!isViewingPastVersion && (
               <>
                 <SendQuotationEmailButton

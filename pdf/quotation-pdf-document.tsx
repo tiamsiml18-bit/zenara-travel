@@ -3,6 +3,7 @@ import type { QuotationPdfData } from '@/lib/services/pdf-data';
 import { ZENARA_LOGO_DATA_URI } from './zenara-logo';
 import { GUEST_TYPE_LABELS } from '@/lib/utils/guest-pricing';
 import { BIR_BADGE_DATA_URI, BIR_BADGE_ASPECT_RATIO } from './bir-badge';
+import { FULL_SECTIONS, hasPricingContent, isFullSections, type PdfSections } from '@/lib/utils/pdf-sections';
 
 const BIR_BADGE_WIDTH = 200;
 
@@ -274,9 +275,32 @@ function InfoField({ label, value, width }: { label: string; value: string; widt
   );
 }
 
-export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
+/**
+ * `sections` is optional and presentation-only. Left out (or all on) this is
+ * the Full Quotation, laid out exactly as it always has been. With sections
+ * turned off, those headings and their content are simply not drawn, and the
+ * remaining content is laid out without reserving space for what was left out.
+ * Callers that exclude pricing/terms also strip that data before it gets here
+ * (see applyPdfSections in lib/services/pdf.ts), so this component is not the
+ * only line of defense.
+ */
+export function QuotationPdfDocument({ data, sections }: { data: QuotationPdfData; sections?: PdfSections }) {
   const { agency, client, trip, itinerary, inclusions, exclusions, flightSegments, fees, pricing, quotationNumber, agent, packageTitle, validUntil } =
     data;
+
+  const s = sections ?? FULL_SECTIONS;
+  const isFull = isFullSections(s);
+  // The validity date belongs to the price offer, so it only shows when the
+  // document shows pricing in some form.
+  const pricingOffered = hasPricingContent(s, pricing.guestLines.length);
+  const showItinerary = s.itinerary && itinerary.length > 0;
+  const showFlights = s.flights && flightSegments.length > 0;
+  // Side-by-side layout (itinerary left, flights/inclusions/exclusions right)
+  // is kept for the Full Quotation and whenever there is an itinerary AND at
+  // least one right-hand section. Otherwise the remaining content goes
+  // full-width so no empty column is left behind.
+  const twoColumn = isFull || (showItinerary && (s.inclusions || s.exclusions));
+  const showPricingBlock = pricingOffered;
 
   const guestSummary = [
     trip.numSeniors > 0 ? `${trip.numSeniors} Senior${trip.numSeniors !== 1 ? 's' : ''}` : null,
@@ -287,6 +311,57 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
   ]
     .filter(Boolean)
     .join(', ');
+
+  // Built once and shared by the side-by-side and full-width layouts below,
+  // so a day, a flight or a list item looks identical in either.
+  const itineraryDays = itinerary.map((day) => (
+    <View key={day.dayNumber} style={styles.dayBlock} wrap={false}>
+      <Text style={styles.dayBadge}>DAY {day.dayNumber}</Text>
+      <Text style={styles.dayTitle}>{day.title}</Text>
+      {day.description && <Text style={styles.dayDescription}>{day.description}</Text>}
+      {day.activities.map((activity, i) => (
+        <View key={i} style={styles.activityRow}>
+          <Text style={styles.activityBullet}>•</Text>
+          <Text style={styles.activityText}>{activity}</Text>
+        </View>
+      ))}
+    </View>
+  ));
+  const flightBlocks = flightSegments.map((flight, i) => (
+    <View key={i} style={styles.flightBlock} wrap={false}>
+      <Text style={styles.flightHeaderLine}>{[flight.flightNumber, flight.airline].filter(Boolean).join(' | ') || '—'}</Text>
+      <Text style={styles.flightDetailLine}>
+        {pdfSafeText(
+          [
+            flight.departureTime || flight.arrivalTime ? `${flight.departureTime || '—'} - ${flight.arrivalTime || '—'}` : null,
+            flight.route || null,
+          ]
+            .filter(Boolean)
+            .join(' | ')
+        )}
+      </Text>
+    </View>
+  ));
+  const inclusionNodes = (
+    <>
+      {inclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
+      {inclusions.map((item, i) => (
+        <Text key={i} style={styles.listItem}>
+          • {item}
+        </Text>
+      ))}
+    </>
+  );
+  const exclusionNodes = (
+    <>
+      {exclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
+      {exclusions.map((item, i) => (
+        <Text key={i} style={styles.listItem}>
+          • {item}
+        </Text>
+      ))}
+    </>
+  );
 
   return (
     <Document title={`${quotationNumber} — ${trip.destination}`}>
@@ -318,12 +393,22 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
               <InfoField label="Quotation No" value={quotationNumber} width="40%" />
             </View>
             <View style={styles.infoRow}>
-              <InfoField label="Validity" value={validUntil ? formatDate(validUntil) : '—'} width="60%" />
-              <InfoField
-                label="Travel Dates"
-                value={`${formatDate(trip.travelStartDate)} - ${formatDate(trip.travelEndDate)}`}
-                width="40%"
-              />
+              {pricingOffered ? (
+                <>
+                  <InfoField label="Validity" value={validUntil ? formatDate(validUntil) : '—'} width="60%" />
+                  <InfoField
+                    label="Travel Dates"
+                    value={`${formatDate(trip.travelStartDate)} - ${formatDate(trip.travelEndDate)}`}
+                    width="40%"
+                  />
+                </>
+              ) : (
+                <InfoField
+                  label="Travel Dates"
+                  value={`${formatDate(trip.travelStartDate)} - ${formatDate(trip.travelEndDate)}`}
+                  width="60%"
+                />
+              )}
             </View>
             <View style={styles.infoRow}>
               <InfoField label="Destination" value={trip.destination} width="60%" />
@@ -347,74 +432,84 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
         <View style={styles.body}>
           {/* Itinerary (left) | Inclusions above Exclusions (right), split
               by a vertical divider. Itinerary gets more width (flex: 1.6
-              vs 1) since it's reliably the longer section. */}
-          <View style={styles.mainSplit}>
-            <View style={styles.leftCol}>
-              {itinerary.length > 0 && (
-                <View>
-                  <Text style={styles.sectionTitle}>Itinerary</Text>
-                  {itinerary.map((day) => (
-                    <View key={day.dayNumber} style={styles.dayBlock} wrap={false}>
-                      <Text style={styles.dayBadge}>DAY {day.dayNumber}</Text>
-                      <Text style={styles.dayTitle}>{day.title}</Text>
-                      {day.description && <Text style={styles.dayDescription}>{day.description}</Text>}
-                      {day.activities.map((activity, i) => (
-                        <View key={i} style={styles.activityRow}>
-                          <Text style={styles.activityBullet}>•</Text>
-                          <Text style={styles.activityText}>{activity}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
+              vs 1) since it's reliably the longer section. This is the
+              Full Quotation layout; it is also used whenever there is an
+              itinerary plus at least one right-hand section. */}
+          {twoColumn ? (
+            <View style={styles.mainSplit}>
+              <View style={styles.leftCol}>
+                {showItinerary && (
+                  <View>
+                    <Text style={styles.sectionTitle}>Itinerary</Text>
+                    {itineraryDays}
+                  </View>
+                )}
+              </View>
 
-            <View style={styles.rightCol}>
-              {flightSegments.length > 0 && (
+              <View style={styles.rightCol}>
+                {showFlights && (
+                  <View style={styles.rightColSection}>
+                    <Text style={styles.sectionTitle}>Flight Schedule</Text>
+                    {flightBlocks}
+                  </View>
+                )}
+                {s.inclusions && (
+                  <View style={styles.rightColSection}>
+                    <Text style={styles.sectionTitle}>Inclusions</Text>
+                    {inclusionNodes}
+                  </View>
+                )}
+                {s.exclusions && (
+                  <View>
+                    <Text style={styles.sectionTitle}>Exclusions</Text>
+                    {exclusionNodes}
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : (
+            /* A selection that would leave one column empty: whatever is
+               included uses the full page width instead, with no heading
+               or reserved space for anything left out. */
+            <View style={{ marginTop: 4 }}>
+              {showFlights && (
                 <View style={styles.rightColSection}>
                   <Text style={styles.sectionTitle}>Flight Schedule</Text>
-                  {flightSegments.map((flight, i) => (
-                    <View key={i} style={styles.flightBlock} wrap={false}>
-                      <Text style={styles.flightHeaderLine}>
-                        {[flight.flightNumber, flight.airline].filter(Boolean).join(' | ') || '—'}
-                      </Text>
-                      <Text style={styles.flightDetailLine}>
-                        {pdfSafeText(
-                          [
-                            flight.departureTime || flight.arrivalTime ? `${flight.departureTime || '—'} - ${flight.arrivalTime || '—'}` : null,
-                            flight.route || null,
-                          ]
-                            .filter(Boolean)
-                            .join(' | ')
-                        )}
-                      </Text>
-                    </View>
-                  ))}
+                  {flightBlocks}
                 </View>
               )}
-              <View style={styles.rightColSection}>
-                <Text style={styles.sectionTitle}>Inclusions</Text>
-                {inclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
-                {inclusions.map((item, i) => (
-                  <Text key={i} style={styles.listItem}>
-                    • {item}
-                  </Text>
-                ))}
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>Exclusions</Text>
-                {exclusions.length === 0 && <Text style={styles.listItem}>—</Text>}
-                {exclusions.map((item, i) => (
-                  <Text key={i} style={styles.listItem}>
-                    • {item}
-                  </Text>
-                ))}
-              </View>
+              {showItinerary && (
+                <View>
+                  <Text style={styles.sectionTitle}>Itinerary</Text>
+                  {itineraryDays}
+                </View>
+              )}
+              {(s.inclusions || s.exclusions) && (
+                <View style={{ flexDirection: 'row' }}>
+                  {s.inclusions && (
+                    <View style={{ flex: 1, paddingRight: s.exclusions ? 16 : 0 }}>
+                      <Text style={styles.sectionTitle}>Inclusions</Text>
+                      {inclusionNodes}
+                    </View>
+                  )}
+                  {s.exclusions && (
+                    <View
+                      style={
+                        s.inclusions
+                          ? { flex: 1, paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: COLORS.sand200 }
+                          : { flex: 1 }
+                      }
+                    >
+                      <Text style={styles.sectionTitle}>Exclusions</Text>
+                      {exclusionNodes}
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
-          </View>
+          )}
 
-          {fees.length > 0 && (
+          {s.pricingTotal && fees.length > 0 && (
             <View style={{ marginTop: 10 }}>
               <Text style={styles.sectionTitle}>Additional Fees</Text>
               {fees.map((fee, i) => (
@@ -440,26 +535,33 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
               the first row specifically so "Package Pricing" can never be
               orphaned alone at the bottom of a page with its rows pushed
               to the next one. */}
-          <View style={styles.pricingSection}>
-            {pricing.guestLines.map((line, i) => (
-              <View key={line.guestType} wrap={false}>
-                {i === 0 && <Text style={styles.pricingTitle}>Package Pricing</Text>}
-                <View style={styles.guestPriceRow}>
-                  <View>
-                    <Text style={styles.guestPriceLabel}>{GUEST_TYPE_LABELS[line.guestType]}</Text>
-                    <Text style={styles.guestPriceDetail}>
-                      {line.quantity} guest{line.quantity !== 1 ? 's' : ''} × {formatMoney(line.pricePerPerson, pricing.currency)} per person
-                    </Text>
+          {showPricingBlock && (
+            <View style={styles.pricingSection}>
+              {/* Total-only: no guest row to carry the heading, so label the block. */}
+              {!s.perPersonRates && <Text style={styles.pricingTitle}>Package Pricing</Text>}
+              {s.perPersonRates &&
+                pricing.guestLines.map((line, i) => (
+                  <View key={line.guestType} wrap={false}>
+                    {i === 0 && <Text style={styles.pricingTitle}>Package Pricing</Text>}
+                    <View style={styles.guestPriceRow}>
+                      <View>
+                        <Text style={styles.guestPriceLabel}>{GUEST_TYPE_LABELS[line.guestType]}</Text>
+                        <Text style={styles.guestPriceDetail}>
+                          {line.quantity} guest{line.quantity !== 1 ? 's' : ''} × {formatMoney(line.pricePerPerson, pricing.currency)} per person
+                        </Text>
+                      </View>
+                      <Text style={styles.guestPriceSubtotal}>{formatMoney(line.subtotal, pricing.currency)}</Text>
+                    </View>
                   </View>
-                  <Text style={styles.guestPriceSubtotal}>{formatMoney(line.subtotal, pricing.currency)}</Text>
+                ))}
+              {s.pricingTotal && (
+                <View style={styles.totalRow} wrap={false}>
+                  <Text style={styles.totalLabel}>Total Package</Text>
+                  <Text style={styles.priceValueTotal}>{formatMoney(pricing.totalPrice, pricing.currency)}</Text>
                 </View>
-              </View>
-            ))}
-            <View style={styles.totalRow} wrap={false}>
-              <Text style={styles.totalLabel}>Total Package</Text>
-              <Text style={styles.priceValueTotal}>{formatMoney(pricing.totalPrice, pricing.currency)}</Text>
+              )}
             </View>
-          </View>
+          )}
 
           {/* TERMS AND CONDITIONS / PAYMENT INSTRUCTIONS -- the heading and
               body are one continuous Text block, not separate elements
@@ -485,62 +587,64 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
               file) so react-pdf's page-break logic can never separate a
               heading from its own content, while still allowing a break
               between sub-sections if the block runs long. */}
-          <View style={{ marginTop: 16 }}>
-            <Text style={styles.termsSectionHeading}>Terms &amp; Payment</Text>
+          {s.terms && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={styles.termsSectionHeading}>Terms &amp; Payment</Text>
 
-            <Text style={{ marginTop: 2 }}>
-              <Text style={styles.termsTitle}>Rates{'\n'}</Text>
-              <Text style={styles.termsBlock}>Rates are subject to availability and may change until booking is confirmed.</Text>
-            </Text>
-
-            <Text style={{ marginTop: 8 }}>
-              <Text style={styles.termsTitle}>Payment{'\n'}</Text>
-              <Text style={styles.termsBlock}>
-                • 50% non-refundable deposit is required upon booking.{'\n'}• Remaining balance is due at least 14 days before
-                departure.{'\n'}• Bookings made within 14 days of departure require full payment upon confirmation.
+              <Text style={{ marginTop: 2 }}>
+                <Text style={styles.termsTitle}>Rates{'\n'}</Text>
+                <Text style={styles.termsBlock}>Rates are subject to availability and may change until booking is confirmed.</Text>
               </Text>
-            </Text>
 
-            <Text style={{ marginTop: 8 }}>
-              <Text style={styles.termsTitle}>Accepted Payment Methods{'\n'}</Text>
-              <Text style={styles.termsBlock}>
-                • GCash/Maya{'\n'}• Bank Transfer{'\n'}• Credit Card
+              <Text style={{ marginTop: 8 }}>
+                <Text style={styles.termsTitle}>Payment{'\n'}</Text>
+                <Text style={styles.termsBlock}>
+                  • 50% non-refundable deposit is required upon booking.{'\n'}• Remaining balance is due at least 14 days before
+                  departure.{'\n'}• Bookings made within 14 days of departure require full payment upon confirmation.
+                </Text>
               </Text>
-            </Text>
 
-            <Text style={{ marginTop: 8 }}>
-              <Text style={styles.termsTitle}>Important{'\n'}</Text>
-              <Text style={styles.termsBlock}>
-                Cancellation, refund, rebooking, and other booking conditions are subject to Zenara Travel and Tours&apos;
-                full Terms and Conditions.
+              <Text style={{ marginTop: 8 }}>
+                <Text style={styles.termsTitle}>Accepted Payment Methods{'\n'}</Text>
+                <Text style={styles.termsBlock}>
+                  • GCash/Maya{'\n'}• Bank Transfer{'\n'}• Credit Card
+                </Text>
               </Text>
-            </Text>
 
-            <Link src="https://zenaratravelandtours.com/terms-and-conditions-zenara-travel-tours" style={[styles.termsLink, { marginTop: 4 }]}>
-              View Full Terms and Conditions
-            </Link>
-
-            {/* The acknowledgment line and the BIR Registration Seal are one
-                unbreakable unit and the very last thing in the normal flow,
-                so the seal lands on whichever page actually ends up being
-                the final one (1, 2, 3+ pages) -- no page number is
-                hardcoded. It is in-flow (never absolutely positioned) so it
-                cannot overlap other content, and not `fixed`, so it never
-                repeats on earlier pages. Grouping it with the acknowledgment
-                means that if the last page is too full for the seal, the
-                seal is carried onto the next page together with that line
-                rather than stranded alone. Size comes from the image's true
-                aspect ratio, so it is never stretched. */}
-            <View wrap={false}>
-              <Text style={[styles.termsAcknowledgment, { marginTop: 8 }]}>
-                By confirming the booking, the client acknowledges and agrees to Zenara Travel and Tours&apos; full Terms and
-                Conditions.
+              <Text style={{ marginTop: 8 }}>
+                <Text style={styles.termsTitle}>Important{'\n'}</Text>
+                <Text style={styles.termsBlock}>
+                  Cancellation, refund, rebooking, and other booking conditions are subject to Zenara Travel and Tours&apos;
+                  full Terms and Conditions.
+                </Text>
               </Text>
-              <View style={styles.birBadgeWrap}>
-                <Image src={BIR_BADGE_DATA_URI} style={styles.birBadge} />
+
+              <Link src="https://zenaratravelandtours.com/terms-and-conditions-zenara-travel-tours" style={[styles.termsLink, { marginTop: 4 }]}>
+                View Full Terms and Conditions
+              </Link>
+
+              {/* The acknowledgment line and the BIR Registration Seal are one
+                  unbreakable unit and the very last thing in the normal flow,
+                  so the seal lands on whichever page actually ends up being
+                  the final one (1, 2, 3+ pages) -- no page number is
+                  hardcoded. It is in-flow (never absolutely positioned) so it
+                  cannot overlap other content, and not `fixed`, so it never
+                  repeats on earlier pages. Grouping it with the acknowledgment
+                  means that if the last page is too full for the seal, the
+                  seal is carried onto the next page together with that line
+                  rather than stranded alone. Size comes from the image's true
+                  aspect ratio, so it is never stretched. */}
+              <View wrap={false}>
+                <Text style={[styles.termsAcknowledgment, { marginTop: 8 }]}>
+                  By confirming the booking, the client acknowledges and agrees to Zenara Travel and Tours&apos; full Terms and
+                  Conditions.
+                </Text>
+                <View style={styles.birBadgeWrap}>
+                  <Image src={BIR_BADGE_DATA_URI} style={styles.birBadge} />
+                </View>
               </View>
             </View>
-          </View>
+          )}
         </View>
 
         <View style={styles.footer} fixed>

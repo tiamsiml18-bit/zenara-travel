@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/session';
-import { renderQuotationPdf, pdfFileName } from '@/lib/services/pdf';
+import { renderQuotationPdf, pdfFileName, EmptyPdfSelectionError } from '@/lib/services/pdf';
 import { getQuotationById } from '@/lib/services/quotations';
+import { parsePdfOptions, pdfFileSuffix } from '@/lib/utils/pdf-sections';
 
 export const runtime = 'nodejs'; // react-pdf needs Node APIs, not the edge runtime
 
@@ -12,6 +13,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // unauthenticated case explicitly with a 401 below as a safety net.
   const { id } = await params;
   const isPreview = request.nextUrl.searchParams.get('preview') === '1';
+  // No ?doc=... at all means the Full Quotation, exactly as before.
+  const options = parsePdfOptions(request.nextUrl.searchParams);
+  if (!options.ok) {
+    return NextResponse.json({ error: options.error }, { status: 400 });
+  }
 
   try {
     await requireUser();
@@ -29,8 +35,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'This quotation has no version to export.' }, { status: 404 });
     }
 
-    const pdfBuffer = await renderQuotationPdf(supabase, id);
-    const fileName = pdfFileName(quotation.quotation_number, currentVersion.version_label);
+    const pdfBuffer = await renderQuotationPdf(supabase, id, options.sections);
+    const fileName = pdfFileName(quotation.quotation_number, currentVersion.version_label, pdfFileSuffix(options.mode));
 
     // Preview opens the exact same PDF in the browser's built-in viewer
     // (a new tab) instead of downloading — same bytes, same generation
@@ -51,6 +57,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (err) {
+    if (err instanceof EmptyPdfSelectionError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to generate PDF.' },
       { status: 500 }
