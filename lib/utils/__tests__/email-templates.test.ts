@@ -8,7 +8,55 @@ describe('generateQuotationEmail', () => {
     expect(draft.subject).toBe('Your Hanoi Travel Quotation');
     expect(draft.body).toContain('Hi Maria,');
     expect(draft.body).toContain('Hanoi trip');
-    expect(draft.body).toContain('Best,\nLeo');
+  });
+
+  it('uses the approved wording, greeting by the client full name and signing off with the consultant full name', () => {
+    const draft = generateQuotationEmail({
+      clientFirstName: 'Maria',
+      clientFullName: 'Maria Santos',
+      destination: 'Boracay',
+      consultantFirstName: 'Leo',
+      consultantFullName: 'Leo Reyes',
+    });
+    const [main] = draft.body.split('\n\nHow we handle your information');
+    expect(main).toBe(`Hi Maria Santos,
+
+I've attached your Boracay trip quotation, including the package details and pricing.
+
+Please have a look when you get a chance. If everything looks good, just let me know so we can assist you with the next steps. If there's anything you'd like to change, we're happy to help.
+
+Thank you for considering Zenara for your trip!
+
+Best regards,
+Leo Reyes
+Travel Consultant
+Zenara Travel & Tours
+Your Gateway to the World`);
+  });
+
+  it('takes the destination and both names from the quotation, never hardcoded', () => {
+    const draft = generateQuotationEmail({
+      clientFirstName: 'Ana',
+      clientFullName: 'Ana Lim',
+      destination: 'bangkok',
+      consultantFirstName: 'Mia',
+      consultantFullName: 'Mia Cruz',
+    });
+    expect(draft.body).toContain('Hi Ana Lim,');
+    expect(draft.body).toContain('your Bangkok trip quotation');
+    expect(draft.body).toContain('Best regards,\nMia Cruz\nTravel Consultant');
+    expect(draft.body).not.toMatch(/Boracay|Santos|Leo/);
+  });
+
+  it('falls back to the first names when full names are not available', () => {
+    const draft = generateQuotationEmail({ clientFirstName: 'Maria', destination: 'Boracay', consultantFirstName: 'Leo' });
+    expect(draft.body).toContain('Hi Maria,');
+    expect(draft.body).toContain('Best regards,\nLeo\nTravel Consultant');
+  });
+
+  it('still ends with the client privacy notice link', () => {
+    const draft = generateQuotationEmail({ clientFirstName: 'Maria', destination: 'Boracay', consultantFirstName: 'Leo' });
+    expect(draft.body).toContain('How we handle your information:');
   });
 
   it('never restates pricing or itinerary specifics — the PDF already has that', () => {

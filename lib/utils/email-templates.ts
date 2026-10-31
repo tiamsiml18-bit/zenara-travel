@@ -27,6 +27,10 @@ export function generateQuotationEmail(params: {
   clientFirstName: string;
   destination: string;
   consultantFirstName: string;
+  /** The client's full name from the quotation. The first-send email greets by full name; falls back to the first name if absent. */
+  clientFullName?: string;
+  /** The assigned consultant's full name. The first-send email signs off with it; falls back to the first name if absent. */
+  consultantFullName?: string;
   isRevision?: boolean;
 }): EmailDraft {
   const dest = titleCase(params.destination);
@@ -44,15 +48,24 @@ ${SIGN_OFF(params.consultantFirstName)}${PRIVACY_FOOTER}`,
     };
   }
 
+  const clientName = params.clientFullName?.trim() || params.clientFirstName;
+  const consultantName = params.consultantFullName?.trim() || params.consultantFirstName;
+
   return {
     subject: `Your ${dest} Travel Quotation`,
-    body: `Hi ${params.clientFirstName},
+    body: `Hi ${clientName},
 
-I'm sending over the quotation for your ${dest} trip. I've attached the full package details and pricing for your reference.
+I've attached your ${dest} trip quotation, including the package details and pricing.
 
-Please let me know what you think, and if you'd like us to adjust anything, I'll be happy to help.
+Please have a look when you get a chance. If everything looks good, just let me know so we can assist you with the next steps. If there's anything you'd like to change, we're happy to help.
 
-${SIGN_OFF(params.consultantFirstName)}${PRIVACY_FOOTER}`,
+Thank you for considering Zenara for your trip!
+
+Best regards,
+${consultantName}
+Travel Consultant
+Zenara Travel & Tours
+Your Gateway to the World${PRIVACY_FOOTER}`,
   };
 }
 

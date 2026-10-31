@@ -65,10 +65,16 @@ export default async function QuotationDetailPage({
 
   const consultantFirstName = (viewedVersion.consultant_name_snapshot ?? quotation.agent?.full_name ?? 'Your consultant').split(' ')[0]!;
   const clientFirstName = (quotation.client?.full_name ?? 'there').split(' ')[0]!;
+  // Full names for the quotation email: the consultant chosen on this quotation,
+  // else the assigned agent -- the same source the first-name sign-off already used.
+  const consultantFullName = viewedVersion.consultant_name_snapshot ?? quotation.agent?.full_name ?? undefined;
+  const clientFullName = quotation.client?.full_name ?? undefined;
   const quotationEmailDraft = generateQuotationEmail({
     clientFirstName,
+    clientFullName,
     destination: viewedVersion.destination,
     consultantFirstName,
+    consultantFullName,
     isRevision: currentVersion.version_number > 1,
   });
 
