@@ -380,42 +380,38 @@ export async function getLeadSourceBreakdown(supabase: SupabaseClient, filters: 
 
 export async function getUpcomingConfirmedTravel(supabase: SupabaseClient, limit = 8) {
   const todayIso = new Date().toISOString().slice(0, 10);
-  // Filtering/sorting on the embedded quotation_versions row is done here
-  // in application code rather than via PostgREST's embedded-filter
-  // syntax (.gte('current_version.travel_start_date', ...)) — that syntax
-  // can behave inconsistently across PostgREST versions (sometimes an
-  // inner-join filter, sometimes a left-join with nulled-out embeds), and
-  // getting it subtly wrong here would either hide real upcoming travel
-  // or silently include past dates. The confirmed-quotations dataset for
-  // a single agency is small enough that fetching them all and filtering
-  // in JS is both simpler and unambiguous.
+  // Driven by BOOKINGS, not quotations: a confirmed booking whose quotation was
+  // later revised has its quotation status reset to null, and would vanish from
+  // a quotation-based query. Only confirmed AND fully paid (payment_status =
+  // 'paid') bookings qualify, so partially paid, unpaid and cancelled ones
+  // never appear. Soft-deleted bookings and past travel dates are excluded.
   const { data, error } = await supabase
-    .from('quotations')
+    .from('bookings')
     .select(
-      `id, quotation_number,
+      `id, quotation_id, destination, travel_start_date, travel_end_date,
        client:clients ( full_name ),
-       current_version:quotation_versions!quotations_current_version_id_fkey ( destination, travel_start_date, travel_end_date )`
+       quotation:quotations ( quotation_number )`
     )
     .eq('status', 'confirmed')
-    .is('deleted_at', null);
+    .eq('payment_status', 'paid')
+    .is('deleted_at', null)
+    .gte('travel_start_date', todayIso)
+    .order('travel_start_date', { ascending: true })
+    .limit(limit);
   if (error) throw new Error(`Failed to load upcoming travel: ${error.message}`);
 
-  return (data ?? [])
-    .map((q) => {
-      const client = Array.isArray(q.client) ? q.client[0] : q.client;
-      const version = Array.isArray(q.current_version) ? q.current_version[0] : q.current_version;
-      return {
-        quotationId: q.id,
-        quotationNumber: q.quotation_number,
-        clientName: client?.full_name ?? 'Unknown',
-        destination: version?.destination ?? '—',
-        travelStartDate: version?.travel_start_date ?? null,
-        travelEndDate: version?.travel_end_date ?? null,
-      };
-    })
-    .filter((row): row is typeof row & { travelStartDate: string } => Boolean(row.travelStartDate) && row.travelStartDate! >= todayIso)
-    .sort((a, b) => a.travelStartDate.localeCompare(b.travelStartDate))
-    .slice(0, limit);
+  return (data ?? []).map((b) => {
+    const client = Array.isArray(b.client) ? b.client[0] : b.client;
+    const quotation = Array.isArray(b.quotation) ? b.quotation[0] : b.quotation;
+    return {
+      quotationId: b.quotation_id as string,
+      quotationNumber: (quotation?.quotation_number ?? '') as string,
+      clientName: client?.full_name ?? 'Unknown',
+      destination: b.destination ?? '—',
+      travelStartDate: b.travel_start_date as string,
+      travelEndDate: (b.travel_end_date ?? null) as string | null,
+    };
+  });
 }
 
 export async function getAgentPerformance(supabase: SupabaseClient, agentId?: string) {
