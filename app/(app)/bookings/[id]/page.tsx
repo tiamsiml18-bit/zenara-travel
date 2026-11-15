@@ -11,6 +11,7 @@ import {
   getEffectivePaymentDueDate,
   getPaymentDisplayStatus,
   getPaymentAuditHistory,
+  getLatestWaivedAmount,
   PAYMENT_DISPLAY_STATUS_LABELS,
 } from '@/lib/services/payments';
 import { requireUser } from '@/lib/auth/session';
@@ -54,7 +55,10 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
   ]);
 
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const balance = Math.max(0, Number(booking.total_amount) - totalPaid);
+  // An automatic administrative waiver (remainder of PHP 0.50 or less) settles
+  // the balance without being a payment, so it is subtracted here from the audit trail.
+  const waivedAmount = getLatestWaivedAmount(paymentHistory);
+  const balance = Math.max(0, Math.round((Number(booking.total_amount) - totalPaid - waivedAmount) * 100) / 100);
   const effectiveDueDate = getEffectivePaymentDueDate(booking);
   const displayStatus = getPaymentDisplayStatus({
     paymentStatus: booking.payment_status,
@@ -152,7 +156,12 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         {formatDateTime(entry.created_at)}
                         {entry.user?.full_name ? ` · ${entry.user.full_name}` : ''}
                       </p>
-                      {entry.action === 'payment.added' ? (
+                      {(entry.metadata as any)?.type === 'administrative_waiver' ? (
+                        <p className="text-ink-700">
+                          Administrative waiver of PHP {Number((entry.metadata as any).waivedAmount).toFixed(2)} applied — remaining
+                          balance settled (no payment recorded).
+                        </p>
+                      ) : entry.action === 'payment.added' ? (
                         <p className="text-ink-700">
                           Payment of {formatMoney((entry.metadata as any)?.amount)} recorded via {(entry.metadata as any)?.method}.
                         </p>
@@ -178,6 +187,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <Row label="Total package" value={formatMoney(booking.total_amount)} />
                 <Row label="Amount paid" value={formatMoney(totalPaid)} />
+                {waivedAmount > 0 && <Row label="Administrative waiver" value={`PHP ${waivedAmount.toFixed(2)}`} />}
                 <Row label="Balance" value={formatMoney(balance)} />
               </dl>
             </section>

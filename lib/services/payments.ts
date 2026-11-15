@@ -15,6 +15,55 @@ export async function listPayments(supabase: SupabaseClient, bookingId: string) 
   return (data ?? []).map((p) => ({ ...p, recorded_by: unwrapToOne(p.recorded_by) }));
 }
 
+// ---------------------------------------------------------------------------
+// Rounding & waiver policy. All money math below is done in integer centavos
+// (never floats) so a remainder can't be tipped by floating-point noise.
+//
+// A booking whose remaining balance is PHP 0.50 or less (exactly 0.50
+// included) is settled by an ADMINISTRATIVE WAIVER: the booking becomes
+// `paid`, and the waived amount is recorded in the audit trail — never as a
+// payment row, so the package price and the actual payment records stay
+// untouched. Anything above PHP 0.50 stays unpaid/partial.
+// ---------------------------------------------------------------------------
+
+export const WAIVER_THRESHOLD_CENTAVOS = 50;
+
+export function toCentavos(amount: number | string): number {
+  return Math.round(Number(amount) * 100);
+}
+
+export interface PaymentSettlement {
+  status: 'unpaid' | 'partial' | 'paid';
+  /** total - paid, in centavos (negative when overpaid). */
+  remainingCentavos: number;
+  /** Centavos waived to settle the booking; 0 unless a 1..50 centavo remainder was waived. */
+  waivedCentavos: number;
+}
+
+export function computeSettlement(paidCentavos: number, totalCentavos: number): PaymentSettlement {
+  const remainingCentavos = totalCentavos - paidCentavos;
+  if (paidCentavos <= 0) return { status: 'unpaid', remainingCentavos, waivedCentavos: 0 };
+  if (remainingCentavos <= 0) return { status: 'paid', remainingCentavos, waivedCentavos: 0 };
+  if (remainingCentavos <= WAIVER_THRESHOLD_CENTAVOS) {
+    return { status: 'paid', remainingCentavos, waivedCentavos: remainingCentavos };
+  }
+  return { status: 'partial', remainingCentavos, waivedCentavos: 0 };
+}
+
+/** True when the booking is paid in full or its remainder is within the waiver threshold. */
+export function isFullySettled(totalPaid: number, totalAmount: number): boolean {
+  return computeSettlement(toCentavos(totalPaid), toCentavos(totalAmount)).status === 'paid';
+}
+
+/** The waived amount (PHP) from the most recent administrative-waiver audit entry, or 0. Entries are newest-first. */
+export function getLatestWaivedAmount(history: Array<{ metadata?: unknown }>): number {
+  for (const entry of history) {
+    const m = entry.metadata as { type?: string; waivedAmount?: number } | null | undefined;
+    if (m?.type === 'administrative_waiver' && Number.isFinite(Number(m.waivedAmount))) return Number(m.waivedAmount);
+  }
+  return 0;
+}
+
 /**
  * Recomputes payment_status from the sum of recorded payments vs the
  * booking's total_amount. This is the single source of truth for
@@ -27,17 +76,69 @@ async function recomputePaymentStatus(supabase: SupabaseClient, bookingId: strin
   ]);
   if (!booking) return;
 
-  const totalPaid = (payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
-  const status = totalPaid <= 0 ? 'unpaid' : totalPaid >= Number(booking.total_amount) ? 'paid' : 'partial';
+  const paidCentavos = (payments ?? []).reduce((sum, p) => sum + toCentavos(p.amount), 0);
+  const totalCentavos = toCentavos(booking.total_amount);
+  const settlement = computeSettlement(paidCentavos, totalCentavos);
+  const status = settlement.status;
 
   await supabase.from('bookings').update({ payment_status: status }).eq('id', bookingId);
   return {
-    totalPaid,
+    totalPaid: paidCentavos / 100,
+    totalAmount: totalCentavos / 100,
     status,
-    balance: Math.max(0, Number(booking.total_amount) - totalPaid),
+    waivedCentavos: settlement.waivedCentavos,
+    balance: Math.max(0, settlement.remainingCentavos - settlement.waivedCentavos) / 100,
     clientId: booking.client_id,
     quotationId: booking.quotation_id as string | null,
   };
+}
+
+/**
+ * Records an automatic administrative waiver in the audit trail (shown in the
+ * booking's payment history). Not a payment: nothing is written to `payments`.
+ * Skipped when the latest waiver on file already covers the same amount.
+ */
+async function recordAdministrativeWaiver(
+  supabase: SupabaseClient,
+  params: { bookingId: string; waivedCentavos: number; totalAmount: number; totalPaid: number; actingUserId: string }
+) {
+  const waivedAmount = params.waivedCentavos / 100;
+  const { data: existing } = await supabase
+    .from('audit_logs')
+    .select('metadata')
+    .eq('entity_type', 'booking')
+    .eq('entity_id', params.bookingId)
+    .eq('action', 'booking.updated')
+    .eq('metadata->>type', 'administrative_waiver')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (toCentavos(getLatestWaivedAmount(existing ?? [])) === params.waivedCentavos) return;
+
+  await writeAudit(supabase, {
+    userId: params.actingUserId,
+    action: 'booking.updated',
+    entityType: 'booking',
+    entityId: params.bookingId,
+    metadata: {
+      type: 'administrative_waiver',
+      waivedAmount,
+      currency: 'PHP',
+      totalAmount: params.totalAmount,
+      totalPaid: params.totalPaid,
+      policy: 'Remaining balance of PHP 0.50 or less is waived automatically',
+      appliedBy: 'system',
+      recordedByUserId: params.actingUserId,
+      waivedAt: new Date().toISOString(),
+      changes: [
+        {
+          field: 'administrative_waiver',
+          label: 'Administrative waiver',
+          from: null,
+          to: `PHP ${waivedAmount.toFixed(2)} waived — balance settled`,
+        },
+      ],
+    },
+  });
 }
 
 export async function addPayment(supabase: SupabaseClient, input: PaymentInput, actingUserId: string) {
@@ -83,6 +184,16 @@ export async function addPayment(supabase: SupabaseClient, input: PaymentInput, 
     entityId: input.bookingId,
     metadata: { amount: input.amount, method: input.method },
   });
+
+  if (result && result.waivedCentavos > 0) {
+    await recordAdministrativeWaiver(supabase, {
+      bookingId: input.bookingId,
+      waivedCentavos: result.waivedCentavos,
+      totalAmount: result.totalAmount,
+      totalPaid: result.totalPaid,
+      actingUserId,
+    });
+  }
 
   return result;
 }

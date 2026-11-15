@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server-admin';
-import { getEffectivePaymentDueDate } from '@/lib/services/payments';
+import { getEffectivePaymentDueDate, isFullySettled } from '@/lib/services/payments';
 import { sendPaymentReminderEmail } from '@/lib/services/email';
 import { generatePaymentReminderEmail } from '@/lib/utils/email-templates';
 
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     const totalPaid = (payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
     const remainingBalance = Math.max(0, Number(booking.total_amount) - totalPaid);
 
-    if (remainingBalance <= 0) {
+    if (remainingBalance <= 0 || isFullySettled(totalPaid, Number(booking.total_amount))) {
       results.push({ bookingId: booking.id, outcome: 'already_paid_in_full' });
       continue;
     }
