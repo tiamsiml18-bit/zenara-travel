@@ -378,26 +378,28 @@ export async function getLeadSourceBreakdown(supabase: SupabaseClient, filters: 
     .sort((a, b) => b.client_count - a.client_count);
 }
 
-export async function getUpcomingConfirmedTravel(supabase: SupabaseClient, limit = 8) {
+export type UpcomingTravelPaymentStatus = 'paid' | 'partial';
+
+export async function getUpcomingConfirmedTravel(supabase: SupabaseClient) {
   const todayIso = new Date().toISOString().slice(0, 10);
   // Driven by BOOKINGS, not quotations: a confirmed booking whose quotation was
   // later revised has its quotation status reset to null, and would vanish from
-  // a quotation-based query. Only confirmed AND fully paid (payment_status =
-  // 'paid') bookings qualify, so partially paid, unpaid and cancelled ones
-  // never appear. Soft-deleted bookings and past travel dates are excluded.
+  // a quotation-based query. Confirmed bookings that are fully paid ('paid') or
+  // partially paid ('partial') qualify; unpaid and cancelled ones never appear.
+  // Soft-deleted bookings and past travel dates are excluded. Every eligible
+  // booking is returned, earliest travel date first (no cap).
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      `id, quotation_id, destination, travel_start_date, travel_end_date,
+      `id, quotation_id, destination, travel_start_date, travel_end_date, payment_status,
        client:clients ( full_name ),
        quotation:quotations ( quotation_number )`
     )
     .eq('status', 'confirmed')
-    .eq('payment_status', 'paid')
+    .in('payment_status', ['paid', 'partial'])
     .is('deleted_at', null)
     .gte('travel_start_date', todayIso)
-    .order('travel_start_date', { ascending: true })
-    .limit(limit);
+    .order('travel_start_date', { ascending: true });
   if (error) throw new Error(`Failed to load upcoming travel: ${error.message}`);
 
   return (data ?? []).map((b) => {
@@ -410,6 +412,7 @@ export async function getUpcomingConfirmedTravel(supabase: SupabaseClient, limit
       destination: b.destination ?? '—',
       travelStartDate: b.travel_start_date as string,
       travelEndDate: (b.travel_end_date ?? null) as string | null,
+      paymentStatus: b.payment_status as UpcomingTravelPaymentStatus,
     };
   });
 }

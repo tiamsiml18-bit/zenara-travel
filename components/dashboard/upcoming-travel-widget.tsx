@@ -8,6 +8,7 @@ interface UpcomingTravelRow {
   destination: string;
   travelStartDate: string;
   travelEndDate: string | null;
+  paymentStatus: 'paid' | 'partial';
 }
 
 function formatDayMonth(iso: string) {
@@ -25,7 +26,40 @@ function daysAway(iso: string): string {
   return `In ${diff} days`;
 }
 
+function TravelRow({ row }: { row: UpcomingTravelRow }) {
+  const { day, month } = formatDayMonth(row.travelStartDate);
+  const isPaid = row.paymentStatus === 'paid';
+  return (
+    <li>
+      <Link href={`/quotations/${row.quotationId}`} className="flex items-center gap-3 py-2.5 hover:bg-sand-50">
+        <div className="flex w-12 shrink-0 flex-col items-center rounded-md bg-harbor-50 py-1">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-harbor-600">{month}</span>
+          <span className="font-ticket text-base font-semibold text-harbor-800">{day}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink-900">{row.clientName}</p>
+          <p className="truncate text-xs text-ink-500">{row.destination}</p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              isPaid ? 'bg-harbor-100 text-harbor-700' : 'bg-warning-100 text-warning-700'
+            }`}
+          >
+            {isPaid ? 'Fully Paid' : 'Partially Paid'}
+          </span>
+          <span className="text-xs text-ink-500">{daysAway(row.travelStartDate)}</span>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
 export function UpcomingTravelWidget({ rows }: { rows: UpcomingTravelRow[] }) {
+  // Rows arrive earliest-first; each group keeps that order.
+  const fullyPaid = rows.filter((r) => r.paymentStatus === 'paid');
+  const partiallyPaid = rows.filter((r) => r.paymentStatus === 'partial');
+
   return (
     <section className="rounded-lg border border-sand-200 bg-surface p-5 shadow-card">
       <div className="mb-3 flex items-center gap-2">
@@ -35,26 +69,33 @@ export function UpcomingTravelWidget({ rows }: { rows: UpcomingTravelRow[] }) {
       {rows.length === 0 ? (
         <p className="text-sm text-ink-500">No confirmed trips departing soon.</p>
       ) : (
-        <ul className="divide-y divide-sand-100">
-          {rows.map((row) => {
-            const { day, month } = formatDayMonth(row.travelStartDate);
-            return (
-              <li key={row.quotationId}>
-                <Link href={`/quotations/${row.quotationId}`} className="flex items-center gap-3 py-2.5 hover:bg-sand-50">
-                  <div className="flex w-12 shrink-0 flex-col items-center rounded-md bg-harbor-50 py-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-harbor-600">{month}</span>
-                    <span className="font-ticket text-base font-semibold text-harbor-800">{day}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink-900">{row.clientName}</p>
-                    <p className="truncate text-xs text-ink-500">{row.destination}</p>
-                  </div>
-                  <span className="shrink-0 text-xs text-ink-500">{daysAway(row.travelStartDate)}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div>
+          {fullyPaid.length > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-harbor-700">
+                Fully Paid ({fullyPaid.length})
+              </p>
+              <ul className="divide-y divide-sand-100">
+                {fullyPaid.map((row) => (
+                  <TravelRow key={row.quotationId} row={row} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {fullyPaid.length > 0 && partiallyPaid.length > 0 && <hr className="my-4 border-t-2 border-sand-200" />}
+          {partiallyPaid.length > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-warning-700">
+                Partially Paid ({partiallyPaid.length})
+              </p>
+              <ul className="divide-y divide-sand-100">
+                {partiallyPaid.map((row) => (
+                  <TravelRow key={row.quotationId} row={row} />
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </section>
   );

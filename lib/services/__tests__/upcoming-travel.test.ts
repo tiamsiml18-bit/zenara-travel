@@ -12,6 +12,7 @@ function makeBookingsClient(rows: Row[]) {
   const q: any = {
     select: () => q,
     eq: (col: string, v: unknown) => (filters.push((r) => r[col] === v), q),
+    in: (col: string, vs: unknown[]) => (filters.push((r) => vs.includes(r[col])), q),
     is: (col: string, v: unknown) => (filters.push((r) => (r[col] ?? null) === v), q),
     gte: (col: string, v: string) => (filters.push((r) => r[col] >= v), q),
     order: (col: string, o: { ascending: boolean }) => ((orderBy = { col, asc: o.ascending }), q),
@@ -36,16 +37,20 @@ describe('getUpcomingConfirmedTravel', () => {
 
   const today = () => vi.useFakeTimers().setSystemTime(new Date('2026-11-16T00:00:00Z'));
 
-  it('shows confirmed + fully paid upcoming bookings (Irabon, Joe Marie) and hides Romeo (partial), earliest first', async () => {
+  it('returns Irabon and Joe Marie as paid and Romeo as partial, all earliest first', async () => {
     today();
     const rows = [
       booking({ id: 'joe', quotation_id: 'qt-1505', client: { full_name: 'Joe Marie Bautista-Schiffner' }, destination: 'Boracay', travel_start_date: '2026-12-19' }),
       booking({ id: 'romeo', quotation_id: 'qt-1220', client: { full_name: 'Romeo Tambua' }, payment_status: 'partial', travel_start_date: '2026-12-12' }),
-      // Irabon's quotation status is null after a revision — irrelevant now, the booking is what counts.
+      // Irabon's quotation status is null after a revision — irrelevant, the booking is what counts.
       booking({ id: 'irabon', quotation_id: 'qt-1506', client: { full_name: 'Dr. Ma. Jeniffer Irabon' }, quotation: { quotation_number: 'QT-2026-01506' }, destination: 'Da Nang, Vietnam', travel_start_date: '2026-12-02' }),
     ];
     const result = await getUpcomingConfirmedTravel(makeBookingsClient(rows));
-    expect(result.map((r) => r.clientName)).toEqual(['Dr. Ma. Jeniffer Irabon', 'Joe Marie Bautista-Schiffner']);
+    expect(result.map((r) => [r.clientName, r.paymentStatus])).toEqual([
+      ['Dr. Ma. Jeniffer Irabon', 'paid'],
+      ['Romeo Tambua', 'partial'],
+      ['Joe Marie Bautista-Schiffner', 'paid'],
+    ]);
     expect(result[0]).toEqual({
       quotationId: 'qt-1506',
       quotationNumber: 'QT-2026-01506',
@@ -53,22 +58,27 @@ describe('getUpcomingConfirmedTravel', () => {
       destination: 'Da Nang, Vietnam',
       travelStartDate: '2026-12-02',
       travelEndDate: '2026-12-14',
+      paymentStatus: 'paid',
     });
   });
 
-  it('excludes unpaid, partial, cancelled, pending, soft-deleted and past-dated bookings', async () => {
+  it('excludes unpaid, cancelled, pending, soft-deleted and past-dated bookings', async () => {
     today();
     const rows = [
-      booking({ id: 'ok', client: { full_name: 'Eligible' } }),
+      booking({ id: 'paid', client: { full_name: 'Paid' } }),
+      booking({ id: 'partial', client: { full_name: 'Partial' }, payment_status: 'partial' }),
       booking({ id: 'unpaid', payment_status: 'unpaid' }),
-      booking({ id: 'partial', payment_status: 'partial' }),
+      booking({ id: 'refunded', payment_status: 'refunded' }),
       booking({ id: 'cancelled', status: 'cancelled' }),
+      booking({ id: 'cancelled-partial', status: 'cancelled', payment_status: 'partial' }),
       booking({ id: 'pending', status: 'pending' }),
       booking({ id: 'deleted', deleted_at: '2026-11-01T00:00:00Z' }),
+      booking({ id: 'deleted-partial', deleted_at: '2026-11-01T00:00:00Z', payment_status: 'partial' }),
       booking({ id: 'past', travel_start_date: '2026-10-04' }),
+      booking({ id: 'past-partial', travel_start_date: '2026-10-04', payment_status: 'partial' }),
     ];
     const result = await getUpcomingConfirmedTravel(makeBookingsClient(rows));
-    expect(result.map((r) => r.clientName)).toEqual(['Eligible']);
+    expect(result.map((r) => r.clientName).sort()).toEqual(['Paid', 'Partial']);
   });
 
   it('includes a trip departing today and sorts strictly by earliest travel date', async () => {
@@ -82,11 +92,13 @@ describe('getUpcomingConfirmedTravel', () => {
     expect(result.map((r) => r.clientName)).toEqual(['A', 'B', 'C']);
   });
 
-  it('keeps the existing cap of 8 (earliest 8 kept)', async () => {
+  it('returns every eligible booking — there is no cap', async () => {
     today();
-    const rows = Array.from({ length: 10 }, (_, i) => booking({ id: `b${i}`, client: { full_name: `C${i}` }, travel_start_date: `2026-12-${String(10 + i).padStart(2, '0')}` }));
+    const rows = Array.from({ length: 12 }, (_, i) =>
+      booking({ id: `b${i}`, client: { full_name: `C${i}` }, payment_status: i % 2 ? 'partial' : 'paid', travel_start_date: `2026-12-${String(10 + i).padStart(2, '0')}` })
+    );
     const result = await getUpcomingConfirmedTravel(makeBookingsClient(rows));
-    expect(result).toHaveLength(8);
+    expect(result).toHaveLength(12);
     expect(result[0]!.clientName).toBe('C0');
   });
 
