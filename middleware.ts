@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { completeRecoveryExchange } from '@/lib/auth/password-reset';
 
 const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password', '/privacy'];
 
@@ -17,6 +18,8 @@ export async function middleware(request: NextRequest) {
   }
 
   let response = NextResponse.next({ request: { headers: request.headers } });
+  // Cookies Supabase asks us to set, kept so they can be carried onto a redirect.
+  const pendingCookies: Array<{ name: string; value: string; options: CookieOptions }> = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,15 +33,30 @@ export async function middleware(request: NextRequest) {
           request.cookies.set({ name, value, ...options });
           response = NextResponse.next({ request: { headers: request.headers } });
           response.cookies.set({ name, value, ...options });
+          pendingCookies.push({ name, value, options });
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: '', ...options });
           response = NextResponse.next({ request: { headers: request.headers } });
           response.cookies.set({ name, value: '', ...options });
+          pendingCookies.push({ name, value: '', options });
         },
       },
     }
   );
+
+  // Password-recovery emails link to /reset-password?code=… (PKCE). Turn that
+  // one-time code into a session here — cookies can't be written from the page
+  // itself — then drop the code from the URL. A bad/used/expired code lands on
+  // the page's friendly "request a new link" state.
+  if (request.nextUrl.pathname === '/reset-password' && request.nextUrl.searchParams.has('code')) {
+    const exchange = await completeRecoveryExchange(supabase, request.nextUrl.searchParams.get('code')!);
+    const target = new URL('/reset-password', request.url);
+    if (!exchange.ok) target.searchParams.set('link_error', 'invalid');
+    const redirectResponse = NextResponse.redirect(target);
+    for (const c of pendingCookies) redirectResponse.cookies.set({ name: c.name, value: c.value, ...c.options });
+    return redirectResponse;
+  }
 
   // Refresh the session if it's expired — required for Server Components,
   // which cannot write cookies themselves.
